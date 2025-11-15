@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Place } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Users, CalendarClock, ChevronDown, MapPin } from 'lucide-react';
+import { Users, CalendarClock, ChevronDown, MapPin, Search } from 'lucide-react';
 import { citiesByState } from '../data/locations';
 
 const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' => {
@@ -43,6 +43,7 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
 const MainPage: React.FC = () => {
     const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces } = useAppContext();
     
+    const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
     const [selectedCrowdLevel, setSelectedCrowdLevel] = useState<string>('Todos');
     const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.city || '');
@@ -86,6 +87,9 @@ const MainPage: React.FC = () => {
 
     const filteredPlaces = useMemo(() => {
         return places.filter(place => {
+            const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
+            if (!searchMatch) return false;
+
             const categoryMatch = selectedCategory === 'Todos' || place.category === selectedCategory;
             if (!categoryMatch) return false;
 
@@ -97,7 +101,7 @@ const MainPage: React.FC = () => {
             
             return true;
         });
-    }, [places, selectedCategory, selectedCrowdLevel]);
+    }, [places, searchQuery, selectedCategory, selectedCrowdLevel]);
 
     if (isLoading) {
         return <LoadingSpinner message="Buscando locais..." />;
@@ -110,6 +114,17 @@ const MainPage: React.FC = () => {
     return (
         <div className="p-4">
             <h1 className="text-3xl font-bold mb-4">Locais</h1>
+
+            <div className="relative mb-4">
+                <input
+                    type="text"
+                    placeholder="Buscar pelo nome..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-surface px-4 py-2 pl-10 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+            </div>
             
             <div className="grid grid-cols-3 gap-2 mb-6">
                 {/* Category Filter */}
@@ -166,7 +181,7 @@ const MainPage: React.FC = () => {
             </div>
 
             <div>
-                {places.length > 0 ? (
+                {filteredPlaces.length > 0 ? (
                      filteredPlaces.map(place => (
                         <PlaceCard 
                           key={place.id} 
@@ -177,8 +192,8 @@ const MainPage: React.FC = () => {
                     ))
                 ) : (
                     <div className="text-center text-text-secondary mt-8">
-                        <p>Nenhum local encontrado para "{selectedLocation}".</p>
-                        <p className="text-sm">Tente outra cidade ou cadastre sua cidade no perfil.</p>
+                        <p>Nenhum local encontrado para "{selectedLocation}" com os filtros aplicados.</p>
+                        <p className="text-sm">Tente ajustar sua busca ou filtros.</p>
                     </div>
                 )}
             </div>

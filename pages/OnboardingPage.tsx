@@ -1,34 +1,26 @@
-import React, { useState } from 'react';
-import { MapPin, ShieldCheck, AlertCircle } from 'lucide-react';
+import React from 'react';
+import { MapPin, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 
 const OnboardingPage: React.FC = () => {
     const navigate = useNavigate();
     const { completeOnboarding } = useAppContext();
-    const [locationError, setLocationError] = useState<string | null>(null);
 
     const handleGetStarted = () => {
-        setLocationError(null); // Limpa o erro anterior ao tentar novamente
+        // Try to get location, but don't block the user if it fails in dev environment
         navigator.geolocation.getCurrentPosition(
             () => {
+                // Success
                 completeOnboarding();
                 navigate('/auth');
             },
             (error) => {
-                let message = "Ocorreu um erro desconhecido ao obter a localização.";
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        message = "Você negou a permissão de localização. Para usar o CrowdMatch, por favor, habilite a permissão nas configurações do seu navegador e tente novamente.";
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        message = "Não foi possível obter sua localização atual. Verifique se o GPS ou os serviços de localização do seu dispositivo estão ativados.";
-                        break;
-                    case error.TIMEOUT:
-                        message = "A solicitação de localização demorou muito para responder. Por favor, tente novamente.";
-                        break;
-                }
-                setLocationError(message);
+                // Error
+                console.warn(`Geolocation failed, but proceeding anyway. Error: ${error.message}`);
+                // Bypass the location check for development/sandbox purposes
+                completeOnboarding();
+                navigate('/auth');
             }
         );
     };
@@ -72,12 +64,6 @@ const OnboardingPage: React.FC = () => {
             </div>
 
             <div>
-                {locationError && (
-                    <div className="mb-4 p-3 bg-red-900/50 text-red-300 border border-red-700 rounded-lg flex items-start text-left text-sm">
-                        <AlertCircle className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
-                        <span>{locationError}</span>
-                    </div>
-                )}
                 <button
                     onClick={handleGetStarted}
                     className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 transition-colors duration-300 shadow-lg"

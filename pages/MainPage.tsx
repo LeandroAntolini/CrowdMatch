@@ -4,6 +4,7 @@ import { useAppContext } from '../context/AppContext';
 import { Place } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Users, CalendarClock, ChevronDown, MapPin } from 'lucide-react';
+import { citiesByState } from '../data/locations';
 
 const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' => {
     if (count < 2) return 'Tranquilo';
@@ -55,10 +56,10 @@ const MainPage: React.FC = () => {
     const locationRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (currentUser?.city) {
+        if (currentUser?.city && !selectedLocation) {
             setSelectedLocation(currentUser.city);
         }
-    }, [currentUser?.city]);
+    }, [currentUser?.city, selectedLocation]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -75,13 +76,13 @@ const MainPage: React.FC = () => {
 
     const categories = useMemo(() => ['Todos', ...new Set(places.map(p => p.category))], [places]);
     const crowdLevels = ['Todos', 'Tranquilo', 'Moderado', 'Agitado'];
+    
     const locations = useMemo(() => {
-        const citySet = new Set(places.map(p => p.city));
-        if (currentUser?.city) {
-            citySet.add(currentUser.city);
+        if (currentUser?.state && citiesByState[currentUser.state]) {
+            return citiesByState[currentUser.state];
         }
-        return Array.from(citySet);
-    }, [places, currentUser?.city]);
+        return currentUser?.city ? [currentUser.city] : [];
+    }, [currentUser?.state, currentUser?.city]);
 
     const filteredPlaces = useMemo(() => {
         return places.filter(place => {

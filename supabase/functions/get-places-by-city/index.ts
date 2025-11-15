@@ -44,8 +44,8 @@ serve(async (req) => {
         });
     }
 
-    // Busca por locais usando a API do Google Places
-    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=bares%20e%20baladas%20em%20${encodeURIComponent(city)}&key=${apiKey}&language=pt-BR`;
+    // Busca por locais usando a API do Google Places - AGORA INCLUINDO RESTAURANTES
+    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=bares,%20restaurantes%20e%20baladas%20em%20${encodeURIComponent(city)}&key=${apiKey}&language=pt-BR`;
     
     const searchResponse = await fetch(searchUrl);
     if (!searchResponse.ok) {

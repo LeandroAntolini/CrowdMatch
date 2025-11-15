@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
-import { generateMockPlaces, generateMockUsers } from '../services/mockDataService';
+import { generateMockUsers } from '../services/mockDataService';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
@@ -30,6 +30,7 @@ interface AppContextType {
     addGoingIntention: (placeId: string) => void;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
+    fetchPlaces: (city: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -52,7 +53,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
-            setIsLoading(false);
         });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -106,65 +106,82 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         }));
                         setUsers(allUsers);
                     }
-                    setIsLoading(false);
                 });
         } else {
             setCurrentUser(null);
             setUsers([]);
+            setIsLoading(false);
         }
     }, [session]);
 
-
-    const initializeMockData = useCallback(async () => {
-        // This function now only loads data that is still mocked
+    const fetchPlaces = async (city: string) => {
+        if (!city) return;
         setIsLoading(true);
         setError(null);
         try {
-            const mockPlaces = await generateMockPlaces();
-            setPlaces(mockPlaces);
-            
-            // Generate some mock users for check-ins and intentions if no real users exist yet
-            if (users.length < 15) {
-                const mockUsers = await generateMockUsers(15);
-                const simulatedCheckins: CheckIn[] = [];
-                mockUsers.slice(1, 8).forEach((user, index) => {
-                    if (mockPlaces.length > 0) {
-                         const placeIndex = index % mockPlaces.length;
-                         simulatedCheckins.push({
-                             userId: user.id,
-                             placeId: mockPlaces[placeIndex].id,
-                             timestamp: Date.now()
-                         });
-                    }
-                });
-                setCheckIns(simulatedCheckins);
-    
-                const simulatedIntentions: GoingIntention[] = [];
-                mockUsers.slice(8, 12).forEach((user, index) => {
-                    if (mockPlaces.length > 0) {
-                        const placeIndex = (index + 4) % mockPlaces.length;
-                        simulatedIntentions.push({
-                            userId: user.id,
-                            placeId: mockPlaces[placeIndex].id,
-                            timestamp: Date.now()
-                        });
-                    }
-                });
-                setGoingIntentions(simulatedIntentions);
+            const { data, error } = await supabase.functions.invoke('get-places-by-city', {
+                body: { city },
+            });
+
+            if (error) throw error;
+
+            if (Array.isArray(data)) {
+                setPlaces(data);
+            } else {
+                throw new Error("Recebeu dados inválidos da função de locais.");
             }
 
-        } catch (e) {
-            console.error("Failed to initialize mock data:", e);
-            setError("Não foi possível carregar os dados do app. Verifique sua chave de API do Gemini e atualize a página.");
+        } catch (e: any) {
+            console.error("Falha ao buscar locais:", e);
+            setError("Não foi possível carregar os locais. Verifique sua chave de API do Google e tente novamente.");
+            setPlaces([]);
         } finally {
-            // Loading is handled by session management now
-            // setIsLoading(false);
+            setIsLoading(false);
         }
-    }, [users.length]);
+    };
 
     useEffect(() => {
-        initializeMockData();
-    }, [initializeMockData]);
+        if (currentUser?.city) {
+            fetchPlaces(currentUser.city);
+        } else if (session) {
+            // If user is logged in but has no city, stop loading
+            setIsLoading(false);
+        }
+    }, [currentUser?.city, session]);
+
+    // Popula check-ins e intenções de exemplo depois que os locais reais são carregados
+    useEffect(() => {
+        const initializeMockInteractions = async () => {
+            if (places.length === 0 || users.length < 15) return;
+
+            const mockUsers = await generateMockUsers(15);
+            
+            const simulatedCheckins: CheckIn[] = [];
+            mockUsers.slice(1, 8).forEach((user, index) => {
+                const placeIndex = index % places.length;
+                simulatedCheckins.push({
+                    userId: user.id,
+                    placeId: places[placeIndex].id,
+                    timestamp: Date.now()
+                });
+            });
+            setCheckIns(simulatedCheckins);
+
+            const simulatedIntentions: GoingIntention[] = [];
+            mockUsers.slice(8, 12).forEach((user, index) => {
+                const placeIndex = (index + 4) % places.length;
+                simulatedIntentions.push({
+                    userId: user.id,
+                    placeId: places[placeIndex].id,
+                    timestamp: Date.now()
+                });
+            });
+            setGoingIntentions(simulatedIntentions);
+        };
+
+        initializeMockInteractions();
+    }, [places, users.length]);
+
 
     const logout = async () => {
         await supabase.auth.signOut();
@@ -269,7 +286,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             updated_at: new Date().toISOString(),
         };
 
-        // Remove any keys that are undefined, so we only update fields that were actually changed.
         Object.keys(profileDataToUpdate).forEach(key => {
             if (profileDataToUpdate[key] === undefined) {
                 delete profileDataToUpdate[key];
@@ -296,7 +312,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
             setCurrentUser(updatedUser);
             setUsers(prevUsers => prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
-            setError(null); // Clear error on success
+            setError(null);
         }
     };
 
@@ -326,6 +342,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addGoingIntention,
         removeGoingIntention,
         getCurrentGoingIntention,
+        fetchPlaces,
     }
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,4 +1,4 @@
-import { Place, User, GENDERS, SEXUAL_ORIENTATIONS } from '../types';
+import { User, GENDERS, SEXUAL_ORIENTATIONS } from '../types';
 
 const FAKE_USER_ID = 'user_0';
 
@@ -34,29 +34,4 @@ export const generateMockUsers = async (count: number): Promise<User[]> => {
             sexualOrientations: SEXUAL_ORIENTATIONS.filter(s => s !== 'Outro'),
         }
     }));
-};
-
-const predefinedPlaces = [
-    { name: "Velvet Lounge", category: "Boate", lat: -23.5505, lng: -46.6333, city: "Vitória", state: "ES" },
-    { name: "Bar Neon Cactus", category: "Bar", lat: -23.5515, lng: -46.6345, city: "Vila Velha", state: "ES" },
-    { name: "Casa de Shows Starlight", category: "Casa de Show", lat: -23.5495, lng: -46.6320, city: "Vitória", state: "ES" },
-    { name: "Pub O Alquimista", category: "Pub", lat: -23.5525, lng: -46.6350, city: "Vila Velha", state: "ES" },
-    { name: "Rooftop 360", category: "Bar no Terraço", lat: -23.5480, lng: -46.6360, city: "Serra", state: "ES" },
-];
-
-export const generateMockPlaces = async (): Promise<Place[]> => {
-    return predefinedPlaces.map((place, index) => ({
-        id: `place_${index}`,
-        name: place.name,
-        address: `Rua Fictícia, ${100 + index * 5}, ${place.city}, ${place.state}`,
-        category: place.category,
-        rating: 4.0 + (Math.random()),
-        photoUrl: `https://picsum.photos/seed/${place.name}/400/300`,
-        distance: Math.round(Math.random() * 1500),
-        isOpen: Math.random() > 0.2,
-        lat: place.lat,
-        lng: place.lng,
-        city: place.city,
-        state: place.state,
-    })).sort((a, b) => a.distance - b.distance);
 };

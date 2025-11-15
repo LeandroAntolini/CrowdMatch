@@ -40,11 +40,11 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
 
 
 const MainPage: React.FC = () => {
-    const { places, checkIns, goingIntentions, isLoading, error, currentUser } = useAppContext();
+    const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces } = useAppContext();
     
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
     const [selectedCrowdLevel, setSelectedCrowdLevel] = useState<string>('Todos');
-    const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.city || 'Todas');
+    const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.city || '');
     
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isCrowdLevelOpen, setIsCrowdLevelOpen] = useState(false);
@@ -55,10 +55,10 @@ const MainPage: React.FC = () => {
     const locationRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (currentUser?.city && selectedLocation === 'Todas') {
+        if (currentUser?.city) {
             setSelectedLocation(currentUser.city);
         }
-    }, [currentUser]);
+    }, [currentUser?.city]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -75,14 +75,18 @@ const MainPage: React.FC = () => {
 
     const categories = useMemo(() => ['Todos', ...new Set(places.map(p => p.category))], [places]);
     const crowdLevels = ['Todos', 'Tranquilo', 'Moderado', 'Agitado'];
-    const locations = useMemo(() => ['Todas', ...new Set(places.map(p => p.city))], [places]);
+    const locations = useMemo(() => {
+        const citySet = new Set(places.map(p => p.city));
+        if (currentUser?.city) {
+            citySet.add(currentUser.city);
+        }
+        return Array.from(citySet);
+    }, [places, currentUser?.city]);
 
     const filteredPlaces = useMemo(() => {
         return places.filter(place => {
             const categoryMatch = selectedCategory === 'Todos' || place.category === selectedCategory;
-            const locationMatch = selectedLocation === 'Todas' || place.city === selectedLocation;
-            
-            if (!categoryMatch || !locationMatch) return false;
+            if (!categoryMatch) return false;
 
             if (selectedCrowdLevel !== 'Todos') {
                 const crowdCount = getCrowdCount(place.id);
@@ -92,10 +96,10 @@ const MainPage: React.FC = () => {
             
             return true;
         });
-    }, [places, selectedCategory, selectedCrowdLevel, selectedLocation, checkIns]);
+    }, [places, selectedCategory, selectedCrowdLevel]);
 
     if (isLoading) {
-        return <LoadingSpinner message="Carregando locais..." />;
+        return <LoadingSpinner message="Buscando locais..." />;
     }
 
     if (error) {
@@ -145,13 +149,13 @@ const MainPage: React.FC = () => {
                 <div className="relative" ref={locationRef}>
                     <button onClick={() => setIsLocationOpen(!isLocationOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
                         <MapPin size={14} className="mr-1 text-text-secondary" />
-                        <span className="truncate">{selectedLocation}</span>
+                        <span className="truncate">{selectedLocation || 'Selecione'}</span>
                         <ChevronDown size={16} className={`transition-transform duration-200 ${isLocationOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {isLocationOpen && (
                         <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
                             {locations.map(loc => (
-                                <li key={loc} onClick={() => { setSelectedLocation(loc); setIsLocationOpen(false); }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
+                                <li key={loc} onClick={() => { setSelectedLocation(loc); setIsLocationOpen(false); fetchPlaces(loc); }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
                                     {loc}
                                 </li>
                             ))}
@@ -161,7 +165,7 @@ const MainPage: React.FC = () => {
             </div>
 
             <div>
-                {filteredPlaces.length > 0 ? (
+                {places.length > 0 ? (
                      filteredPlaces.map(place => (
                         <PlaceCard 
                           key={place.id} 
@@ -171,7 +175,10 @@ const MainPage: React.FC = () => {
                         />
                     ))
                 ) : (
-                    <p className="text-center text-text-secondary mt-8">Nenhum local corresponde aos seus filtros.</p>
+                    <div className="text-center text-text-secondary mt-8">
+                        <p>Nenhum local encontrado para "{selectedLocation}".</p>
+                        <p className="text-sm">Tente outra cidade ou cadastre sua cidade no perfil.</p>
+                    </div>
                 )}
             </div>
         </div>

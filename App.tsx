@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';
@@ -31,7 +30,7 @@ const AppContent: React.FC = () => {
         <HashRouter>
             <div className="h-screen w-screen bg-background text-text-primary font-sans overflow-hidden">
                 <main className="h-full w-full max-w-md mx-auto relative flex flex-col">
-                    <div className="flex-grow overflow-y-auto pb-16">
+                    <div className="flex-grow overflow-y-auto pb-16 no-scrollbar">
                          <Routes>
                             {!hasOnboarded && <Route path="/" element={<OnboardingPage />} />}
                             {hasOnboarded && !isAuthenticated && (

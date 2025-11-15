@@ -1,0 +1,9 @@
+/* Helper class to hide scrollbars */
+.no-scrollbar::-webkit-scrollbar {
+    display: none; /* for Chrome, Safari, and Opera */
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none; /* for Internet Explorer and Edge */
+    scrollbar-width: none; /* for Firefox */
+}

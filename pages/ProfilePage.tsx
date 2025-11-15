@@ -9,9 +9,17 @@ const ProfilePage: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
 
     useEffect(() => {
-        // Create a deep copy to avoid direct state mutation
         if (currentUser) {
-            setUser(JSON.parse(JSON.stringify(currentUser)));
+            // Deep copy to avoid direct state mutation
+            const userCopy = JSON.parse(JSON.stringify(currentUser));
+            
+            // Ensure matchPreferences exists to prevent runtime errors.
+            // This handles cases where a user profile might not have this field yet.
+            if (!userCopy.matchPreferences) {
+                userCopy.matchPreferences = { genders: [], sexualOrientations: [] };
+            }
+            
+            setUser(userCopy);
         }
     }, [currentUser]);
 
@@ -31,6 +39,7 @@ const ProfilePage: React.FC = () => {
         setUser(prevUser => {
             if (!prevUser) return null;
     
+            // Now we can safely access matchPreferences
             const currentPrefs = prevUser.matchPreferences[category];
             const newPrefs = currentPrefs.includes(value)
                 ? currentPrefs.filter(item => item !== value)

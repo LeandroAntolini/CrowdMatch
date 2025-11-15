@@ -1,4 +1,3 @@
-
 export const GENDERS = ["Homem", "Mulher", "Não-binário", "Outro"];
 export const SEXUAL_ORIENTATIONS = ["Heterossexual", "Homossexual", "Bissexual", "Pansexual", "Assexual", "Outro"];
 
@@ -15,7 +14,7 @@ export interface User {
   interests: string[];
   photos: string[];
   isAvailableForMatch: boolean;
-  email?: string;
+  email: string;
   gender: string;
   sexualOrientation: string;
   matchPreferences: MatchPreferences;

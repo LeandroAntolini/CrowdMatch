@@ -1,19 +1,22 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { User, GENDERS, SEXUAL_ORIENTATIONS, MatchPreferences } from '../types';
 import { Plus, X } from 'lucide-react';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ProfilePage: React.FC = () => {
     const { currentUser, updateUserProfile, logout } = useAppContext();
-    const [user, setUser] = useState<User | null>(currentUser);
+    const [user, setUser] = useState<User | null>(null);
 
     useEffect(() => {
-        setUser(currentUser);
+        // Create a deep copy to avoid direct state mutation
+        if (currentUser) {
+            setUser(JSON.parse(JSON.stringify(currentUser)));
+        }
     }, [currentUser]);
 
     if (!user) {
-        return <div>Carregando perfil...</div>;
+        return <LoadingSpinner message="Carregando perfil..." />;
     }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -127,6 +130,10 @@ const ProfilePage: React.FC = () => {
                 <div>
                     <label className="block text-sm font-medium text-text-secondary">Nome</label>
                     <input type="text" name="name" value={user.name} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-text-secondary">Idade</label>
+                    <input type="number" name="age" value={user.age} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-text-secondary">Bio</label>

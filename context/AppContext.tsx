@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
 import { generateMockPlaces, generateMockUsers } from '../services/mockDataService';
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
 interface AppContextType {

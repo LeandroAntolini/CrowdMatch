@@ -3,23 +3,24 @@ import { useAppContext } from '../context/AppContext';
 import { User, GENDERS, SEXUAL_ORIENTATIONS, MatchPreferences } from '../types';
 import { Plus, X } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { brazilianStates, citiesByState } from '../data/locations';
 
 const ProfilePage: React.FC = () => {
     const { currentUser, updateUserProfile, logout } = useAppContext();
     const [user, setUser] = useState<User | null>(null);
+    const [availableCities, setAvailableCities] = useState<string[]>([]);
 
     useEffect(() => {
         if (currentUser) {
-            // Deep copy to avoid direct state mutation
             const userCopy = JSON.parse(JSON.stringify(currentUser));
-            
-            // Ensure matchPreferences exists to prevent runtime errors.
-            // This handles cases where a user profile might not have this field yet.
             if (!userCopy.matchPreferences) {
                 userCopy.matchPreferences = { genders: [], sexualOrientations: [] };
             }
-            
             setUser(userCopy);
+            // Define as cidades disponíveis com base no estado inicial do usuário
+            if (userCopy.state) {
+                setAvailableCities(citiesByState[userCopy.state] || []);
+            }
         }
     }, [currentUser]);
 
@@ -32,14 +33,24 @@ const ProfilePage: React.FC = () => {
         setUser(prev => prev ? { ...prev, [name]: value } : null);
     };
 
+    const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newState = e.target.value;
+        const newCities = citiesByState[newState] || [];
+        setAvailableCities(newCities);
+
+        setUser(prev => prev ? { 
+            ...prev, 
+            state: newState,
+            city: newCities[0] || '' // Define a primeira cidade da lista como padrão
+        } : null);
+    };
+
     const handlePreferenceChange = (
         category: keyof MatchPreferences,
         value: string
     ) => {
         setUser(prevUser => {
             if (!prevUser) return null;
-    
-            // Now we can safely access matchPreferences
             const currentPrefs = prevUser.matchPreferences[category];
             const newPrefs = currentPrefs.includes(value)
                 ? currentPrefs.filter(item => item !== value)
@@ -59,7 +70,6 @@ const ProfilePage: React.FC = () => {
         setUser(prevUser => {
             if (!prevUser) return null;
             const updatedUser = { ...prevUser, isAvailableForMatch: !prevUser.isAvailableForMatch };
-            // Instantly save this specific change for better UX
             updateUserProfile(updatedUser);
             return updatedUser;
         });
@@ -72,7 +82,6 @@ const ProfilePage: React.FC = () => {
         }
     };
 
-    // --- Photo Management Handlers ---
     const handleSetMainPhoto = (indexToMakeMain: number) => {
         setUser(prevUser => {
             if (!prevUser || indexToMakeMain < 0 || indexToMakeMain >= prevUser.photos.length) return prevUser;
@@ -106,11 +115,9 @@ const ProfilePage: React.FC = () => {
             return { ...prevUser, photos: [...prevUser.photos, newPhotoUrl] };
         });
     };
-    // --- End Photo Management Handlers ---
 
     return (
         <div className="p-4 space-y-6">
-            {/* Photo Gallery Section */}
             <div className="space-y-3">
                  <div className="relative w-full aspect-[4/5] bg-surface rounded-xl overflow-hidden shadow-lg">
                     <img src={user.photos[0]} alt="Foto principal do perfil" className="w-full h-full object-cover" />
@@ -134,7 +141,6 @@ const ProfilePage: React.FC = () => {
                 </div>
             </div>
             
-            {/* Profile Info Section */}
             <div className="space-y-4">
                 <div>
                     <label className="block text-sm font-medium text-text-secondary">Nome</label>
@@ -158,12 +164,18 @@ const ProfilePage: React.FC = () => {
                 </div>
                 <div className="flex gap-4">
                     <div className="w-1/2">
-                        <label className="block text-sm font-medium text-text-secondary">Cidade</label>
-                        <input type="text" name="city" value={user.city || ''} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                        <label className="block text-sm font-medium text-text-secondary">Estado</label>
+                        <select name="state" value={user.state || ''} onChange={handleStateChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                            <option value="">Selecione...</option>
+                            {brazilianStates.map(s => <option key={s.abbr} value={s.abbr}>{s.name}</option>)}
+                        </select>
                     </div>
                     <div className="w-1/2">
-                        <label className="block text-sm font-medium text-text-secondary">Estado</label>
-                        <input type="text" name="state" value={user.state || ''} onChange={handleInputChange} maxLength={2} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                        <label className="block text-sm font-medium text-text-secondary">Cidade</label>
+                        <select name="city" value={user.city || ''} onChange={handleInputChange} disabled={!user.state} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-800">
+                            <option value="">Selecione...</option>
+                            {availableCities.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
                     </div>
                 </div>
                 <div>
@@ -178,7 +190,6 @@ const ProfilePage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Match Preferences Section */}
             <div className="space-y-4 p-4 bg-surface rounded-lg">
                 <h2 className="font-semibold text-text-primary">Quem você quer encontrar?</h2>
                 <div>
@@ -205,7 +216,6 @@ const ProfilePage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Availability & Actions */}
             <div className="flex items-center justify-between bg-surface p-3 rounded-lg">
                 <span id="availability-label" className="font-medium">Disponível para Match</span>
                 <button onClick={handleToggleAvailability} role="switch" aria-checked={user.isAvailableForMatch} aria-labelledby="availability-label" className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${user.isAvailableForMatch ? 'bg-accent' : 'bg-gray-600'}`}>

@@ -1,0 +1,7 @@
+{
+  "name": "CrowdMatch",
+  "description": "A web application that provides real-time crowd estimates for local venues and offers a location-based matching feature for users checked-in at the same place.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

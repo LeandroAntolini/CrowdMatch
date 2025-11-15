@@ -82,6 +82,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                             email: session.user.email!,
                             sexualOrientation: data.sexual_orientation,
                             isAvailableForMatch: data.is_available_for_match,
+                            matchPreferences: data.match_preferences,
                         };
                         setCurrentUser(userProfile);
                     }
@@ -101,6 +102,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                             email: 'hidden', // Don't expose other users' emails
                             sexualOrientation: profile.sexual_orientation,
                             isAvailableForMatch: profile.is_available_for_match,
+                            matchPreferences: profile.match_preferences,
                         }));
                         setUsers(allUsers);
                     }
@@ -251,19 +253,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const updateUserProfile = async (updatedProfile: Partial<User>) => {
         if (!currentUser) return;
-        
-        const { id, email, ...updateData } = updatedProfile;
 
-        const profileDataToUpdate = {
-            ...updateData,
+        const profileDataToUpdate: { [key: string]: any } = {
+            name: updatedProfile.name,
+            age: updatedProfile.age,
+            bio: updatedProfile.bio,
+            interests: updatedProfile.interests,
+            photos: updatedProfile.photos,
+            gender: updatedProfile.gender,
             sexual_orientation: updatedProfile.sexualOrientation,
             is_available_for_match: updatedProfile.isAvailableForMatch,
+            match_preferences: updatedProfile.matchPreferences,
             updated_at: new Date().toISOString(),
         };
-        // remove undefined properties that came from mapping
-        delete profileDataToUpdate.sexualOrientation;
-        delete profileDataToUpdate.isAvailableForMatch;
 
+        // Remove any keys that are undefined, so we only update fields that were actually changed.
+        Object.keys(profileDataToUpdate).forEach(key => {
+            if (profileDataToUpdate[key] === undefined) {
+                delete profileDataToUpdate[key];
+            }
+        });
 
         const { data, error } = await supabase
             .from('profiles')
@@ -281,9 +290,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 email: currentUser.email,
                 sexualOrientation: data.sexual_orientation,
                 isAvailableForMatch: data.is_available_for_match,
+                matchPreferences: data.match_preferences,
             };
             setCurrentUser(updatedUser);
             setUsers(prevUsers => prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u));
+            setError(null); // Clear error on success
         }
     };
 

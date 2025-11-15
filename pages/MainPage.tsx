@@ -86,22 +86,36 @@ const MainPage: React.FC = () => {
     }, [currentUser?.state, currentUser?.city]);
 
     const filteredPlaces = useMemo(() => {
-        return places.filter(place => {
-            const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
-            if (!searchMatch) return false;
+        return places
+            .filter(place => {
+                const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
+                if (!searchMatch) return false;
 
-            const categoryMatch = selectedCategory === 'Todos' || place.category === selectedCategory;
-            if (!categoryMatch) return false;
+                const categoryMatch = selectedCategory === 'Todos' || place.category === selectedCategory;
+                if (!categoryMatch) return false;
 
-            if (selectedCrowdLevel !== 'Todos') {
-                const crowdCount = getCrowdCount(place.id);
-                const crowdLevelText = getCrowdLevelText(crowdCount);
-                if (crowdLevelText !== selectedCrowdLevel) return false;
-            }
-            
-            return true;
-        });
-    }, [places, searchQuery, selectedCategory, selectedCrowdLevel]);
+                if (selectedCrowdLevel !== 'Todos') {
+                    const crowdCount = getCrowdCount(place.id);
+                    const crowdLevelText = getCrowdLevelText(crowdCount);
+                    if (crowdLevelText !== selectedCrowdLevel) return false;
+                }
+                
+                return true;
+            })
+            .sort((a, b) => {
+                const crowdCountB = getCrowdCount(b.id);
+                const crowdCountA = getCrowdCount(a.id);
+
+                if (crowdCountB !== crowdCountA) {
+                    return crowdCountB - crowdCountA; // Ordena por check-ins (descendente)
+                }
+
+                // Se os check-ins forem iguais, ordena por intenções de ir (descendente)
+                const goingCountB = getGoingCount(b.id);
+                const goingCountA = getGoingCount(a.id);
+                return goingCountB - goingCountA;
+            });
+    }, [places, searchQuery, selectedCategory, selectedCrowdLevel, checkIns, goingIntentions]);
 
     if (isLoading) {
         return <LoadingSpinner message="Buscando locais..." />;

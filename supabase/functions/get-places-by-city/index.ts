@@ -44,8 +44,8 @@ serve(async (req) => {
         });
     }
 
-    // Busca por locais usando a API do Google Places - AGORA INCLUINDO MAIS CATEGORIAS
-    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=bares,%20restaurantes,%20baladas,%20áreas%20de%20eventos,%20casas%20de%20festas%20e%20cerimoniais%20em%20${encodeURIComponent(city)}&key=${apiKey}&language=pt-BR`;
+    // Busca por locais usando a API do Google Places - AGORA COM UMA BUSCA MAIS AMPLA
+    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=pontos%20de%20interesse%20e%20lazer%20em%20${encodeURIComponent(city)}&key=${apiKey}&language=pt-BR`;
     
     const searchResponse = await fetch(searchUrl);
     if (!searchResponse.ok) {
@@ -64,7 +64,7 @@ serve(async (req) => {
             id: p.place_id,
             name: p.name,
             address: p.formatted_address,
-            category: p.types[0] ? p.types[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Bar',
+            category: p.types[0] ? p.types[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Ponto de Interesse',
             rating: p.rating || 0,
             photoUrl: photoUrl,
             isOpen: p.opening_hours?.open_now || false,

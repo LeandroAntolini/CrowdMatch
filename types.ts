@@ -18,6 +18,8 @@ export interface User {
   gender: string;
   sexualOrientation: string;
   matchPreferences: MatchPreferences;
+  city?: string;
+  state?: string;
 }
 
 export interface Place {
@@ -31,6 +33,8 @@ export interface Place {
   isOpen: boolean;
   lat: number;
   lng: number;
+  city: string;
+  state: string;
 }
 
 export interface CheckIn {

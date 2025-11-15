@@ -264,6 +264,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             sexual_orientation: updatedProfile.sexualOrientation,
             is_available_for_match: updatedProfile.isAvailableForMatch,
             match_preferences: updatedProfile.matchPreferences,
+            city: updatedProfile.city,
+            state: updatedProfile.state,
             updated_at: new Date().toISOString(),
         };
 

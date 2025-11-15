@@ -140,19 +140,31 @@ const ProfilePage: React.FC = () => {
                     <label className="block text-sm font-medium text-text-secondary">Nome</label>
                     <input type="text" name="name" value={user.name} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-text-secondary">Idade</label>
-                    <input type="number" name="age" value={user.age} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                <div className="flex gap-4">
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Idade</label>
+                        <input type="number" name="age" value={user.age} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                    </div>
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Gênero</label>
+                        <select name="gender" value={user.gender} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                            {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                    </div>
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-text-secondary">Bio</label>
                     <textarea name="bio" value={user.bio} onChange={handleInputChange} rows={3} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-text-secondary">Gênero</label>
-                    <select name="gender" value={user.gender} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
-                        {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
+                <div className="flex gap-4">
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Cidade</label>
+                        <input type="text" name="city" value={user.city || ''} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                    </div>
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Estado</label>
+                        <input type="text" name="state" value={user.state || ''} onChange={handleInputChange} maxLength={2} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                    </div>
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-text-secondary">Orientação Sexual</label>

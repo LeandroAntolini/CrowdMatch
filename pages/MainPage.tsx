@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -83,34 +82,28 @@ const MainPage: React.FC = () => {
         <div className="p-4">
             <h1 className="text-3xl font-bold mb-4">Locais Próximos</h1>
             
-            <div className="space-y-4 mb-6">
-                <div>
-                    <h2 className="text-sm font-semibold text-text-secondary mb-2">Categoria</h2>
-                    <div className="flex flex-wrap gap-2">
-                        {categories.map(category => (
-                             <button 
-                                key={category}
-                                onClick={() => setSelectedCategory(category)}
-                                className={`px-3 py-1 text-sm rounded-full transition-colors ${selectedCategory === category ? 'bg-accent text-white font-semibold' : 'bg-surface hover:bg-gray-700'}`}
-                            >
-                                {category}
-                            </button>
-                        ))}
-                    </div>
+            <div className="space-y-3 mb-6">
+                <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
+                    {categories.map(category => (
+                         <button 
+                            key={category}
+                            onClick={() => setSelectedCategory(category)}
+                            className={`px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${selectedCategory === category ? 'bg-accent text-white font-semibold' : 'bg-surface hover:bg-gray-700'}`}
+                        >
+                            {category}
+                        </button>
+                    ))}
                 </div>
-                 <div>
-                    <h2 className="text-sm font-semibold text-text-secondary mb-2">Nível de Lotação (Aqui)</h2>
-                    <div className="flex flex-wrap gap-2">
-                        {crowdLevels.map(level => (
-                             <button 
-                                key={level}
-                                onClick={() => setSelectedCrowdLevel(level)}
-                                className={`px-3 py-1 text-sm rounded-full transition-colors ${selectedCrowdLevel === level ? 'bg-accent text-white font-semibold' : 'bg-surface hover:bg-gray-700'}`}
-                            >
-                                {level}
-                            </button>
-                        ))}
-                    </div>
+                <div className="flex overflow-x-auto space-x-2 pb-2 no-scrollbar">
+                    {crowdLevels.map(level => (
+                         <button 
+                            key={level}
+                            onClick={() => setSelectedCrowdLevel(level)}
+                            className={`px-3 py-1 text-sm rounded-full transition-colors whitespace-nowrap ${selectedCrowdLevel === level ? 'bg-accent text-white font-semibold' : 'bg-surface hover:bg-gray-700'}`}
+                        >
+                            {level}
+                        </button>
+                    ))}
                 </div>
             </div>
 

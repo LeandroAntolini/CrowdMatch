@@ -28,9 +28,9 @@ serve(async (req) => {
   }
 
   try {
-    const { city } = await req.json();
-    if (!city) {
-      return new Response(JSON.stringify({ error: 'O nome da cidade é obrigatório' }), {
+    const { city, state } = await req.json();
+    if (!city || !state) {
+      return new Response(JSON.stringify({ error: 'Cidade e estado são obrigatórios' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
       });
@@ -44,8 +44,9 @@ serve(async (req) => {
         });
     }
 
-    // Busca por locais usando a API do Google Places - AGORA COM UMA BUSCA MAIS COMPLETA E ESPECÍFICA
-    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=bares,%20restaurantes,%20baladas,%20casas%20de%20festas,%20cerimoniais%20e%20pontos%20de%20interesse%20em%20${encodeURIComponent(city)}&key=${apiKey}&language=pt-BR`;
+    // Busca por locais usando a API do Google Places - AGORA COM CIDADE E ESTADO PARA PRECISÃO
+    const query = `bares, restaurantes, baladas, casas de festas, cerimoniais e pontos de interesse em ${city}, ${state}`;
+    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}&language=pt-BR`;
     
     const searchResponse = await fetch(searchUrl);
     if (!searchResponse.ok) {
@@ -71,7 +72,7 @@ serve(async (req) => {
             lat: p.geometry.location.lat,
             lng: p.geometry.location.lng,
             city: city,
-            state: '', // O estado pode ser extraído se necessário
+            state: state,
             distance: Math.round(Math.random() * 5000), // Distância de exemplo
         };
     });

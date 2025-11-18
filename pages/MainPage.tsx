@@ -185,7 +185,13 @@ const MainPage: React.FC = () => {
                     {isLocationOpen && (
                         <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
                             {locations.map(loc => (
-                                <li key={loc} onClick={() => { setSelectedLocation(loc); setIsLocationOpen(false); fetchPlaces(loc); }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
+                                <li key={loc} onClick={() => { 
+                                    setSelectedLocation(loc); 
+                                    setIsLocationOpen(false); 
+                                    if (currentUser?.state) {
+                                        fetchPlaces(loc, currentUser.state);
+                                    }
+                                }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
                                     {loc}
                                 </li>
                             ))}

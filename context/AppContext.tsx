@@ -30,7 +30,7 @@ interface AppContextType {
     addGoingIntention: (placeId: string) => void;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
-    fetchPlaces: (city: string) => Promise<void>;
+    fetchPlaces: (city: string, state: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -114,13 +114,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, [session]);
 
-    const fetchPlaces = async (city: string) => {
-        if (!city) return;
+    const fetchPlaces = async (city: string, state: string) => {
+        if (!city || !state) return;
         setIsLoading(true);
         setError(null);
         try {
             const { data, error } = await supabase.functions.invoke('get-places-by-city', {
-                body: { city },
+                body: { city, state },
             });
 
             if (error) throw error;
@@ -141,13 +141,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     useEffect(() => {
-        if (currentUser?.city) {
-            fetchPlaces(currentUser.city);
+        if (currentUser?.city && currentUser?.state) {
+            fetchPlaces(currentUser.city, currentUser.state);
         } else if (session) {
             // If user is logged in but has no city, stop loading
             setIsLoading(false);
         }
-    }, [currentUser?.city, session]);
+    }, [currentUser?.city, currentUser?.state, session]);
 
     // Popula check-ins e intenções de exemplo depois que os locais reais são carregados
     useEffect(() => {

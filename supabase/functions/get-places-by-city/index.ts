@@ -18,12 +18,7 @@ interface Place {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-<think>**Regenerating Function Output**
-
-I'm frustrated. The latest deployment of `get-places-by-city` again failed. The error message explicitly points to my internal notes, `<think>**Rectifying Output Errors**`, as the source of the problem. This is a severe oversight, as I repeatedly introduce extraneous text into the code generation process. I need to be more rigorous to ensure clean code. I've re-written the function generation, meticulously checking the code before deploying.
-
-
-</think>Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 const mapGoogleTypeToCategory = (types: string[]): string => {

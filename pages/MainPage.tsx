@@ -90,9 +90,20 @@ const MainPage: React.FC = () => {
         return currentUser?.city ? [currentUser.city] : [];
     }, [currentUser?.state, currentUser?.city]);
 
+    const handleRemoteSearch = () => {
+        if (currentUser?.state && selectedLocation) {
+            // Trigger remote search using the current searchQuery
+            fetchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
+            // Reset filters after remote search, except for the search query itself
+            setSelectedCategory('Todos');
+            setSelectedCrowdLevel('Todos');
+        }
+    };
+
     const filteredPlaces = useMemo(() => {
         return places
             .filter(place => {
+                // Local filtering based on the current searchQuery state
                 const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
                 if (!searchMatch) return false;
 
@@ -140,9 +151,21 @@ const MainPage: React.FC = () => {
                     placeholder="Buscar pelo nome..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-surface px-4 py-2 pl-10 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleRemoteSearch();
+                        }
+                    }}
+                    className="w-full bg-surface px-4 py-2 pl-10 pr-12 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                 />
-                <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                <button 
+                    onClick={handleRemoteSearch}
+                    className="absolute right-0 top-0 bottom-0 px-3 flex items-center text-text-secondary hover:text-accent"
+                    aria-label="Buscar local"
+                >
+                    <Search size={20} />
+                </button>
+                <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
             </div>
             
             <div className="grid grid-cols-3 gap-2 mb-6">
@@ -194,6 +217,7 @@ const MainPage: React.FC = () => {
                                     setSelectedLocation(loc); 
                                     setIsLocationOpen(false); 
                                     if (currentUser?.state) {
+                                        // When location changes, fetch default places for the new location
                                         fetchPlaces(loc, currentUser.state);
                                     }
                                 }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
@@ -218,7 +242,7 @@ const MainPage: React.FC = () => {
                 ) : (
                     <div className="text-center text-text-secondary mt-8">
                         <p>Nenhum local encontrado para "{selectedLocation}" com os filtros aplicados.</p>
-                        <p className="text-sm">Tente ajustar sua busca ou filtros.</p>
+                        <p className="text-sm">Tente ajustar sua busca ou filtros, ou pressione o ícone de busca para pesquisar remotamente.</p>
                     </div>
                 )}
             </div>

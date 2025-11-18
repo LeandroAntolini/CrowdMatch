@@ -26,7 +26,7 @@ interface AppContextType {
     addGoingIntention: (placeId: string) => void;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
-    fetchPlaces: (city: string, state: string) => Promise<void>;
+    fetchPlaces: (city: string, state: string, query?: string) => Promise<void>;
     newlyFormedMatch: Match | null;
     clearNewMatch: () => void;
 }
@@ -163,13 +163,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
     }, [session]);
 
-    const fetchPlaces = async (city: string, state: string) => {
+    const fetchPlaces = async (city: string, state: string, query?: string) => {
         if (!city || !state) return;
         setIsLoading(true);
         setError(null);
         try {
             const { data, error } = await supabase.functions.invoke('get-places-by-city', {
-                body: { city, state },
+                body: { city, state, query },
             });
 
             if (error) throw error;

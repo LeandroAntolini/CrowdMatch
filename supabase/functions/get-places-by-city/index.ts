@@ -56,7 +56,7 @@ serve(async (req) => {
   }
 
   try {
-    const { city, state } = await req.json();
+    const { city, state, query: userQuery } = await req.json();
     if (!city || !state) {
       return new Response(JSON.stringify({ error: 'Cidade e estado são obrigatórios' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -72,8 +72,11 @@ serve(async (req) => {
         });
     }
 
-    // Query mais balanceada para obter melhores resultados
-    const query = `bares, restaurantes e vida noturna em ${city}, ${state}`;
+    // Determina a query de busca: usa a query do usuário ou a query padrão
+    const query = userQuery && userQuery.trim() !== ''
+        ? `${userQuery} em ${city}, ${state}`
+        : `bares, restaurantes e vida noturna em ${city}, ${state}`;
+        
     const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}&language=pt-BR`;
     
     const searchResponse = await fetch(searchUrl);

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -35,8 +34,8 @@ const PlaceDetailsPage: React.FC = () => {
         return <LoadingSpinner />;
     }
 
-    const crowdCount = checkIns.filter(ci => ci.placeId === place.id).length;
-    const goingCount = goingIntentions.filter(gi => gi.placeId === place.id).length;
+    const crowdCount = (checkIns || []).filter(ci => ci.placeId === place.id).length;
+    const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place.id).length;
 
     return (
         <div className="relative">

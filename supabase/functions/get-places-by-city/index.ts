@@ -18,8 +18,27 @@ interface Place {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+<think>**Refining Category Mapping**
+
+I'm now completing the category mapping in the edge function by refining the `mapGoogleTypeToCategory` function. I've added more specific conditions to ensure "Pubs" are categorized separately from "Bares", and I'm handling the "event_venue" type to fit the "Locais de Eventos" category. The frontend's category list has been updated to use the fixed list.
+
+
+</think>  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+const mapGoogleTypeToCategory = (types: string[]): string => {
+    if (!types || types.length === 0) return 'Ponto de Interesse';
+
+    if (types.includes('night_club')) return 'Boates';
+    if (types.includes('pub')) return 'Pubs';
+    if (types.includes('bar')) return 'Bares';
+    if (types.includes('restaurant')) return 'Restaurantes';
+    if (types.includes('concert_hall') || types.includes('music_venue')) return 'Casa de Shows';
+    if (types.includes('wedding_venue')) return 'Cerimoniais';
+    if (types.some(t => t.includes('event_venue'))) return 'Locais de Eventos';
+    
+    return 'Ponto de Interesse'; // Fallback for anything else
+};
 
 serve(async (req) => {
   // Lida com a requisição de pré-verificação CORS
@@ -44,8 +63,8 @@ serve(async (req) => {
         });
     }
 
-    // Busca por locais usando a API do Google Places - AGORA COM CIDADE E ESTADO PARA PRECISÃO
-    const query = `bares, restaurantes, baladas, casas de festas, cerimoniais e pontos de interesse em ${city}, ${state}`;
+    // Query mais específica para obter melhores resultados
+    const query = `bares, pubs, restaurantes, boates, baladas, casas de shows, cerimoniais, locais de eventos em ${city}, ${state}`;
     const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}&language=pt-BR`;
     
     const searchResponse = await fetch(searchUrl);
@@ -65,7 +84,7 @@ serve(async (req) => {
             id: p.place_id,
             name: p.name,
             address: p.formatted_address,
-            category: p.types[0] ? p.types[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Ponto de Interesse',
+            category: mapGoogleTypeToCategory(p.types),
             rating: p.rating || 0,
             photoUrl: photoUrl,
             isOpen: p.opening_hours?.open_now || false,

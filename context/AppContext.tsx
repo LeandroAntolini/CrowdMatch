@@ -4,6 +4,12 @@ import { generateMockUsers } from '../services/mockDataService';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
+interface Favorite {
+    id: string;
+    userId: string;
+    placeId: string;
+}
+
 interface AppContextType {
     isAuthenticated: boolean;
     hasOnboarded: boolean;
@@ -12,6 +18,7 @@ interface AppContextType {
     users: User[];
     checkIns: CheckIn[];
     matches: Match[];
+    favorites: Favorite[]; // Novo estado para favoritos
     isLoading: boolean;
     error: string | null;
     logout: () => void;
@@ -29,6 +36,9 @@ interface AppContextType {
     fetchPlaces: (city: string, state: string, query?: string) => Promise<void>;
     newlyFormedMatch: Match | null;
     clearNewMatch: () => void;
+    addFavorite: (placeId: string) => Promise<void>; // Nova função
+    removeFavorite: (placeId: string) => Promise<void>; // Nova função
+    isFavorite: (placeId: string) => boolean; // Nova função
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -42,6 +52,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [places, setPlaces] = useState<Place[]>([]);
     const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
     const [matches, setMatches] = useState<Match[]>([]);
+    const [favorites, setFavorites] = useState<Favorite[]>([]); // Novo estado
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -66,6 +77,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setCurrentUser(null);
             setUsers([]);
             setMatches([]);
+            setFavorites([]);
             setIsLoading(false);
             return;
         }
@@ -76,12 +88,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const profilePromise = supabase.from('profiles').select('*').eq('id', session.user.id).single();
             const usersPromise = supabase.from('profiles').select('*').neq('id', session.user.id);
             const matchesPromise = supabase.from('matches').select('*').or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`);
+            const favoritesPromise = supabase.from('favorites').select('*').eq('user_id', session.user.id); // Fetch favorites
 
-            const [{ data: profileData, error: profileError }, { data: usersData, error: usersError }, { data: matchesData, error: matchesError }] = await Promise.all([profilePromise, usersPromise, matchesPromise]);
+            const [{ data: profileData, error: profileError }, { data: usersData, error: usersError }, { data: matchesData, error: matchesError }, { data: favoritesData, error: favoritesError }] = await Promise.all([profilePromise, usersPromise, matchesPromise, favoritesPromise]);
 
             if (profileError) console.error('Error fetching profile:', profileError);
             if (usersError) console.error('Error fetching users:', usersError);
             if (matchesError) console.error('Error fetching matches:', matchesError);
+            if (favoritesError) console.error('Error fetching favorites:', favoritesError);
 
             const allUsers = (usersData || []).map((profile: any) => ({
                 ...profile,
@@ -116,6 +130,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     };
                 }).filter(m => m.otherUser); // Filter out matches where other user wasn't found
                 setMatches(populatedMatches);
+            }
+            
+            if (favoritesData) {
+                const formattedFavorites: Favorite[] = favoritesData.map((fav: any) => ({
+                    id: fav.id,
+                    userId: fav.user_id,
+                    placeId: fav.place_id,
+                }));
+                setFavorites(formattedFavorites);
             }
         };
 
@@ -296,6 +319,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setError(null);
         }
     };
+    
+    const isFavorite = (placeId: string) => favorites.some(fav => fav.placeId === placeId);
+
+    const addFavorite = async (placeId: string) => {
+        if (!currentUser) return;
+        const { data, error } = await supabase.from('favorites').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
+        if (error) {
+            console.error("Error adding favorite:", error);
+            setError("Não foi possível adicionar aos favoritos.");
+        } else if (data) {
+            const newFavorite: Favorite = { id: data.id, userId: data.user_id, placeId: data.place_id };
+            setFavorites(prev => [...prev, newFavorite]);
+        }
+    };
+
+    const removeFavorite = async (placeId: string) => {
+        if (!currentUser) return;
+        const { error } = await supabase.from('favorites').delete().eq('user_id', currentUser.id).eq('place_id', placeId);
+        if (error) {
+            console.error("Error removing favorite:", error);
+            setError("Não foi possível remover dos favoritos.");
+        } else {
+            setFavorites(prev => prev.filter(fav => fav.placeId !== placeId));
+        }
+    };
 
     const value = {
         isAuthenticated: !!session,
@@ -305,6 +353,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         users,
         checkIns,
         matches,
+        favorites, // Adicionado
         isLoading,
         error,
         logout,
@@ -322,6 +371,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchPlaces,
         newlyFormedMatch,
         clearNewMatch: () => setNewlyFormedMatch(null),
+        addFavorite, // Adicionado
+        removeFavorite, // Adicionado
+        isFavorite, // Adicionado
     }
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

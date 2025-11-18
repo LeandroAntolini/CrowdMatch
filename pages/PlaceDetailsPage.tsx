@@ -2,7 +2,7 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart } from 'lucide-react';
 
 const PlaceDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -16,7 +16,10 @@ const PlaceDetailsPage: React.FC = () => {
         goingIntentions,
         addGoingIntention,
         removeGoingIntention,
-        getCurrentGoingIntention
+        getCurrentGoingIntention,
+        isFavorite, // Novo
+        addFavorite, // Novo
+        removeFavorite // Novo
     } = useAppContext();
     
     const place = id ? getPlaceById(id) : undefined;
@@ -28,11 +31,22 @@ const PlaceDetailsPage: React.FC = () => {
     const isBusyElsewhere = (currentCheckIn && !isCheckedInHere) || (currentGoingIntention && !isGoingHere);
     const busyPlaceId = currentCheckIn?.placeId || currentGoingIntention?.placeId;
     const busyPlace = busyPlaceId ? getPlaceById(busyPlaceId) : null;
-
+    
+    const isCurrentlyFavorite = id ? isFavorite(id) : false;
 
     if (!place) {
         return <LoadingSpinner />;
     }
+    
+    const handleFavoriteToggle = () => {
+        if (!id) return;
+        if (isCurrentlyFavorite) {
+            removeFavorite(id);
+        } else {
+            addFavorite(id);
+        }
+    };
+
 
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place.id).length;
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place.id).length;
@@ -43,6 +57,11 @@ const PlaceDetailsPage: React.FC = () => {
             <div className="absolute top-4 left-4">
                 <button onClick={() => navigate(-1)} className="bg-black/50 text-white rounded-full p-2">
                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                </button>
+            </div>
+            <div className="absolute top-4 right-4">
+                <button onClick={handleFavoriteToggle} className="bg-black/50 text-white rounded-full p-2 transition-colors">
+                    <Heart size={24} fill={isCurrentlyFavorite ? '#EC4899' : 'none'} stroke={isCurrentlyFavorite ? '#EC4899' : 'currentColor'} />
                 </button>
             </div>
             

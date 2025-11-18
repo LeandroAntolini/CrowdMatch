@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Place } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Users, CalendarClock, ChevronDown, MapPin, Search } from 'lucide-react';
+import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart } from 'lucide-react';
 import { citiesByState } from '../data/locations';
+import FavoritePlacesList from '../components/FavoritePlacesList';
 
 const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' => {
     if (count < 2) return 'Tranquilo';
@@ -47,7 +48,8 @@ const MainPage: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
     const [selectedCrowdLevel, setSelectedCrowdLevel] = useState<string>('Todos');
     const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.city || '');
-    
+    const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all'); // Novo estado para a aba
+
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isCrowdLevelOpen, setIsCrowdLevelOpen] = useState(false);
     const [isLocationOpen, setIsLocationOpen] = useState(false);
@@ -97,6 +99,7 @@ const MainPage: React.FC = () => {
             // Reset filters after remote search, except for the search query itself
             setSelectedCategory('Todos');
             setSelectedCrowdLevel('Todos');
+            setViewMode('all'); // Volta para a visualização de todos os locais após a busca
         }
     };
 
@@ -140,6 +143,9 @@ const MainPage: React.FC = () => {
     if (error) {
         return <div className="p-4 text-center text-red-400">{error}</div>;
     }
+    
+    const activeTabClass = 'border-b-2 border-accent text-text-primary';
+    const inactiveTabClass = 'text-text-secondary hover:text-text-primary';
 
     return (
         <div className="p-4">
@@ -168,84 +174,108 @@ const MainPage: React.FC = () => {
                 <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
             </div>
             
-            <div className="grid grid-cols-3 gap-2 mb-6">
-                {/* Category Filter */}
-                <div className="relative" ref={categoryRef}>
-                    <button onClick={() => setIsCategoryOpen(!isCategoryOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
-                        <span className="truncate">{selectedCategory}</span>
-                        <ChevronDown size={16} className={`transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {isCategoryOpen && (
-                        <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
-                            {categories.map(category => (
-                                <li key={category} onClick={() => { setSelectedCategory(category); setIsCategoryOpen(false); }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
-                                    {category}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-
-                {/* Crowd Level Filter */}
-                <div className="relative" ref={crowdLevelRef}>
-                    <button onClick={() => setIsCrowdLevelOpen(!isCrowdLevelOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
-                        <span className="truncate">{selectedCrowdLevel}</span>
-                        <ChevronDown size={16} className={`transition-transform duration-200 ${isCrowdLevelOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {isCrowdLevelOpen && (
-                        <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
-                            {crowdLevels.map(level => (
-                                <li key={level} onClick={() => { setSelectedCrowdLevel(level); setIsCrowdLevelOpen(false); }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
-                                    {level}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-
-                {/* Location Filter */}
-                <div className="relative" ref={locationRef}>
-                    <button onClick={() => setIsLocationOpen(!isLocationOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
-                        <MapPin size={14} className="mr-1 text-text-secondary" />
-                        <span className="truncate">{selectedLocation || 'Selecione'}</span>
-                        <ChevronDown size={16} className={`transition-transform duration-200 ${isLocationOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {isLocationOpen && (
-                        <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
-                            {locations.map(loc => (
-                                <li key={loc} onClick={() => { 
-                                    setSelectedLocation(loc); 
-                                    setIsLocationOpen(false); 
-                                    if (currentUser?.state) {
-                                        // When location changes, fetch default places for the new location
-                                        fetchPlaces(loc, currentUser.state);
-                                    }
-                                }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
-                                    {loc}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+            {/* Tabs for All Places / Favorites */}
+            <div className="flex mb-6 border-b border-gray-700">
+                <button
+                    onClick={() => setViewMode('all')}
+                    className={`flex-1 py-2 text-center font-semibold transition-colors flex items-center justify-center ${viewMode === 'all' ? activeTabClass : inactiveTabClass}`}
+                >
+                    <MapPin size={18} className="mr-2" />
+                    Todos os Locais
+                </button>
+                <button
+                    onClick={() => setViewMode('favorites')}
+                    className={`flex-1 py-2 text-center font-semibold transition-colors flex items-center justify-center ${viewMode === 'favorites' ? activeTabClass : inactiveTabClass}`}
+                >
+                    <Heart size={18} className="mr-2" />
+                    Favoritos
+                </button>
             </div>
 
-            <div>
-                {filteredPlaces.length > 0 ? (
-                     filteredPlaces.map(place => (
-                        <PlaceCard 
-                          key={place.id} 
-                          place={place} 
-                          crowdCount={getCrowdCount(place.id)}
-                          goingCount={getGoingCount(place.id)}
-                        />
-                    ))
-                ) : (
-                    <div className="text-center text-text-secondary mt-8">
-                        <p>Nenhum local encontrado para "{selectedLocation}" com os filtros aplicados.</p>
-                        <p className="text-sm">Tente ajustar sua busca ou filtros, ou pressione o ícone de busca para pesquisar remotamente.</p>
+            {viewMode === 'all' && (
+                <>
+                    <div className="grid grid-cols-3 gap-2 mb-6">
+                        {/* Category Filter */}
+                        <div className="relative" ref={categoryRef}>
+                            <button onClick={() => setIsCategoryOpen(!isCategoryOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
+                                <span className="truncate">{selectedCategory}</span>
+                                <ChevronDown size={16} className={`transition-transform duration-200 ${isCategoryOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {isCategoryOpen && (
+                                <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
+                                    {categories.map(category => (
+                                        <li key={category} onClick={() => { setSelectedCategory(category); setIsCategoryOpen(false); }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
+                                            {category}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+
+                        {/* Crowd Level Filter */}
+                        <div className="relative" ref={crowdLevelRef}>
+                            <button onClick={() => setIsCrowdLevelOpen(!isCrowdLevelOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
+                                <span className="truncate">{selectedCrowdLevel}</span>
+                                <ChevronDown size={16} className={`transition-transform duration-200 ${isCrowdLevelOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {isCrowdLevelOpen && (
+                                <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
+                                    {crowdLevels.map(level => (
+                                        <li key={level} onClick={() => { setSelectedCrowdLevel(level); setIsCrowdLevelOpen(false); }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
+                                            {level}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+
+                        {/* Location Filter */}
+                        <div className="relative" ref={locationRef}>
+                            <button onClick={() => setIsLocationOpen(!isLocationOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
+                                <MapPin size={14} className="mr-1 text-text-secondary" />
+                                <span className="truncate">{selectedLocation || 'Selecione'}</span>
+                                <ChevronDown size={16} className={`transition-transform duration-200 ${isLocationOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {isLocationOpen && (
+                                <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
+                                    {locations.map(loc => (
+                                        <li key={loc} onClick={() => { 
+                                            setSelectedLocation(loc); 
+                                            setIsLocationOpen(false); 
+                                            if (currentUser?.state) {
+                                                // When location changes, fetch default places for the new location
+                                                fetchPlaces(loc, currentUser.state);
+                                            }
+                                        }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
+                                            {loc}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                     </div>
-                )}
-            </div>
+
+                    <div>
+                        {filteredPlaces.length > 0 ? (
+                            filteredPlaces.map(place => (
+                                <PlaceCard 
+                                key={place.id} 
+                                place={place} 
+                                crowdCount={getCrowdCount(place.id)}
+                                goingCount={getGoingCount(place.id)}
+                                />
+                            ))
+                        ) : (
+                            <div className="text-center text-text-secondary mt-8">
+                                <p>Nenhum local encontrado para "{selectedLocation}" com os filtros aplicados.</p>
+                                <p className="text-sm">Tente ajustar sua busca ou filtros, ou pressione o ícone de busca para pesquisar remotamente.</p>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+
+            {viewMode === 'favorites' && <FavoritePlacesList />}
         </div>
     );
 };

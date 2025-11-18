@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { MapPin, Sparkles, MessageSquare, User as UserIcon } from 'lucide-react';
@@ -15,7 +14,7 @@ const BottomNav: React.FC = () => {
     const inactiveLinkClass = 'text-text-secondary hover:text-text-primary';
 
     return (
-        <nav className="absolute bottom-0 left-0 right-0 h-16 bg-surface border-t border-gray-700 flex justify-around items-center max-w-md mx-auto">
+        <nav className="flex-shrink-0 w-full h-16 bg-surface border-t border-gray-700 flex justify-around items-center">
             {navItems.map(({ to, icon: Icon, label }) => (
                 <NavLink
                     key={to}

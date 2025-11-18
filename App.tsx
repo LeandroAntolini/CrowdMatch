@@ -29,8 +29,8 @@ const AppContent: React.FC = () => {
     return (
         <HashRouter>
             <div className="h-screen w-screen bg-background text-text-primary font-sans overflow-hidden">
-                <main className="h-full w-full max-w-md mx-auto relative flex flex-col">
-                    <div className="flex-grow overflow-y-auto pb-16 no-scrollbar">
+                <main className="h-full w-full max-w-md mx-auto flex flex-col">
+                    <div className="flex-1 overflow-y-auto no-scrollbar">
                          <Routes>
                             {!hasOnboarded && <Route path="/" element={<OnboardingPage />} />}
                             {hasOnboarded && !isAuthenticated && (

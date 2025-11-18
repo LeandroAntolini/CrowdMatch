@@ -1,14 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { User, GENDERS, SEXUAL_ORIENTATIONS, MatchPreferences } from '../types';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Loader2 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { brazilianStates, citiesByState } from '../data/locations';
+import { supabase } from '@/integrations/supabase/client';
 
 const ProfilePage: React.FC = () => {
     const { currentUser, updateUserProfile, logout } = useAppContext();
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (currentUser) {
@@ -17,7 +20,6 @@ const ProfilePage: React.FC = () => {
                 userCopy.matchPreferences = { genders: [], sexualOrientations: [] };
             }
             setUser(userCopy);
-            // Define as cidades disponíveis com base no estado inicial do usuário
             if (userCopy.state) {
                 setAvailableCities(citiesByState[userCopy.state] || []);
             }
@@ -37,32 +39,15 @@ const ProfilePage: React.FC = () => {
         const newState = e.target.value;
         const newCities = citiesByState[newState] || [];
         setAvailableCities(newCities);
-
-        setUser(prev => prev ? { 
-            ...prev, 
-            state: newState,
-            city: newCities[0] || '' // Define a primeira cidade da lista como padrão
-        } : null);
+        setUser(prev => prev ? { ...prev, state: newState, city: newCities[0] || '' } : null);
     };
 
-    const handlePreferenceChange = (
-        category: keyof MatchPreferences,
-        value: string
-    ) => {
+    const handlePreferenceChange = (category: keyof MatchPreferences, value: string) => {
         setUser(prevUser => {
             if (!prevUser) return null;
             const currentPrefs = prevUser.matchPreferences[category];
-            const newPrefs = currentPrefs.includes(value)
-                ? currentPrefs.filter(item => item !== value)
-                : [...currentPrefs, value];
-    
-            return {
-                ...prevUser,
-                matchPreferences: {
-                    ...prevUser.matchPreferences,
-                    [category]: newPrefs
-                }
-            };
+            const newPrefs = currentPrefs.includes(value) ? currentPrefs.filter(item => item !== value) : [...currentPrefs, value];
+            return { ...prevUser, matchPreferences: { ...prevUser.matchPreferences, [category]: newPrefs } };
         });
     };
     
@@ -104,20 +89,55 @@ const ProfilePage: React.FC = () => {
         });
     };
 
-    const handleAddPhoto = () => {
-        setUser(prevUser => {
-            if (!prevUser) return prevUser;
-            if (prevUser.photos.length >= 5) {
-                alert("Você pode enviar no máximo 5 fotos.");
-                return prevUser;
-            }
-            const newPhotoUrl = `https://picsum.photos/seed/${Math.random()}/400/600`;
-            return { ...prevUser, photos: [...prevUser.photos, newPhotoUrl] };
-        });
+    const handleAddPhotoClick = () => {
+        if (user && user.photos.length >= 5) {
+            alert("Você pode enviar no máximo 5 fotos.");
+            return;
+        }
+        fileInputRef.current?.click();
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0 || !currentUser) return;
+
+        const file = e.target.files[0];
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione um arquivo de imagem.');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            alert('O arquivo é muito grande. O limite é de 5MB.');
+            return;
+        }
+
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${currentUser.id}/${Date.now()}.${fileExt}`;
+
+        setIsUploading(true);
+
+        const { error: uploadError } = await supabase.storage
+            .from('profile-photos')
+            .upload(filePath, file);
+
+        if (uploadError) {
+            console.error('Error uploading file:', uploadError);
+            alert('Erro ao enviar a foto. Verifique se o bucket "profile-photos" existe e é público no seu projeto Supabase.');
+            setIsUploading(false);
+            return;
+        }
+
+        const { data } = supabase.storage.from('profile-photos').getPublicUrl(filePath);
+        setIsUploading(false);
+
+        if (data?.publicUrl) {
+            setUser(prevUser => prevUser ? { ...prevUser, photos: [...prevUser.photos, data.publicUrl] } : null);
+        }
+        if (e.target) e.target.value = '';
     };
 
     return (
         <div className="p-4 space-y-6">
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/png, image/jpeg" disabled={isUploading} />
             <div className="space-y-3">
                  <div className="relative w-full aspect-[4/5] bg-surface rounded-xl overflow-hidden shadow-lg">
                     <img src={user.photos[0]} alt="Foto principal do perfil" className="w-full h-full object-cover" />
@@ -136,7 +156,9 @@ const ProfilePage: React.FC = () => {
                         </div>
                     ))}
                     {user.photos.length < 5 && (
-                        <button onClick={handleAddPhoto} className="aspect-square bg-surface rounded-lg flex items-center justify-center text-text-secondary" aria-label="Adicionar nova foto"><Plus size={24} /></button>
+                        <button onClick={handleAddPhotoClick} disabled={isUploading} className="aspect-square bg-surface rounded-lg flex items-center justify-center text-text-secondary disabled:opacity-50" aria-label="Adicionar nova foto">
+                            {isUploading ? <Loader2 size={24} className="animate-spin" /> : <Plus size={24} />}
+                        </button>
                     )}
                 </div>
             </div>

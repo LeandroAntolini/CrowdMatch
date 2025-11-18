@@ -73,7 +73,11 @@ const ProfilePage: React.FC = () => {
             const newPhotos = [...prevUser.photos];
             const [selectedPhoto] = newPhotos.splice(indexToMakeMain, 1);
             newPhotos.unshift(selectedPhoto);
-            return { ...prevUser, photos: newPhotos };
+            
+            // Salva imediatamente após reordenar
+            const updatedUser = { ...prevUser, photos: newPhotos };
+            updateUserProfile(updatedUser);
+            return updatedUser;
         });
     };
 
@@ -85,7 +89,11 @@ const ProfilePage: React.FC = () => {
                 return prevUser;
             }
             const newPhotos = prevUser.photos.filter((_, i) => i !== indexToDelete);
-            return { ...prevUser, photos: newPhotos };
+            
+            // Salva imediatamente após deletar
+            const updatedUser = { ...prevUser, photos: newPhotos };
+            updateUserProfile(updatedUser);
+            return updatedUser;
         });
     };
 
@@ -111,6 +119,7 @@ const ProfilePage: React.FC = () => {
         }
 
         const fileExt = file.name.split('.').pop();
+        // O caminho do arquivo deve ser user_id/timestamp.ext para corresponder à política RLS
         const filePath = `${currentUser.id}/${Date.now()}.${fileExt}`;
 
         setIsUploading(true);
@@ -126,11 +135,18 @@ const ProfilePage: React.FC = () => {
             return;
         }
 
+        // Obtém o URL público
         const { data } = supabase.storage.from('profile-photos').getPublicUrl(filePath);
         setIsUploading(false);
 
         if (data?.publicUrl) {
-            setUser(prevUser => prevUser ? { ...prevUser, photos: [...prevUser.photos, data.publicUrl] } : null);
+            // 1. Atualiza o estado local
+            const newPhotos = [...user.photos, data.publicUrl];
+            const updatedUser = { ...user, photos: newPhotos };
+            setUser(updatedUser);
+            
+            // 2. Persiste a mudança no banco de dados
+            await updateUserProfile(updatedUser);
         }
         if (e.target) e.target.value = '';
     };

@@ -21,23 +21,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Mapeamento mais inteligente e priorizado dos tipos do Google para nossas categorias
 const mapGoogleTypeToCategory = (types: string[]): string => {
-    <think>**Optimizing the Request**
+    if (!types || types.length === 0) return 'Ponto de Interesse';
 
-I'm now investigating a more refined approach to the Google Maps API query. I've realized the API's behavior favors more general searches, so simplifying the query to focus on "bares, restaurantes e vida noturna" is a good step. This should provide a more balanced set of results, including more restaurants, as I believe the original query was too specific.
+    const categoryMap: { [key: string]: string } = {
+        'night_club': 'Boate',
+        'bar': 'Bar',
+        'pub': 'Pub',
+        'restaurant': 'Restaurante',
+        'cafe': 'Café',
+        'lounge': 'Lounge',
+        'concert_hall': 'Casa de Shows',
+        'music_venue': 'Espaço Musical',
+        'stadium': 'Estádio',
+        'event_venue': 'Local de Eventos',
+        'wedding_venue': 'Cerimonial',
+    };
 
-
-</think>if (!types || types.length === 0) return 'Ponto de Interesse';
-
-    if (types.includes('night_club')) return 'Boates';
-    if (types.includes('pub')) return 'Pubs';
-    if (types.includes('bar')) return 'Bares';
-    if (types.includes('restaurant')) return 'Restaurantes';
-    if (types.includes('concert_hall') || types.includes('music_venue')) return 'Casa de Shows';
-    if (types.includes('wedding_venue')) return 'Cerimoniais';
-    if (types.some(t => t.includes('event_venue'))) return 'Locais de Eventos';
+    // Itera sobre os tipos fornecidos pelo Google e retorna a primeira correspondência encontrada no nosso mapa
+    for (const type of types) {
+        if (categoryMap[type]) {
+            return categoryMap[type];
+        }
+    }
     
-    return 'Ponto de Interesse'; // Fallback for anything else
+    return 'Ponto de Interesse'; // Fallback para qualquer outra coisa
 };
 
 serve(async (req) => {

@@ -1,12 +1,9 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 
 const ChatListPage: React.FC = () => {
-    const { currentUser, matches, getUserById } = useAppContext();
-
-    if (!currentUser) return null;
+    const { matches } = useAppContext();
 
     return (
         <div className="p-4">
@@ -16,9 +13,7 @@ const ChatListPage: React.FC = () => {
             ) : (
                 <div>
                     {matches.map(match => {
-                        const otherUserId = match.userIds.find(id => id !== currentUser.id);
-                        const otherUser = otherUserId ? getUserById(otherUserId) : null;
-
+                        const otherUser = match.otherUser;
                         if (!otherUser) return null;
 
                         return (

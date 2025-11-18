@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Heart, X } from 'lucide-react';
@@ -30,25 +29,20 @@ const MatchPage: React.FC = () => {
             ...goingIntentions.filter(g => g.placeId === activePlaceId).map(g => g.userId)
         ]);
         
-        // Two-way filtering:
-        // 1. I must be interested in them.
-        // 2. They must be interested in me.
         return users.filter(otherUser => {
-            if (otherUser.id === currentUser.id) return false; // Not myself
-            if (!otherUser.isAvailableForMatch) return false; // They must be available
-            if (!userIdsAtPlace.has(otherUser.id)) return false; // We must be at the same place (or intending to go)
+            if (otherUser.id === currentUser.id) return false;
+            if (!otherUser.isAvailableForMatch) return false;
+            if (!userIdsAtPlace.has(otherUser.id)) return false;
 
             const myPrefs = currentUser.matchPreferences;
             const otherUserPrefs = otherUser.matchPreferences;
             
-            // Check if I'm interested in their gender and orientation
             const iAmInterested = 
                 myPrefs.genders.includes(otherUser.gender) &&
                 myPrefs.sexualOrientations.includes(otherUser.sexualOrientation);
             
             if (!iAmInterested) return false;
 
-            // Check if they are interested in my gender and orientation
             const theyAreInterested =
                 otherUserPrefs.genders.includes(currentUser.gender) &&
                 otherUserPrefs.sexualOrientations.includes(currentUser.sexualOrientation);
@@ -64,9 +58,9 @@ const MatchPage: React.FC = () => {
     }, [activePlaceId]);
 
 
-    const handleSwipe = (liked: boolean) => {
+    const handleSwipe = async (liked: boolean) => {
         if (liked && potentialMatches[currentIndex]) {
-            createMatch(potentialMatches[currentIndex].id);
+            await createMatch(potentialMatches[currentIndex].id);
             alert(`Você deu match com ${potentialMatches[currentIndex].name}!`);
         }
         setCurrentIndex(prev => prev + 1);

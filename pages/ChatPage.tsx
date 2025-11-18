@@ -1,21 +1,76 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Send } from 'lucide-react';
+import { Message } from '../types';
+import { supabase } from '@/integrations/supabase/client';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const ChatPage: React.FC = () => {
     const { matchId } = useParams<{ matchId: string }>();
     const navigate = useNavigate();
-    const { currentUser, matches, getUserById, getMessagesForMatch, sendMessage } = useAppContext();
+    const { currentUser, matches, sendMessage } = useAppContext();
+    const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
+    const [loading, setLoading] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const match = matches.find(m => m.id === matchId);
-    const messages = matchId ? getMessagesForMatch(matchId) : [];
+    const otherUser = match?.otherUser;
 
-    const otherUserId = match?.userIds.find(id => id !== currentUser?.id);
-    const otherUser = otherUserId ? getUserById(otherUserId) : null;
+    useEffect(() => {
+        const fetchMessages = async () => {
+            if (!matchId) return;
+            setLoading(true);
+            const { data, error } = await supabase
+                .from('messages')
+                .select('*')
+                .eq('match_id', matchId)
+                .order('created_at', { ascending: true });
+            
+            if (error) {
+                console.error("Error fetching messages:", error);
+            } else {
+                const formattedMessages: Message[] = data.map(m => ({
+                    id: m.id,
+                    matchId: m.match_id,
+                    senderId: m.sender_id,
+                    content: m.content,
+                    createdAt: m.created_at,
+                }));
+                setMessages(formattedMessages);
+            }
+            setLoading(false);
+        };
+
+        fetchMessages();
+    }, [matchId]);
+
+    useEffect(() => {
+        if (!matchId) return;
+
+        const channel = supabase.channel(`chat:${matchId}`)
+            .on<Message>(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` },
+                (payload) => {
+                    const newMessageData = payload.new as any;
+                     const formattedMessage: Message = {
+                        id: newMessageData.id,
+                        matchId: newMessageData.match_id,
+                        senderId: newMessageData.sender_id,
+                        content: newMessageData.content,
+                        createdAt: newMessageData.created_at,
+                    };
+                    setMessages((prevMessages) => [...prevMessages, formattedMessage]);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [matchId]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -25,9 +80,9 @@ const ChatPage: React.FC = () => {
         return <div className="p-4">Match não encontrado.</div>;
     }
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (newMessage.trim() && matchId) {
-            sendMessage(matchId, newMessage.trim());
+            await sendMessage(matchId, newMessage.trim());
             setNewMessage('');
         }
     };
@@ -43,13 +98,15 @@ const ChatPage: React.FC = () => {
             </header>
 
             <div className="flex-grow p-4 overflow-y-auto">
-                {messages.map((message) => (
-                    <div key={message.id} className={`flex mb-4 ${message.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-xs px-4 py-2 rounded-2xl ${message.senderId === currentUser.id ? 'bg-accent text-white rounded-br-none' : 'bg-surface text-text-primary rounded-bl-none'}`}>
-                            {message.text}
+                {loading ? <LoadingSpinner /> : (
+                    messages.map((message) => (
+                        <div key={message.id} className={`flex mb-4 ${message.senderId === currentUser.id ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-xs px-4 py-2 rounded-2xl ${message.senderId === currentUser.id ? 'bg-accent text-white rounded-br-none' : 'bg-surface text-text-primary rounded-bl-none'}`}>
+                                {message.content}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))
+                )}
                 <div ref={messagesEndRef} />
             </div>
 

@@ -51,15 +51,16 @@ export interface GoingIntention {
 
 export interface Match {
   id: string;
-  userIds: [string, string];
-  timestamp: number;
-  lastMessage?: string;
+  userIds: string[];
+  createdAt: string;
+  otherUser?: User; // Adicionado para conveniência da UI
+  lastMessage?: string; // Temporariamente mantido para UI
 }
 
 export interface Message {
   id: string;
   matchId: string;
   senderId: string;
-  text: string;
-  timestamp: number;
+  content: string;
+  createdAt: string;
 }

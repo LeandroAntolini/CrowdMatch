@@ -22,7 +22,12 @@ const corsHeaders = {
 }
 
 const mapGoogleTypeToCategory = (types: string[]): string => {
-    if (!types || types.length === 0) return 'Ponto de Interesse';
+    <think>**Optimizing the Request**
+
+I'm now investigating a more refined approach to the Google Maps API query. I've realized the API's behavior favors more general searches, so simplifying the query to focus on "bares, restaurantes e vida noturna" is a good step. This should provide a more balanced set of results, including more restaurants, as I believe the original query was too specific.
+
+
+</think>if (!types || types.length === 0) return 'Ponto de Interesse';
 
     if (types.includes('night_club')) return 'Boates';
     if (types.includes('pub')) return 'Pubs';
@@ -58,8 +63,8 @@ serve(async (req) => {
         });
     }
 
-    // Query mais específica para obter melhores resultados
-    const query = `bares, pubs, restaurantes, boates, baladas, casas de shows, cerimoniais, locais de eventos em ${city}, ${state}`;
+    // Query mais balanceada para obter melhores resultados
+    const query = `bares, restaurantes e vida noturna em ${city}, ${state}`;
     const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}&language=pt-BR`;
     
     const searchResponse = await fetch(searchUrl);

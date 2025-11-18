@@ -128,29 +128,33 @@ const ProfilePage: React.FC = () => {
 
         setIsUploading(true);
 
+        // 1. Upload do arquivo
         const { error: uploadError } = await supabase.storage
             .from('profile-photos')
             .upload(filePath, file);
 
         if (uploadError) {
             console.error('Error uploading file:', uploadError);
-            alert('Erro ao enviar a foto. Verifique se o bucket "profile-photos" existe e é público no seu projeto Supabase.');
+            alert(`Erro ao enviar a foto: ${uploadError.message}. Verifique se o bucket 'profile-photos' existe e se as políticas de RLS do Storage estão configuradas.`);
             setIsUploading(false);
             return;
         }
 
-        // Obtém o URL público
+        // 2. Obtém o URL público
         const { data } = supabase.storage.from('profile-photos').getPublicUrl(filePath);
         setIsUploading(false);
 
         if (data?.publicUrl) {
-            // 1. Atualiza o estado local
+            // 3. Atualiza o estado local
             const newPhotos = [...user.photos, data.publicUrl];
             const updatedUser = { ...user, photos: newPhotos };
             setUser(updatedUser);
             
-            // 2. Persiste a mudança no banco de dados
+            // 4. Persiste a mudança no banco de dados
             await updateUserProfile(updatedUser);
+            alert("Foto enviada e perfil atualizado com sucesso!");
+        } else {
+             alert("Erro ao obter o URL público da foto.");
         }
         if (e.target) e.target.value = '';
     };

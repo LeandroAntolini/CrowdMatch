@@ -75,7 +75,12 @@ const MainPage: React.FC = () => {
     const getCrowdCount = (placeId: string) => (checkIns || []).filter(ci => ci.placeId === placeId).length;
     const getGoingCount = (placeId: string) => (goingIntentions || []).filter(gi => gi.placeId === placeId).length;
 
-    const categories = ['Todos', 'Boates', 'Bares', 'Pubs', 'Restaurantes', 'Casa de Shows', 'Cerimoniais', 'Locais de Eventos'];
+    const categories = useMemo(() => {
+        if (!places) return ['Todos'];
+        const uniqueCategories = new Set(places.map(place => place.category));
+        return ['Todos', ...Array.from(uniqueCategories).sort()];
+    }, [places]);
+    
     const crowdLevels = ['Todos', 'Tranquilo', 'Moderado', 'Agitado'];
     
     const locations = useMemo(() => {

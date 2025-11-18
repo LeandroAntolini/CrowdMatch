@@ -21,13 +21,14 @@ interface AppContextType {
     getCurrentCheckIn: () => CheckIn | undefined;
     getPlaceById: (id: string) => Place | undefined;
     getUserById: (id: string) => User | undefined;
-    createMatch: (otherUserId: string) => Promise<void>;
     sendMessage: (matchId: string, text: string) => Promise<void>;
     updateUserProfile: (updatedUser: Partial<User>) => Promise<void>;
     addGoingIntention: (placeId: string) => void;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
     fetchPlaces: (city: string, state: string) => Promise<void>;
+    newlyFormedMatch: Match | null;
+    clearNewMatch: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -44,6 +45,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
 
     // Handle auth changes
     useEffect(() => {
@@ -58,24 +60,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return () => subscription.unsubscribe();
     }, []);
 
-    // Fetch current user profile, all users, and matches
+    // Fetch initial data and set up real-time listeners
     useEffect(() => {
-        const fetchData = async () => {
-            if (!session?.user) {
-                setCurrentUser(null);
-                setUsers([]);
-                setMatches([]);
-                setIsLoading(false);
-                return;
-            }
+        if (!session?.user) {
+            setCurrentUser(null);
+            setUsers([]);
+            setMatches([]);
+            setIsLoading(false);
+            return;
+        }
 
+        const fetchData = async () => {
             setIsLoading(true);
 
-            // Fetch current user's profile
             const profilePromise = supabase.from('profiles').select('*').eq('id', session.user.id).single();
-            // Fetch all other users
             const usersPromise = supabase.from('profiles').select('*').neq('id', session.user.id);
-            // Fetch user's matches
             const matchesPromise = supabase.from('matches').select('*').or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`);
 
             const [{ data: profileData, error: profileError }, { data: usersData, error: usersError }, { data: matchesData, error: matchesError }] = await Promise.all([profilePromise, usersPromise, matchesPromise]);
@@ -102,25 +101,66 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     matchPreferences: profileData.match_preferences,
                 };
                 setCurrentUser(userProfile);
-                allUsers.push(userProfile); // Add current user to the list for lookups
             }
 
             if (matchesData) {
                 const populatedMatches = matchesData.map(match => {
                     const otherUserId = match.user1_id === session.user.id ? match.user2_id : match.user1_id;
+                    const otherUser = allUsers.find(u => u.id === otherUserId);
                     return {
                         id: match.id,
                         userIds: [match.user1_id, match.user2_id],
                         createdAt: match.created_at,
-                        otherUser: allUsers.find(u => u.id === otherUserId),
-                        lastMessage: "Clique para ver a conversa" // Placeholder
+                        otherUser: otherUser,
+                        lastMessage: "Clique para ver a conversa"
                     };
-                });
+                }).filter(m => m.otherUser); // Filter out matches where other user wasn't found
                 setMatches(populatedMatches);
             }
         };
 
         fetchData();
+
+        const matchesChannel = supabase
+            .channel('public:matches')
+            .on<Match>(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'matches', filter: `or(user1_id.eq.${session.user.id},user2_id.eq.${session.user.id})` },
+                async (payload) => {
+                    const newMatchData = payload.new as any;
+                    const otherUserId = newMatchData.user1_id === session.user.id ? newMatchData.user2_id : newMatchData.user1_id;
+                    
+                    const { data: otherUserData, error } = await supabase.from('profiles').select('*').eq('id', otherUserId).single();
+                    if (error) {
+                        console.error("Could not fetch other user for new match notification", error);
+                        return;
+                    }
+
+                    const otherUser: User = {
+                        ...otherUserData,
+                        email: 'hidden',
+                        sexualOrientation: otherUserData.sexual_orientation,
+                        isAvailableForMatch: otherUserData.is_available_for_match,
+                        matchPreferences: otherUserData.match_preferences,
+                    };
+
+                    const populatedMatch: Match = {
+                        id: newMatchData.id,
+                        userIds: [newMatchData.user1_id, newMatchData.user2_id],
+                        createdAt: newMatchData.created_at,
+                        otherUser: otherUser,
+                        lastMessage: "Diga olá!"
+                    };
+
+                    setMatches(prev => [...prev, populatedMatch]);
+                    setNewlyFormedMatch(populatedMatch);
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(matchesChannel);
+        };
     }, [session]);
 
     const fetchPlaces = async (city: string, state: string) => {
@@ -229,16 +269,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return users.find(u => u.id === id);
     }
 
-    const createMatch = async (otherUserId: string) => {
-        if (!currentUser) return;
-        const { error } = await supabase.from('matches').insert({ user1_id: currentUser.id, user2_id: otherUserId });
-        if (error && error.code !== '23505') { // 23505 is unique_violation, we can ignore it
-            console.error("Error creating match:", error);
-        } else {
-            // Optionally, refetch matches to update UI, or handle optimistically
-        }
-    };
-
     const sendMessage = async (matchId: string, text: string) => {
         if (!currentUser) return;
         const { error } = await supabase.from('messages').insert({ match_id: matchId, sender_id: currentUser.id, content: text });
@@ -284,13 +314,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getCurrentCheckIn,
         getPlaceById,
         getUserById,
-        createMatch,
         sendMessage,
         updateUserProfile,
         addGoingIntention,
         removeGoingIntention,
         getCurrentGoingIntention,
         fetchPlaces,
+        newlyFormedMatch,
+        clearNewMatch: () => setNewlyFormedMatch(null),
     }
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

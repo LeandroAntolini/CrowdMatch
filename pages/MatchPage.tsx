@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Heart, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 const MatchPage: React.FC = () => {
     const { 
@@ -10,7 +11,6 @@ const MatchPage: React.FC = () => {
         getCurrentCheckIn,
         getCurrentGoingIntention,
         getPlaceById, 
-        createMatch,
         checkIns,
         goingIntentions
     } = useAppContext();
@@ -21,6 +21,8 @@ const MatchPage: React.FC = () => {
     const activePlaceId = currentCheckIn?.placeId || currentGoingIntention?.placeId;
     const activePlace = activePlaceId ? getPlaceById(activePlaceId) : null;
     
+    const [swipedUserIds, setSwipedUserIds] = useState<Set<string>>(new Set());
+
     const potentialMatches = useMemo(() => {
         if (!activePlaceId || !currentUser) return [];
 
@@ -33,6 +35,7 @@ const MatchPage: React.FC = () => {
             if (otherUser.id === currentUser.id) return false;
             if (!otherUser.isAvailableForMatch) return false;
             if (!userIdsAtPlace.has(otherUser.id)) return false;
+            if (swipedUserIds.has(otherUser.id)) return false; // Filter out already swiped users
 
             const myPrefs = currentUser.matchPreferences;
             const otherUserPrefs = otherUser.matchPreferences;
@@ -49,7 +52,7 @@ const MatchPage: React.FC = () => {
 
             return theyAreInterested;
         });
-    }, [activePlaceId, currentUser, users, checkIns, goingIntentions]);
+    }, [activePlaceId, currentUser, users, checkIns, goingIntentions, swipedUserIds]);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     
@@ -59,10 +62,22 @@ const MatchPage: React.FC = () => {
 
 
     const handleSwipe = async (liked: boolean) => {
-        if (liked && potentialMatches[currentIndex]) {
-            await createMatch(potentialMatches[currentIndex].id);
-            alert(`Você deu match com ${potentialMatches[currentIndex].name}!`);
+        if (!currentUser || !potentialMatches[currentIndex]) return;
+
+        const swipedUser = potentialMatches[currentIndex];
+        
+        const { error } = await supabase.from('swipes').insert({
+            swiper_id: currentUser.id,
+            swiped_id: swipedUser.id,
+            liked: liked
+        });
+
+        if (error && error.code !== '23505') { // Ignore unique constraint violation
+            console.error('Error saving swipe:', error);
         }
+
+        // Optimistically remove from stack
+        setSwipedUserIds(prev => new Set(prev).add(swipedUser.id));
         setCurrentIndex(prev => prev + 1);
     };
 
@@ -91,7 +106,7 @@ const MatchPage: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full p-4 overflow-hidden">
-             <h2 className="text-center text-xl font-bold mb-2">Pessoas para {activePlace.name}</h2>
+             <h2 className="text-center text-xl font-bold mb-2">Pessoas em {activePlace.name}</h2>
             <div className="flex-grow flex items-center justify-center">
                  <div className="relative w-full aspect-[3/4] max-w-sm">
                     <div className="relative w-full h-full bg-surface rounded-2xl shadow-2xl overflow-hidden">

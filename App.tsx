@@ -10,6 +10,7 @@ import ChatListPage from './pages/ChatListPage';
 import ChatPage from './pages/ChatPage';
 import ProfilePage from './pages/ProfilePage';
 import BottomNav from './components/BottomNav';
+import MatchNotificationModal from './components/MatchNotificationModal';
 
 const App: React.FC = () => {
     useEffect(() => {
@@ -55,6 +56,7 @@ const AppContent: React.FC = () => {
                     </div>
                     {isAuthenticated && <BottomNav />}
                 </main>
+                {isAuthenticated && <MatchNotificationModal />}
             </div>
         </HashRouter>
     );

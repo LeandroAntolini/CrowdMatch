@@ -23,6 +23,10 @@ const ProfilePage: React.FC = () => {
             if (userCopy.state) {
                 setAvailableCities(citiesByState[userCopy.state] || []);
             }
+            // DEBUG: Log the main photo URL
+            if (userCopy.photos && userCopy.photos.length > 0) {
+                console.log("Main Photo URL:", userCopy.photos[0]);
+            }
         }
     }, [currentUser]);
 

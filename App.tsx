@@ -31,6 +31,7 @@ const AppContent: React.FC = () => {
         <HashRouter>
             <div className="h-screen w-screen bg-background text-text-primary font-sans overflow-hidden">
                 <main className="h-full w-full max-w-md mx-auto flex flex-col">
+                    {/* O conteúdo principal (rotas) agora ocupa o espaço restante e é o único a rolar */}
                     <div className="flex-1 overflow-y-auto no-scrollbar">
                          <Routes>
                             {!hasOnboarded && <Route path="/" element={<OnboardingPage />} />}
@@ -54,6 +55,7 @@ const AppContent: React.FC = () => {
                              {hasOnboarded && <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/auth"} />} />}
                         </Routes>
                     </div>
+                    {/* BottomNav fica fora do contêiner de rolagem, fixo na parte inferior */}
                     {isAuthenticated && <BottomNav />}
                 </main>
                 {isAuthenticated && <MatchNotificationModal />}

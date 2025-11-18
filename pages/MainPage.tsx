@@ -72,8 +72,8 @@ const MainPage: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const getCrowdCount = (placeId: string) => checkIns.filter(ci => ci.placeId === placeId).length;
-    const getGoingCount = (placeId: string) => goingIntentions.filter(gi => gi.placeId === placeId).length;
+    const getCrowdCount = (placeId: string) => (checkIns || []).filter(ci => ci.placeId === placeId).length;
+    const getGoingCount = (placeId: string) => (goingIntentions || []).filter(gi => gi.placeId === placeId).length;
 
     const categories = ['Todos', 'Boates', 'Bares', 'Pubs', 'Restaurantes', 'Casa de Shows', 'Cerimoniais', 'Locais de Eventos'];
     const crowdLevels = ['Todos', 'Tranquilo', 'Moderado', 'Agitado'];

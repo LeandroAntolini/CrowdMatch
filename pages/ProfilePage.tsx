@@ -5,12 +5,14 @@ import { Plus, X, Loader2 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { brazilianStates, citiesByState } from '../data/locations';
 import { supabase } from '@/integrations/supabase/client';
+import DeleteAccountModal from '../components/DeleteAccountModal';
 
 const ProfilePage: React.FC = () => {
     const { currentUser, updateUserProfile, logout } = useAppContext();
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // Novo estado
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -272,8 +274,13 @@ const ProfilePage: React.FC = () => {
             <div className="space-y-2">
                 <button onClick={handleSave} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600">Salvar Alterações</button>
                 <button onClick={logout} className="w-full bg-surface text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-700">Sair</button>
-                <button className="w-full text-red-500 text-sm mt-2">Excluir Conta</button>
+                <button onClick={() => setIsDeleteModalOpen(true)} className="w-full text-red-500 text-sm mt-2">Excluir Conta</button>
             </div>
+            
+            <DeleteAccountModal 
+                isOpen={isDeleteModalOpen} 
+                onClose={() => setIsDeleteModalOpen(false)} 
+            />
         </div>
     );
 };

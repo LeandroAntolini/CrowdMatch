@@ -18,16 +18,16 @@ interface Place {
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-<think>**Refining Category Mapping**
-
-I'm now completing the category mapping in the edge function by refining the `mapGoogleTypeToCategory` function. I've added more specific conditions to ensure "Pubs" are categorized separately from "Bares", and I'm handling the "event_venue" type to fit the "Locais de Eventos" category. The frontend's category list has been updated to use the fixed list.
-
-
-</think>  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 const mapGoogleTypeToCategory = (types: string[]): string => {
-    if (!types || types.length === 0) return 'Ponto de Interesse';
+    if (!types || types.length ===<think>**Detecting Stray Code**
+
+I'm incredibly sorry, but I made a mistake! A piece of my internal thought process, a `<think>` block, ended up directly within the code, causing the "Expression expected" error on line 21. I'm now providing the corrected file with the errant block removed.
+
+
+</think> 0) return 'Ponto de Interesse';
 
     if (types.includes('night_club')) return 'Boates';
     if (types.includes('pub')) return 'Pubs';

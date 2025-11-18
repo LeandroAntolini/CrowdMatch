@@ -1,8 +1,8 @@
 {
   "name": "CrowdMatch",
   "short_name": "CrowdMatch",
-  "description": "Sinta a vibe antes de ir.",
-  "start_url": ".",
+  "description": "Sinta a vibe antes de ir. Veja a lotação em tempo real e encontre pessoas no local.",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#111827",
   "theme_color": "#EC4899",

@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 
 const ChatListPage: React.FC = () => {
-    const { matches } = useAppContext();
+    const { matches, clearChatNotifications } = useAppContext();
+
+    useEffect(() => {
+        clearChatNotifications();
+    }, [clearChatNotifications]);
 
     return (
         <div className="p-4">

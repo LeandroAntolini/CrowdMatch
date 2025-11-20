@@ -8,6 +8,7 @@ const MatchPage: React.FC = () => {
     const { 
         currentUser, 
         users, 
+        matches,
         getCurrentCheckIn,
         getCurrentGoingIntention,
         getPlaceById, 
@@ -30,18 +31,21 @@ const MatchPage: React.FC = () => {
             ...checkIns.filter(c => c.placeId === activePlaceId).map(c => c.userId),
             ...goingIntentions.filter(g => g.placeId === activePlaceId).map(g => g.userId)
         ]);
+
+        const matchedUserIds = new Set(
+            matches.flatMap(match => match.userIds).filter(id => id !== currentUser.id)
+        );
         
         return users.filter(otherUser => {
             if (otherUser.id === currentUser.id) return false;
             if (!otherUser.isAvailableForMatch) return false;
             if (!userIdsAtPlace.has(otherUser.id)) return false;
-            if (swipedUserIds.has(otherUser.id)) return false; // Filter out already swiped users
+            if (swipedUserIds.has(otherUser.id)) return false;
+            if (matchedUserIds.has(otherUser.id)) return false; // Não mostrar quem já deu match
 
-            // A lógica de preferência mútua foi removida para ser mais inclusiva
-            // e garantir que os usuários apareçam na lista de match.
             return true;
         });
-    }, [activePlaceId, currentUser, users, checkIns, goingIntentions, swipedUserIds]);
+    }, [activePlaceId, currentUser, users, checkIns, goingIntentions, swipedUserIds, matches]);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     

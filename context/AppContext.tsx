@@ -39,6 +39,8 @@ interface AppContextType {
     addFavorite: (placeId: string) => Promise<void>; // Nova função
     removeFavorite: (placeId: string) => Promise<void>; // Nova função
     isFavorite: (placeId: string) => boolean; // Nova função
+    hasNewNotification: boolean;
+    clearChatNotifications: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -57,6 +59,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
+    const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
 
     // Handle auth changes
     useEffect(() => {
@@ -215,6 +218,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                     setMatches(prev => [...prev, populatedMatch]);
                     setNewlyFormedMatch(populatedMatch);
+                    setHasNewNotification(true);
                 }
             )
             .subscribe();
@@ -475,6 +479,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    const clearChatNotifications = () => setHasNewNotification(false);
+
     const value = {
         isAuthenticated: !!session,
         hasOnboarded,
@@ -505,6 +511,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addFavorite, // Adicionado
         removeFavorite, // Adicionado
         isFavorite, // Adicionado
+        hasNewNotification,
+        clearChatNotifications,
     }
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -181,7 +181,7 @@ const MainPage: React.FC = () => {
                     className={`flex-1 py-2 text-center font-semibold transition-colors flex items-center justify-center ${viewMode === 'all' ? activeTabClass : inactiveTabClass}`}
                 >
                     <MapPin size={18} className="mr-2" />
-                    Todos os Locais
+                    Estabelecimentos
                 </button>
                 <button
                     onClick={() => setViewMode('favorites')}

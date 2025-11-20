@@ -19,6 +19,7 @@ interface AppContextType {
     checkIns: CheckIn[];
     matches: Match[];
     favorites: Favorite[]; // Novo estado para favoritos
+    goingIntentions: GoingIntention[];
     isLoading: boolean;
     error: string | null;
     logout: () => void;
@@ -354,6 +355,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         checkIns,
         matches,
         favorites, // Adicionado
+        goingIntentions,
         isLoading,
         error,
         logout,

@@ -17,7 +17,7 @@ const containerStyle = {
 
 const SinglePlaceMapModal: React.FC<SinglePlaceMapModalProps> = ({ isOpen, onClose, place }) => {
     const { isLoaded } = useJsApiLoader({
-        id: 'google-map-script-single',
+        id: 'google-map-script', // ID unificado para evitar recarregamento
         googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
     });
 

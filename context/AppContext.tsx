@@ -78,6 +78,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setUsers([]);
             setMatches([]);
             setFavorites([]);
+            setCheckIns([]);
+            setGoingIntentions([]);
             setIsLoading(false);
             return;
         }
@@ -88,14 +90,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const profilePromise = supabase.from('profiles').select('*').eq('id', session.user.id).single();
             const usersPromise = supabase.from('profiles').select('*').neq('id', session.user.id);
             const matchesPromise = supabase.from('matches').select('*').or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`);
-            const favoritesPromise = supabase.from('favorites').select('*').eq('user_id', session.user.id); // Fetch favorites
+            const favoritesPromise = supabase.from('favorites').select('*').eq('user_id', session.user.id);
+            const checkInsPromise = supabase.from('check_ins').select('*');
+            const goingIntentionsPromise = supabase.from('going_intentions').select('*');
 
-            const [{ data: profileData, error: profileError }, { data: usersData, error: usersError }, { data: matchesData, error: matchesError }, { data: favoritesData, error: favoritesError }] = await Promise.all([profilePromise, usersPromise, matchesPromise, favoritesPromise]);
+            const [
+                { data: profileData, error: profileError }, 
+                { data: usersData, error: usersError }, 
+                { data: matchesData, error: matchesError }, 
+                { data: favoritesData, error: favoritesError },
+                { data: checkInsData, error: checkInsError },
+                { data: goingIntentionsData, error: goingIntentionsError }
+            ] = await Promise.all([
+                profilePromise, 
+                usersPromise, 
+                matchesPromise, 
+                favoritesPromise,
+                checkInsPromise,
+                goingIntentionsPromise
+            ]);
 
             if (profileError) console.error('Error fetching profile:', profileError);
             if (usersError) console.error('Error fetching users:', usersError);
             if (matchesError) console.error('Error fetching matches:', matchesError);
             if (favoritesError) console.error('Error fetching favorites:', favoritesError);
+            if (checkInsError) console.error('Error fetching check-ins:', checkInsError);
+            if (goingIntentionsError) console.error('Error fetching going intentions:', goingIntentionsError);
 
             const allUsers = (usersData || []).map((profile: any) => ({
                 ...profile,
@@ -128,7 +148,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         otherUser: otherUser,
                         lastMessage: "Clique para ver a conversa"
                     };
-                }).filter(m => m.otherUser); // Filter out matches where other user wasn't found
+                }).filter(m => m.otherUser);
                 setMatches(populatedMatches);
             }
             
@@ -139,6 +159,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     placeId: fav.place_id,
                 }));
                 setFavorites(formattedFavorites);
+            }
+
+            if (checkInsData) {
+                const formattedCheckIns: CheckIn[] = checkInsData.map((ci: any) => ({
+                    userId: ci.user_id,
+                    placeId: ci.place_id,
+                    timestamp: new Date(ci.created_at).getTime(),
+                }));
+                setCheckIns(formattedCheckIns);
+            }
+
+            if (goingIntentionsData) {
+                const formattedIntentions: GoingIntention[] = goingIntentionsData.map((gi: any) => ({
+                    userId: gi.user_id,
+                    placeId: gi.place_id,
+                    timestamp: new Date(gi.created_at).getTime(),
+                }));
+                setGoingIntentions(formattedIntentions);
             }
         };
 
@@ -181,8 +219,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             )
             .subscribe();
 
+        const checkInsChannel = supabase
+            .channel('public:check_ins')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'check_ins' },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        const newCheckIn = payload.new as any;
+                        const formattedCheckIn: CheckIn = {
+                            userId: newCheckIn.user_id,
+                            placeId: newCheckIn.place_id,
+                            timestamp: new Date(newCheckIn.created_at).getTime(),
+                        };
+                        setCheckIns(prev => [...prev.filter(c => c.userId !== formattedCheckIn.userId), formattedCheckIn]);
+                    } else if (payload.eventType === 'DELETE') {
+                        const oldCheckIn = payload.old as any;
+                        setCheckIns(prev => prev.filter(ci => ci.userId !== oldCheckIn.user_id));
+                    }
+                }
+            )
+            .subscribe();
+
+        const goingIntentionsChannel = supabase
+            .channel('public:going_intentions')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'going_intentions' },
+                (payload) => {
+                    if (payload.eventType === 'INSERT') {
+                        const newIntention = payload.new as any;
+                        const formattedIntention: GoingIntention = {
+                            userId: newIntention.user_id,
+                            placeId: newIntention.place_id,
+                            timestamp: new Date(newIntention.created_at).getTime(),
+                        };
+                        setGoingIntentions(prev => [...prev.filter(g => g.userId !== formattedIntention.userId), formattedIntention]);
+                    } else if (payload.eventType === 'DELETE') {
+                        const oldIntention = payload.old as any;
+                        setGoingIntentions(prev => prev.filter(gi => gi.userId !== oldIntention.user_id));
+                    }
+                }
+            )
+            .subscribe();
+
         return () => {
             supabase.removeChannel(matchesChannel);
+            supabase.removeChannel(checkInsChannel);
+            supabase.removeChannel(goingIntentionsChannel);
         };
     }, [session]);
 
@@ -220,38 +304,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, [currentUser?.city, currentUser?.state, session]);
 
-    useEffect(() => {
-        // Este efeito simula interações de outros usuários com base em usuários REAIS do BD.
-        const initializeMockInteractions = () => {
-            // Executa apenas uma vez quando temos locais e usuários, para evitar sobrescrever as ações do usuário atual.
-            if (places.length === 0 || users.length === 0 || checkIns.length > 0 || goingIntentions.length > 0) return;
-
-            const simulatedCheckins: CheckIn[] = [];
-            // Vamos fazer check-in de até 7 usuários
-            const usersToCheckIn = users.slice(0, 7);
-            usersToCheckIn.forEach((user, index) => {
-                if (places.length > 0) {
-                    const placeIndex = index % places.length;
-                    simulatedCheckins.push({ userId: user.id, placeId: places[placeIndex].id, timestamp: Date.now() });
-                }
-            });
-            setCheckIns(simulatedCheckins);
-
-            const simulatedIntentions: GoingIntention[] = [];
-            // Vamos fazer os próximos 4 usuários terem intenções
-            const usersWithIntentions = users.slice(7, 11);
-            usersWithIntentions.forEach((user, index) => {
-                 if (places.length > 0) {
-                    const placeIndex = (index + 4) % places.length;
-                    simulatedIntentions.push({ userId: user.id, placeId: places[placeIndex].id, timestamp: Date.now() });
-                 }
-            });
-            setGoingIntentions(simulatedIntentions);
-        };
-
-        initializeMockInteractions();
-    }, [places, users, checkIns.length, goingIntentions.length]);
-
     const logout = async () => {
         await supabase.auth.signOut();
         setCurrentUser(null);
@@ -262,30 +314,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setHasOnboarded(true);
     };
 
-    const removeGoingIntention = () => {
+    const removeGoingIntention = async () => {
         if (!currentUser) return;
-        setGoingIntentions(prev => prev.filter(gi => gi.userId !== currentUser.id));
+        const { error } = await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
+        if (error) console.error("Error removing going intention:", error);
     };
 
-    const checkOutUser = () => {
+    const checkOutUser = async () => {
         if (!currentUser) return;
-        setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
+        const { error } = await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
+        if (error) console.error("Error checking out:", error);
     };
 
-    const addGoingIntention = (placeId: string) => {
+    const addGoingIntention = async (placeId: string) => {
         if (!currentUser) return;
-        checkOutUser();
-        const newIntentions = goingIntentions.filter(gi => gi.userId !== currentUser.id);
-        newIntentions.push({ userId: currentUser.id, placeId, timestamp: Date.now() });
-        setGoingIntentions(newIntentions);
+        await checkOutUser();
+        await removeGoingIntention();
+        const { error } = await supabase.from('going_intentions').insert({ user_id: currentUser.id, place_id: placeId });
+        if (error) console.error("Error adding going intention:", error);
     };
 
-    const checkInUser = (placeId: string) => {
+    const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
-        removeGoingIntention();
-        const newCheckIns = checkIns.filter(ci => ci.userId !== currentUser.id);
-        newCheckIns.push({ userId: currentUser.id, placeId, timestamp: Date.now() });
-        setCheckIns(newCheckIns);
+        await removeGoingIntention();
+        await checkOutUser();
+        const { error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId });
+        if (error) console.error("Error checking in:", error);
     };
 
     const getCurrentCheckIn = () => {

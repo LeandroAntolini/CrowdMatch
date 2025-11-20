@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Place } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart } from 'lucide-react';
+import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart, Map } from 'lucide-react';
 import { citiesByState } from '../data/locations';
 import FavoritePlacesList from '../components/FavoritePlacesList';
+import MapModal from '../components/MapModal';
 
 const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' => {
     if (count < 2) return 'Tranquilo';
@@ -48,7 +49,8 @@ const MainPage: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
     const [selectedCrowdLevel, setSelectedCrowdLevel] = useState<string>('Todos');
     const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.city || '');
-    const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all'); // Novo estado para a aba
+    const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
+    const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isCrowdLevelOpen, setIsCrowdLevelOpen] = useState(false);
@@ -94,19 +96,16 @@ const MainPage: React.FC = () => {
 
     const handleRemoteSearch = () => {
         if (currentUser?.state && selectedLocation) {
-            // Trigger remote search using the current searchQuery
             fetchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
-            // Reset filters after remote search, except for the search query itself
             setSelectedCategory('Todos');
             setSelectedCrowdLevel('Todos');
-            setViewMode('all'); // Volta para a visualização de todos os locais após a busca
+            setViewMode('all');
         }
     };
 
     const filteredPlaces = useMemo(() => {
         return places
             .filter(place => {
-                // Local filtering based on the current searchQuery state
                 const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
                 if (!searchMatch) return false;
 
@@ -126,10 +125,9 @@ const MainPage: React.FC = () => {
                 const crowdCountA = getCrowdCount(a.id);
 
                 if (crowdCountB !== crowdCountA) {
-                    return crowdCountB - crowdCountA; // Ordena por check-ins (descendente)
+                    return crowdCountB - crowdCountA;
                 }
 
-                // Se os check-ins forem iguais, ordena por intenções de ir (descendente)
                 const goingCountB = getGoingCount(b.id);
                 const goingCountA = getGoingCount(a.id);
                 return goingCountB - goingCountA;
@@ -174,7 +172,6 @@ const MainPage: React.FC = () => {
                 <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
             </div>
             
-            {/* Tabs for All Places / Favorites */}
             <div className="flex mb-6 border-b border-gray-700">
                 <button
                     onClick={() => setViewMode('all')}
@@ -182,6 +179,13 @@ const MainPage: React.FC = () => {
                 >
                     <MapPin size={18} className="mr-2" />
                     Estabelecimentos
+                </button>
+                <button
+                    onClick={() => setIsMapModalOpen(true)}
+                    className={`flex-1 py-2 text-center font-semibold transition-colors flex items-center justify-center ${inactiveTabClass}`}
+                >
+                    <Map size={18} className="mr-2" />
+                    Mapa
                 </button>
                 <button
                     onClick={() => setViewMode('favorites')}
@@ -195,7 +199,6 @@ const MainPage: React.FC = () => {
             {viewMode === 'all' && (
                 <>
                     <div className="grid grid-cols-3 gap-2 mb-6">
-                        {/* Category Filter */}
                         <div className="relative" ref={categoryRef}>
                             <button onClick={() => setIsCategoryOpen(!isCategoryOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
                                 <span className="truncate">{selectedCategory}</span>
@@ -212,7 +215,6 @@ const MainPage: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Crowd Level Filter */}
                         <div className="relative" ref={crowdLevelRef}>
                             <button onClick={() => setIsCrowdLevelOpen(!isCrowdLevelOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
                                 <span className="truncate">{selectedCrowdLevel}</span>
@@ -229,7 +231,6 @@ const MainPage: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Location Filter */}
                         <div className="relative" ref={locationRef}>
                             <button onClick={() => setIsLocationOpen(!isLocationOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
                                 <MapPin size={14} className="mr-1 text-text-secondary" />
@@ -243,7 +244,6 @@ const MainPage: React.FC = () => {
                                             setSelectedLocation(loc); 
                                             setIsLocationOpen(false); 
                                             if (currentUser?.state) {
-                                                // When location changes, fetch default places for the new location
                                                 fetchPlaces(loc, currentUser.state);
                                             }
                                         }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
@@ -276,6 +276,13 @@ const MainPage: React.FC = () => {
             )}
 
             {viewMode === 'favorites' && <FavoritePlacesList />}
+
+            <MapModal 
+                isOpen={isMapModalOpen}
+                onClose={() => setIsMapModalOpen(false)}
+                places={places}
+                checkIns={checkIns}
+            />
         </div>
     );
 };

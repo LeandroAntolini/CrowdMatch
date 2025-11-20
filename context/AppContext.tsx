@@ -303,17 +303,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const updateUserProfile = async (updatedProfile: Partial<User>) => {
         if (!currentUser) return;
-        const profileDataToUpdate = {
-            name: updatedProfile.name, age: updatedProfile.age, bio: updatedProfile.bio, interests: updatedProfile.interests, photos: updatedProfile.photos, gender: updatedProfile.gender, sexual_orientation: updatedProfile.sexualOrientation, is_available_for_match: updatedProfile.isAvailableForMatch, match_preferences: updatedProfile.matchPreferences, city: updatedProfile.city, state: updatedProfile.state, updated_at: new Date().toISOString(),
-        };
-        Object.keys(profileDataToUpdate).forEach(key => (profileDataToUpdate as any)[key] === undefined && delete (profileDataToUpdate as any)[key]);
-        const { data, error } = await supabase.from('profiles').update(profileDataToUpdate).eq('id', currentUser.id).select().single();
+
+        const dbUpdateData: { [key: string]: any } = { ...updatedProfile };
+        
+        if (updatedProfile.sexualOrientation) {
+            dbUpdateData.sexual_orientation = updatedProfile.sexualOrientation;
+            delete dbUpdateData.sexualOrientation;
+        }
+        if (updatedProfile.isAvailableForMatch !== undefined) {
+            dbUpdateData.is_available_for_match = updatedProfile.isAvailableForMatch;
+            delete dbUpdateData.isAvailableForMatch;
+        }
+        if (updatedProfile.matchPreferences) {
+            dbUpdateData.match_preferences = updatedProfile.matchPreferences;
+            delete dbUpdateData.matchPreferences;
+        }
+        
+        delete dbUpdateData.id;
+        delete dbUpdateData.email;
+        dbUpdateData.updated_at = new Date().toISOString();
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .update(dbUpdateData)
+            .eq('id', currentUser.id)
+            .select()
+            .single();
+
         if (error) {
             console.error("Error updating profile:", error);
             setError("Não foi possível salvar seu perfil.");
         } else if (data) {
             const updatedUser: User = {
-                ...data, email: currentUser.email, sexualOrientation: data.sexual_orientation, isAvailableForMatch: data.is_available_for_match, matchPreferences: data.match_preferences,
+                ...data,
+                email: currentUser.email,
+                sexualOrientation: data.sexual_orientation,
+                isAvailableForMatch: data.is_available_for_match,
+                matchPreferences: data.match_preferences,
             };
             setCurrentUser(updatedUser);
             setUsers(prevUsers => prevUsers.map(u => u.id === updatedUser.id ? updatedUser : u));

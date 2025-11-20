@@ -12,7 +12,7 @@ const ProfilePage: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // Novo estado
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -24,10 +24,6 @@ const ProfilePage: React.FC = () => {
             setUser(userCopy);
             if (userCopy.state) {
                 setAvailableCities(citiesByState[userCopy.state] || []);
-            }
-            // DEBUG: Log the main photo URL
-            if (userCopy.photos && userCopy.photos.length > 0) {
-                console.log("Main Photo URL:", userCopy.photos[0]);
             }
         }
     }, [currentUser]);
@@ -73,34 +69,57 @@ const ProfilePage: React.FC = () => {
         }
     };
 
-    const handleSetMainPhoto = (indexToMakeMain: number) => {
-        setUser(prevUser => {
-            if (!prevUser || indexToMakeMain < 0 || indexToMakeMain >= prevUser.photos.length) return prevUser;
-            const newPhotos = [...prevUser.photos];
-            const [selectedPhoto] = newPhotos.splice(indexToMakeMain, 1);
-            newPhotos.unshift(selectedPhoto);
-            
-            // Salva imediatamente após reordenar
-            const updatedUser = { ...prevUser, photos: newPhotos };
-            updateUserProfile(updatedUser);
-            return updatedUser;
-        });
+    const handleSetMainPhoto = async (indexToMakeMain: number) => {
+        if (!user || indexToMakeMain < 0 || indexToMakeMain >= user.photos.length) return;
+
+        const newPhotos = [...user.photos];
+        const [selectedPhoto] = newPhotos.splice(indexToMakeMain, 1);
+        newPhotos.unshift(selectedPhoto);
+        
+        const updatedUser = { ...user, photos: newPhotos };
+        
+        setUser(updatedUser);
+        await updateUserProfile(updatedUser);
     };
 
-    const handleDeletePhoto = (indexToDelete: number) => {
-        setUser(prevUser => {
-            if (!prevUser) return prevUser;
-            if (prevUser.photos.length <= 1) {
-                alert("Você precisa ter pelo menos uma foto.");
-                return prevUser;
-            }
-            const newPhotos = prevUser.photos.filter((_, i) => i !== indexToDelete);
+    const handleDeletePhoto = async (indexToDelete: number) => {
+        if (!user) return;
+
+        if (user.photos.length <= 1) {
+            alert("Você precisa ter pelo menos uma foto.");
+            return;
+        }
+
+        const photoUrlToDelete = user.photos[indexToDelete];
+        const newPhotos = user.photos.filter((_, i) => i !== indexToDelete);
+
+        const originalUser = { ...user };
+        const updatedUser = { ...user, photos: newPhotos };
+        
+        setUser(updatedUser);
+
+        try {
+            const url = new URL(photoUrlToDelete);
+            const pathParts = url.pathname.split('/profile-photos/');
+            const filePath = pathParts.length > 1 ? pathParts[1] : null;
             
-            // Salva imediatamente após deletar
-            const updatedUser = { ...prevUser, photos: newPhotos };
-            updateUserProfile(updatedUser);
-            return updatedUser;
-        });
+            if (filePath) {
+                const { error: removeError } = await supabase.storage
+                    .from('profile-photos')
+                    .remove([filePath]);
+
+                if (removeError) {
+                    throw new Error(removeError.message);
+                }
+            }
+
+            await updateUserProfile({ photos: newPhotos });
+
+        } catch (error: any) {
+            console.error("Error deleting photo:", error);
+            alert(`Não foi possível excluir a foto: ${error.message}`);
+            setUser(originalUser);
+        }
     };
 
     const handleAddPhotoClick = () => {
@@ -112,7 +131,7 @@ const ProfilePage: React.FC = () => {
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0 || !currentUser) return;
+        if (!e.target.files || e.target.files.length === 0 || !currentUser || !user) return;
 
         const file = e.target.files[0];
         if (!file.type.startsWith('image/')) {
@@ -125,34 +144,29 @@ const ProfilePage: React.FC = () => {
         }
 
         const fileExt = file.name.split('.').pop();
-        // O caminho do arquivo deve ser user_id/timestamp.ext para corresponder à política RLS
         const filePath = `${currentUser.id}/${Date.now()}.${fileExt}`;
 
         setIsUploading(true);
 
-        // 1. Upload do arquivo
         const { error: uploadError } = await supabase.storage
             .from('profile-photos')
             .upload(filePath, file);
 
         if (uploadError) {
             console.error('Error uploading file:', uploadError);
-            alert(`Erro ao enviar a foto: ${uploadError.message}. Verifique se o bucket 'profile-photos' existe e se as políticas de RLS do Storage estão configuradas.`);
+            alert(`Erro ao enviar a foto: ${uploadError.message}.`);
             setIsUploading(false);
             return;
         }
 
-        // 2. Obtém o URL público
         const { data } = supabase.storage.from('profile-photos').getPublicUrl(filePath);
         setIsUploading(false);
 
         if (data?.publicUrl) {
-            // 3. Atualiza o estado local
             const newPhotos = [...user.photos, data.publicUrl];
             const updatedUser = { ...user, photos: newPhotos };
             setUser(updatedUser);
             
-            // 4. Persiste a mudança no banco de dados
             await updateUserProfile(updatedUser);
             alert("Foto enviada e perfil atualizado com sucesso!");
         } else {

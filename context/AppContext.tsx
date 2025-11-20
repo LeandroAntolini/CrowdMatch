@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
-import { generateMockUsers } from '../services/mockDataService';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
@@ -222,24 +221,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [currentUser?.city, currentUser?.state, session]);
 
     useEffect(() => {
-        const initializeMockInteractions = async () => {
-            if (places.length === 0 || users.length < 15) return;
-            const mockUsers = await generateMockUsers(15);
+        // Este efeito simula interações de outros usuários com base em usuários REAIS do BD.
+        const initializeMockInteractions = () => {
+            // Executa apenas uma vez quando temos locais e usuários, para evitar sobrescrever as ações do usuário atual.
+            if (places.length === 0 || users.length === 0 || checkIns.length > 0 || goingIntentions.length > 0) return;
+
             const simulatedCheckins: CheckIn[] = [];
-            mockUsers.slice(1, 8).forEach((user, index) => {
-                const placeIndex = index % places.length;
-                simulatedCheckins.push({ userId: user.id, placeId: places[placeIndex].id, timestamp: Date.now() });
+            // Vamos fazer check-in de até 7 usuários
+            const usersToCheckIn = users.slice(0, 7);
+            usersToCheckIn.forEach((user, index) => {
+                if (places.length > 0) {
+                    const placeIndex = index % places.length;
+                    simulatedCheckins.push({ userId: user.id, placeId: places[placeIndex].id, timestamp: Date.now() });
+                }
             });
             setCheckIns(simulatedCheckins);
+
             const simulatedIntentions: GoingIntention[] = [];
-            mockUsers.slice(8, 12).forEach((user, index) => {
-                const placeIndex = (index + 4) % places.length;
-                simulatedIntentions.push({ userId: user.id, placeId: places[placeIndex].id, timestamp: Date.now() });
+            // Vamos fazer os próximos 4 usuários terem intenções
+            const usersWithIntentions = users.slice(7, 11);
+            usersWithIntentions.forEach((user, index) => {
+                 if (places.length > 0) {
+                    const placeIndex = (index + 4) % places.length;
+                    simulatedIntentions.push({ userId: user.id, placeId: places[placeIndex].id, timestamp: Date.now() });
+                 }
             });
             setGoingIntentions(simulatedIntentions);
         };
+
         initializeMockInteractions();
-    }, [places, users.length]);
+    }, [places, users, checkIns.length, goingIntentions.length]);
 
     const logout = async () => {
         await supabase.auth.signOut();

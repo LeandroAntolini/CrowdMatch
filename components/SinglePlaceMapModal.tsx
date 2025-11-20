@@ -15,23 +15,26 @@ const containerStyle = {
     height: '100%',
 };
 
-// Custom SVG for the marker icon in the app's accent color
-const customMarkerIcon = {
-    path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-    fillColor: '#EC4899', // Accent color
-    fillOpacity: 1,
-    strokeWeight: 0,
-    rotation: 0,
-    scale: 2,
-    anchor: new window.google.maps.Point(12, 24),
-};
-
-
 const SinglePlaceMapModal: React.FC<SinglePlaceMapModalProps> = ({ isOpen, onClose, place }) => {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script-single',
         googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
     });
+
+    // O ícone customizado agora é criado dentro do componente,
+    // somente depois que a API do Google Maps for carregada.
+    const customMarkerIcon = React.useMemo(() => {
+        if (!isLoaded) return undefined;
+        return {
+            path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
+            fillColor: '#EC4899', // Accent color
+            fillOpacity: 1,
+            strokeWeight: 0,
+            rotation: 0,
+            scale: 2,
+            anchor: new window.google.maps.Point(12, 24),
+        };
+    }, [isLoaded]);
 
     if (!isOpen) return null;
 

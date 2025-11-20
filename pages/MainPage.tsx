@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Place } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -44,6 +44,7 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
 
 const MainPage: React.FC = () => {
     const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces } = useAppContext();
+    const navigate = useNavigate();
     
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
@@ -101,6 +102,11 @@ const MainPage: React.FC = () => {
             setSelectedCrowdLevel('Todos');
             setViewMode('all');
         }
+    };
+
+    const handleMarkerClick = (placeId: string) => {
+        setIsMapModalOpen(false);
+        navigate(`/place/${placeId}`);
     };
 
     const filteredPlaces = useMemo(() => {
@@ -282,6 +288,7 @@ const MainPage: React.FC = () => {
                 onClose={() => setIsMapModalOpen(false)}
                 places={places}
                 checkIns={checkIns}
+                onMarkerClick={handleMarkerClick}
             />
         </div>
     );

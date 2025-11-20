@@ -9,6 +9,7 @@ interface MapModalProps {
     onClose: () => void;
     places: Place[];
     checkIns: CheckIn[];
+    onMarkerClick: (placeId: string) => void;
 }
 
 const containerStyle = {
@@ -16,7 +17,7 @@ const containerStyle = {
     height: '100%',
 };
 
-const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns }) => {
+const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns, onMarkerClick }) => {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
@@ -140,6 +141,7 @@ const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns }
                                     fontWeight: 'bold',
                                     fontSize: '14px',
                                 }}
+                                onClick={() => onMarkerClick(place.id)}
                             />
                         ))}
                     </GoogleMap>

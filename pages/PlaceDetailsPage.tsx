@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart } from 'lucide-react';
-import SinglePlaceMapModal from '../components/SinglePlaceMapModal';
+import MapModal from '../components/MapModal';
 
 const PlaceDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -20,7 +20,8 @@ const PlaceDetailsPage: React.FC = () => {
         getCurrentGoingIntention,
         isFavorite,
         addFavorite,
-        removeFavorite
+        removeFavorite,
+        places // Adicionado para passar ao mapa
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -37,6 +38,11 @@ const PlaceDetailsPage: React.FC = () => {
     
     const isCurrentlyFavorite = id ? isFavorite(id) : false;
 
+    const handleMarkerClick = (placeId: string) => {
+        setIsMapModalOpen(false);
+        navigate(`/place/${placeId}`);
+    };
+
     if (!place) {
         return <LoadingSpinner />;
     }
@@ -49,7 +55,6 @@ const PlaceDetailsPage: React.FC = () => {
             addFavorite(id);
         }
     };
-
 
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place.id).length;
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place.id).length;
@@ -156,10 +161,13 @@ const PlaceDetailsPage: React.FC = () => {
                 </div>
             </div>
             
-            <SinglePlaceMapModal 
+            <MapModal 
                 isOpen={isMapModalOpen}
                 onClose={() => setIsMapModalOpen(false)}
-                place={place}
+                places={places}
+                checkIns={checkIns}
+                onMarkerClick={handleMarkerClick}
+                highlightedPlaceId={id}
             />
         </div>
     );

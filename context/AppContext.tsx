@@ -317,29 +317,67 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const removeGoingIntention = async () => {
         if (!currentUser) return;
         const { error } = await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
-        if (error) console.error("Error removing going intention:", error);
+        if (error) {
+            console.error("Error removing going intention:", error);
+        } else {
+            setGoingIntentions(prev => prev.filter(gi => gi.userId !== currentUser.id));
+        }
     };
 
     const checkOutUser = async () => {
         if (!currentUser) return;
         const { error } = await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
-        if (error) console.error("Error checking out:", error);
+        if (error) {
+            console.error("Error checking out:", error);
+        } else {
+            setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
+        }
     };
 
     const addGoingIntention = async (placeId: string) => {
         if (!currentUser) return;
         await checkOutUser();
         await removeGoingIntention();
-        const { error } = await supabase.from('going_intentions').insert({ user_id: currentUser.id, place_id: placeId });
-        if (error) console.error("Error adding going intention:", error);
+        
+        const { data, error } = await supabase
+            .from('going_intentions')
+            .insert({ user_id: currentUser.id, place_id: placeId })
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error adding going intention:", error);
+        } else if (data) {
+            const newIntention: GoingIntention = {
+                userId: data.user_id,
+                placeId: data.place_id,
+                timestamp: new Date(data.created_at).getTime(),
+            };
+            setGoingIntentions(prev => [...prev.filter(gi => gi.userId !== currentUser.id), newIntention]);
+        }
     };
 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
         await removeGoingIntention();
         await checkOutUser();
-        const { error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId });
-        if (error) console.error("Error checking in:", error);
+
+        const { data, error } = await supabase
+            .from('check_ins')
+            .insert({ user_id: currentUser.id, place_id: placeId })
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error checking in:", error);
+        } else if (data) {
+            const newCheckIn: CheckIn = {
+                userId: data.user_id,
+                placeId: data.place_id,
+                timestamp: new Date(data.created_at).getTime(),
+            };
+            setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), newCheckIn]);
+        }
     };
 
     const getCurrentCheckIn = () => {

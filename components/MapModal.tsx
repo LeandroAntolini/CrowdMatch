@@ -107,15 +107,24 @@ const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns, 
                     >
                         {places.map(place => {
                             if (highlightedPlaceId) {
-                                const icon = place.id === highlightedPlaceId ? highlightedMarkerIcon : defaultMarkerIcon;
+                                const isHighlighted = place.id === highlightedPlaceId;
+                                const icon = isHighlighted ? highlightedMarkerIcon : defaultMarkerIcon;
+                                const label = !isHighlighted ? {
+                                    text: `${getCrowdCount(place.id)}`,
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    fontSize: '12px',
+                                } : undefined;
+
                                 return (
                                     <MarkerF
                                         key={place.id}
                                         position={{ lat: place.lat, lng: place.lng }}
                                         title={place.name}
                                         icon={icon}
+                                        label={label}
                                         onClick={() => onMarkerClick(place.id)}
-                                        zIndex={place.id === highlightedPlaceId ? 2 : 1}
+                                        zIndex={isHighlighted ? 2 : 1}
                                     />
                                 );
                             } else {

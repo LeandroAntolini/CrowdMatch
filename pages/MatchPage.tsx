@@ -37,20 +37,9 @@ const MatchPage: React.FC = () => {
             if (!userIdsAtPlace.has(otherUser.id)) return false;
             if (swipedUserIds.has(otherUser.id)) return false; // Filter out already swiped users
 
-            const myPrefs = currentUser.matchPreferences;
-            const otherUserPrefs = otherUser.matchPreferences;
-            
-            const iAmInterested = 
-                myPrefs.genders.includes(otherUser.gender) &&
-                myPrefs.sexualOrientations.includes(otherUser.sexualOrientation);
-            
-            if (!iAmInterested) return false;
-
-            const theyAreInterested =
-                otherUserPrefs.genders.includes(currentUser.gender) &&
-                otherUserPrefs.sexualOrientations.includes(currentUser.sexualOrientation);
-
-            return theyAreInterested;
+            // A lógica de preferência mútua foi removida para ser mais inclusiva
+            // e garantir que os usuários apareçam na lista de match.
+            return true;
         });
     }, [activePlaceId, currentUser, users, checkIns, goingIntentions, swipedUserIds]);
 

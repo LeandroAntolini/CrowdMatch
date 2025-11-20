@@ -41,19 +41,6 @@ const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns, 
         };
     }, [isLoaded]);
 
-    const defaultMarkerIcon = React.useMemo(() => {
-        if (!isLoaded) return undefined;
-        return {
-            path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
-            fillColor: '#EF4444', // Red color
-            fillOpacity: 0.9,
-            strokeWeight: 0,
-            rotation: 0,
-            scale: 1.5,
-            anchor: new window.google.maps.Point(12, 24),
-        };
-    }, [isLoaded]);
-
     const center = React.useMemo(() => {
         if (highlightedPlaceId) {
             const highlightedPlace = places.find(p => p.id === highlightedPlaceId);
@@ -106,43 +93,37 @@ const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns, 
                         }}
                     >
                         {places.map(place => {
-                            if (highlightedPlaceId) {
-                                const isHighlighted = place.id === highlightedPlaceId;
-                                const icon = isHighlighted ? highlightedMarkerIcon : defaultMarkerIcon;
-                                const label = !isHighlighted ? {
-                                    text: `${getCrowdCount(place.id)}`,
-                                    color: 'white',
-                                    fontWeight: 'bold',
-                                    fontSize: '12px',
-                                } : undefined;
+                            const isHighlighted = place.id === highlightedPlaceId;
 
+                            if (isHighlighted) {
                                 return (
                                     <MarkerF
                                         key={place.id}
                                         position={{ lat: place.lat, lng: place.lng }}
                                         title={place.name}
-                                        icon={icon}
-                                        label={label}
+                                        icon={highlightedMarkerIcon}
                                         onClick={() => onMarkerClick(place.id)}
-                                        zIndex={isHighlighted ? 2 : 1}
-                                    />
-                                );
-                            } else {
-                                return (
-                                    <MarkerF
-                                        key={place.id}
-                                        position={{ lat: place.lat, lng: place.lng }}
-                                        title={place.name}
-                                        label={{
-                                            text: `${getCrowdCount(place.id)}`,
-                                            color: 'white',
-                                            fontWeight: 'bold',
-                                            fontSize: '14px',
-                                        }}
-                                        onClick={() => onMarkerClick(place.id)}
+                                        zIndex={2}
                                     />
                                 );
                             }
+
+                            // Para todos os outros pinos (ou todos se nenhum estiver destacado)
+                            return (
+                                <MarkerF
+                                    key={place.id}
+                                    position={{ lat: place.lat, lng: place.lng }}
+                                    title={place.name}
+                                    label={{
+                                        text: `${getCrowdCount(place.id)}`,
+                                        color: 'white',
+                                        fontWeight: 'bold',
+                                        fontSize: '14px',
+                                    }}
+                                    onClick={() => onMarkerClick(place.id)}
+                                    zIndex={1}
+                                />
+                            );
                         })}
                     </GoogleMap>
                 ) : (

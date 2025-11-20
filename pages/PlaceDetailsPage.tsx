@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart } from 'lucide-react';
+import SinglePlaceMapModal from '../components/SinglePlaceMapModal';
 
 const PlaceDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -17,10 +18,12 @@ const PlaceDetailsPage: React.FC = () => {
         addGoingIntention,
         removeGoingIntention,
         getCurrentGoingIntention,
-        isFavorite, // Novo
-        addFavorite, // Novo
-        removeFavorite // Novo
+        isFavorite,
+        addFavorite,
+        removeFavorite
     } = useAppContext();
+    
+    const [isMapModalOpen, setIsMapModalOpen] = useState(false);
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
@@ -88,10 +91,10 @@ const PlaceDetailsPage: React.FC = () => {
                     {place.isOpen ? "Aberto Agora" : "Fechado"}
                 </div>
 
-                <div className="flex items-start text-text-secondary mb-6">
-                    <MapPin size={24} className="mr-2 flex-shrink-0 mt-1" />
+                <button onClick={() => setIsMapModalOpen(true)} className="flex items-start text-left text-text-secondary mb-6 w-full hover:bg-surface p-2 rounded-lg transition-colors">
+                    <MapPin size={24} className="mr-2 flex-shrink-0 mt-1 text-accent" />
                     <span>{place.address}</span>
-                </div>
+                </button>
 
                 <div className="mt-6 p-4 bg-surface rounded-lg">
                     {(() => {
@@ -152,6 +155,12 @@ const PlaceDetailsPage: React.FC = () => {
                     })()}
                 </div>
             </div>
+            
+            <SinglePlaceMapModal 
+                isOpen={isMapModalOpen}
+                onClose={() => setIsMapModalOpen(false)}
+                place={place}
+            />
         </div>
     );
 };

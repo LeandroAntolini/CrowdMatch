@@ -9,6 +9,7 @@ const MatchPage: React.FC = () => {
         currentUser, 
         users, 
         matches,
+        swipes,
         getCurrentCheckIn,
         getCurrentGoingIntention,
         getPlaceById, 
@@ -25,7 +26,9 @@ const MatchPage: React.FC = () => {
     const [swipedUserIds, setSwipedUserIds] = useState<Set<string>>(new Set());
 
     const potentialMatches = useMemo(() => {
-        if (!activePlaceId || !currentUser) return [];
+        if (!activePlaceId || !currentUser || !currentUser.matchPreferences) return [];
+
+        const swipedUserIdsFromDB = new Set(swipes.map(s => s.swiped_id));
 
         const userIdsAtPlace = new Set([
             ...checkIns.filter(c => c.placeId === activePlaceId).map(c => c.userId),
@@ -38,14 +41,32 @@ const MatchPage: React.FC = () => {
         
         return users.filter(otherUser => {
             if (otherUser.id === currentUser.id) return false;
-            if (!otherUser.isAvailableForMatch) return false;
+            if (!otherUser.isAvailableForMatch || !otherUser.matchPreferences) return false;
             if (!userIdsAtPlace.has(otherUser.id)) return false;
-            if (swipedUserIds.has(otherUser.id)) return false;
-            if (matchedUserIds.has(otherUser.id)) return false; // Não mostrar quem já deu match
+            if (swipedUserIds.has(otherUser.id)) return false; // Swiped in this session
+            if (swipedUserIdsFromDB.has(otherUser.id)) return false; // Swiped in the past
+            if (matchedUserIds.has(otherUser.id)) return false;
+
+            const currentUserPrefs = currentUser.matchPreferences;
+            const otherUserPrefs = otherUser.matchPreferences;
+
+            // Does the other user match my preferences?
+            const otherUserMatchesMyPrefs = 
+                currentUserPrefs.genders.includes(otherUser.gender) &&
+                currentUserPrefs.sexualOrientations.includes(otherUser.sexualOrientation);
+
+            // Do I match the other user's preferences?
+            const iMatchOtherUserPrefs = 
+                otherUserPrefs.genders.includes(currentUser.gender) &&
+                otherUserPrefs.sexualOrientations.includes(currentUser.sexualOrientation);
+
+            if (!otherUserMatchesMyPrefs || !iMatchOtherUserPrefs) {
+                return false;
+            }
 
             return true;
         });
-    }, [activePlaceId, currentUser, users, checkIns, goingIntentions, swipedUserIds, matches]);
+    }, [activePlaceId, currentUser, users, checkIns, goingIntentions, swipedUserIds, matches, swipes]);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     

@@ -28,6 +28,7 @@ interface AppContextType {
     matches: Match[];
     favorites: Favorite[];
     goingIntentions: GoingIntention[];
+    swipes: { swiped_id: string }[];
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     isLoading: boolean;
@@ -71,6 +72,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [matches, setMatches] = useState<Match[]>([]);
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
+    const [swipes, setSwipes] = useState<{ swiped_id: string }[]>([]);
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -138,6 +140,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const { data: favoritesData, error: favoritesError } = await supabase.from('favorites').select('*').eq('user_id', session.user.id);
                 if (favoritesError) throw favoritesError;
                 setFavorites(favoritesData.map(f => ({ id: f.id, userId: f.user_id, placeId: f.place_id })));
+
+                const { data: swipesData, error: swipesError } = await supabase.from('swipes').select('swiped_id').eq('swiper_id', session.user.id);
+                if (swipesError) throw swipesError;
+                setSwipes(swipesData);
                 
                 await refreshActiveLivePosts();
 
@@ -373,6 +379,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         matches,
         favorites,
         goingIntentions,
+        swipes,
         livePostsByPlace,
         activeLivePosts,
         isLoading,

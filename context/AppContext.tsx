@@ -29,7 +29,7 @@ interface AppContextType {
     favorites: Favorite[];
     goingIntentions: GoingIntention[];
     livePostsByPlace: { [key: string]: LivePost[] };
-    activeLivePosts: { place_id: string }[];
+    activeLivePosts: LivePost[];
     isLoading: boolean;
     error: string | null;
     logout: () => void;
@@ -71,7 +71,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
-    const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
+    const [activeLivePosts, setActiveLivePosts] = useState<LivePost[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
@@ -81,13 +81,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data, error } = await supabase
             .from('live_posts')
-            .select('place_id')
-            .gt('created_at', oneHourAgo);
+            .select('*, profiles(id, name, photos)')
+            .gt('created_at', oneHourAgo)
+            .order('created_at', { ascending: false });
         
         if (error) {
             console.error("Error refreshing active live posts:", error);
         } else {
-            setActiveLivePosts(data || []);
+            const posts = (data || []) as LivePost[];
+            setActiveLivePosts(posts);
+
+            const postsByPlace = posts.reduce((acc, post) => {
+                const placeId = post.place_id;
+                if (!acc[placeId]) {
+                    acc[placeId] = [];
+                }
+                acc[placeId].push(post);
+                return acc;
+            }, {} as { [key: string]: LivePost[] });
+
+            setLivePostsByPlace(postsByPlace);
         }
     }, []);
 

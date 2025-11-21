@@ -9,6 +9,16 @@ interface Favorite {
     placeId: string;
 }
 
+// Adicionando tipo para LivePost
+export interface LivePost {
+    id: string;
+    user_id: string;
+    place_id: string;
+    content: string;
+    created_at: string;
+    profiles: Pick<User, 'id' | 'name' | 'photos'>; // Para incluir dados do usuário
+}
+
 interface AppContextType {
     isAuthenticated: boolean;
     hasOnboarded: boolean;
@@ -17,8 +27,9 @@ interface AppContextType {
     users: User[];
     checkIns: CheckIn[];
     matches: Match[];
-    favorites: Favorite[]; // Novo estado para favoritos
+    favorites: Favorite[];
     goingIntentions: GoingIntention[];
+    livePosts: LivePost[]; // Novo estado
     isLoading: boolean;
     error: string | null;
     logout: () => void;
@@ -36,11 +47,13 @@ interface AppContextType {
     fetchPlaces: (city: string, state: string, query?: string) => Promise<void>;
     newlyFormedMatch: Match | null;
     clearNewMatch: () => void;
-    addFavorite: (placeId: string) => Promise<void>; // Nova função
-    removeFavorite: (placeId: string) => Promise<void>; // Nova função
-    isFavorite: (placeId: string) => boolean; // Nova função
+    addFavorite: (placeId: string) => Promise<void>;
+    removeFavorite: (placeId: string) => Promise<void>;
+    isFavorite: (placeId: string) => boolean;
     hasNewNotification: boolean;
     clearChatNotifications: () => void;
+    fetchLivePosts: (placeId: string) => Promise<void>; // Nova função
+    createLivePost: (placeId: string, content: string) => Promise<void>; // Nova função
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -54,8 +67,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [places, setPlaces] = useState<Place[]>([]);
     const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
     const [matches, setMatches] = useState<Match[]>([]);
-    const [favorites, setFavorites] = useState<Favorite[]>([]); // Novo estado
+    const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
+    const [livePosts, setLivePosts] = useState<LivePost[]>([]); // Novo estado
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
@@ -83,6 +97,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setFavorites([]);
             setCheckIns([]);
             setGoingIntentions([]);
+            setLivePosts([]);
             setIsLoading(false);
             return;
         }
@@ -266,11 +281,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
             )
             .subscribe();
+            
+        const livePostsChannel = supabase
+            .channel('public:live_posts')
+            .on<LivePost>(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'live_posts' },
+                async (payload) => {
+                    const newPost = payload.new as any;
+                    // Precisamos buscar o perfil do usuário que postou
+                    const { data: profileData } = await supabase.from('profiles').select('id, name, photos').eq('id', newPost.user_id).single();
+                    if (profileData) {
+                        newPost.profiles = profileData;
+                        setLivePosts(prev => [newPost, ...prev]);
+                    }
+                }
+            )
+            .subscribe();
 
         return () => {
             supabase.removeChannel(matchesChannel);
             supabase.removeChannel(checkInsChannel);
             supabase.removeChannel(goingIntentionsChannel);
+            supabase.removeChannel(livePostsChannel);
         };
     }, [session]);
 
@@ -479,6 +512,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    const fetchLivePosts = async (placeId: string) => {
+        const { data, error } = await supabase
+            .from('live_posts')
+            .select('*, profiles(id, name, photos)')
+            .eq('place_id', placeId)
+            .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error("Error fetching live posts:", error);
+        } else {
+            setLivePosts(data as LivePost[]);
+        }
+    };
+
+    const createLivePost = async (placeId: string, content: string) => {
+        const { error } = await supabase.functions.invoke('create-live-post', {
+            body: { placeId, content },
+        });
+
+        if (error) {
+            console.error("Error creating live post:", error);
+            // Tenta extrair a mensagem de erro da resposta da função
+            const errorData = JSON.parse(error.context?.response?.text || '{}');
+            throw new Error(errorData.error || 'Falha ao criar o post.');
+        }
+    };
+
     const clearChatNotifications = () => setHasNewNotification(false);
 
     const value = {
@@ -489,8 +549,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         users,
         checkIns,
         matches,
-        favorites, // Adicionado
+        favorites,
         goingIntentions,
+        livePosts,
         isLoading,
         error,
         logout,
@@ -508,11 +569,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchPlaces,
         newlyFormedMatch,
         clearNewMatch: () => setNewlyFormedMatch(null),
-        addFavorite, // Adicionado
-        removeFavorite, // Adicionado
-        isFavorite, // Adicionado
+        addFavorite,
+        removeFavorite,
+        isFavorite,
         hasNewNotification,
         clearChatNotifications,
+        fetchLivePosts,
+        createLivePost,
     }
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
@@ -29,6 +29,7 @@ interface AppContextType {
     favorites: Favorite[];
     goingIntentions: GoingIntention[];
     livePostsByPlace: { [key: string]: LivePost[] };
+    activeLivePosts: { place_id: string }[];
     isLoading: boolean;
     error: string | null;
     logout: () => void;
@@ -76,6 +77,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
 
+    const refreshActiveLivePosts = useCallback(async () => {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+            .from('live_posts')
+            .select('place_id')
+            .gt('created_at', oneHourAgo);
+        
+        if (error) {
+            console.error("Error refreshing active live posts:", error);
+        } else {
+            setActiveLivePosts(data || []);
+        }
+    }, []);
+
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
@@ -121,11 +136,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (favoritesError) throw favoritesError;
                 setFavorites(favoritesData.map(f => ({ id: f.id, userId: f.user_id, placeId: f.place_id })));
                 
-                const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-                const { data: livePostsData, error: livePostsError } = await supabase.from('live_posts').select('place_id').gt('created_at', oneHourAgo);
-                if (livePostsError) throw livePostsError;
-                setActiveLivePosts(livePostsData);
-
+                await refreshActiveLivePosts();
 
             } catch (e: any) {
                 setError(e.message);
@@ -143,7 +154,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 { event: 'INSERT', schema: 'public', table: 'live_posts' },
                 async (payload) => {
                     const newPost = payload.new as any;
-                    setActiveLivePosts(prev => [...prev, { place_id: newPost.place_id }]);
+                    await refreshActiveLivePosts(); // Refresh the count
                     const { data: profileData } = await supabase.from('profiles').select('id, name, photos').eq('id', newPost.user_id).single();
                     if (profileData) {
                         newPost.profiles = profileData;
@@ -159,7 +170,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return () => {
             supabase.removeChannel(livePostsChannel);
         };
-    }, [session]);
+    }, [session, refreshActiveLivePosts]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -308,6 +319,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         favorites,
         goingIntentions,
         livePostsByPlace,
+        activeLivePosts,
         isLoading,
         error,
         logout,

@@ -9,13 +9,13 @@ import LiveFeedBox from '../components/LiveFeedBox';
 const LivePage: React.FC = () => {
     const { 
         places,
-        checkIns,
         currentUser,
         getCurrentCheckIn,
         getPlaceById,
         createLivePost,
         fetchPlaces,
-        isLoading
+        isLoading,
+        activeLivePosts
     } = useAppContext();
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -27,8 +27,8 @@ const LivePage: React.FC = () => {
     const topPlaces = useMemo(() => {
         if (searchedPlaces) return searchedPlaces;
 
-        const placeCounts = checkIns.reduce((acc, checkIn) => {
-            acc[checkIn.placeId] = (acc[checkIn.placeId] || 0) + 1;
+        const placeCounts = activeLivePosts.reduce((acc, post) => {
+            acc[post.place_id] = (acc[post.place_id] || 0) + 1;
             return acc;
         }, {} as { [key: string]: number });
 
@@ -37,7 +37,7 @@ const LivePage: React.FC = () => {
             .filter(place => place.count > 0)
             .sort((a, b) => b.count - a.count)
             .slice(0, 3);
-    }, [checkIns, places, searchedPlaces]);
+    }, [activeLivePosts, places, searchedPlaces]);
 
     const handleSearch = async () => {
         if (!searchQuery.trim() || !currentUser?.city || !currentUser?.state) return;

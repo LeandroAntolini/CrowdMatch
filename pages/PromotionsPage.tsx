@@ -4,7 +4,6 @@ import { Ticket } from 'lucide-react';
 const PromotionsPage: React.FC = () => {
     return (
         <div className="p-4">
-            <h1 className="text-3xl font-bold mb-4">Promoções e Eventos</h1>
             <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary mt-16">
                 <Ticket size={64} className="text-primary mb-4" />
                 <h2 className="text-2xl font-semibold text-text-primary">Em Breve!</h2>

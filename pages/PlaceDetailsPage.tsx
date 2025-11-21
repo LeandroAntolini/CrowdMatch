@@ -4,6 +4,8 @@ import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio } from 'lucide-react';
 import MapModal from '../components/MapModal';
+import LivePostForm from '../components/LivePostForm';
+import LiveFeedBox from '../components/LiveFeedBox';
 
 const PlaceDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -22,7 +24,8 @@ const PlaceDetailsPage: React.FC = () => {
         addFavorite,
         removeFavorite,
         places,
-        getLivePostCount
+        getLivePostCount,
+        createLivePost
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -57,6 +60,12 @@ const PlaceDetailsPage: React.FC = () => {
         }
     };
 
+    const handlePostSubmit = async (content: string) => {
+        if (place) {
+            await createLivePost(place.id, content);
+        }
+    };
+
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place.id).length;
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place.id).length;
     const livePostCount = getLivePostCount(place.id);
@@ -66,7 +75,7 @@ const PlaceDetailsPage: React.FC = () => {
             <img src={place.photoUrl} alt={place.name} className="w-full h-64 object-cover" />
             <div className="absolute top-4 left-4">
                 <button onClick={() => navigate(-1)} className="bg-black/50 text-white rounded-full p-2">
-                     <svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                 </button>
             </div>
             <div className="absolute top-4 right-4">
@@ -164,6 +173,16 @@ const PlaceDetailsPage: React.FC = () => {
                             </div>
                         );
                     })()}
+                </div>
+
+                <div className="mt-8">
+                    <h2 className="text-2xl font-bold mb-4">Feed Ao Vivo</h2>
+                    {isCheckedInHere && (
+                        <div className="mb-6">
+                            <LivePostForm onSubmit={handlePostSubmit} />
+                        </div>
+                    )}
+                    <LiveFeedBox place={place} showPlaceHeader={false} />
                 </div>
             </div>
             

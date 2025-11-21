@@ -8,9 +8,10 @@ import { ChevronRight } from 'lucide-react';
 
 interface LiveFeedBoxProps {
     place: Place;
+    showPlaceHeader?: boolean;
 }
 
-const LiveFeedBox: React.FC<LiveFeedBoxProps> = ({ place }) => {
+const LiveFeedBox: React.FC<LiveFeedBoxProps> = ({ place, showPlaceHeader = true }) => {
     const { livePostsByPlace, fetchLivePostsForPlace } = useAppContext();
     const [isLoading, setIsLoading] = React.useState(true);
     const posts = livePostsByPlace[place.id] || [];
@@ -30,12 +31,11 @@ const LiveFeedBox: React.FC<LiveFeedBoxProps> = ({ place }) => {
         const startScrolling = () => {
             scrollInterval = setInterval(() => {
                 if (container.scrollTop >= container.scrollHeight - container.clientHeight - 1) {
-                    // Se chegou ao fim, volta ao topo suavemente
                     container.scrollTo({ top: 0, behavior: 'smooth' });
                 } else {
                     container.scrollTop += 1;
                 }
-            }, 50); // Ajuste a velocidade aqui
+            }, 50);
         };
 
         const stopScrolling = () => clearInterval(scrollInterval);
@@ -54,15 +54,17 @@ const LiveFeedBox: React.FC<LiveFeedBoxProps> = ({ place }) => {
 
     return (
         <div className="bg-surface rounded-lg flex flex-col h-80">
-            <Link to={`/place/${place.id}`} className="p-3 border-b border-gray-700 hover:bg-gray-700/50 transition-colors">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h3 className="font-bold text-text-primary truncate">{place.name}</h3>
-                        <p className="text-sm text-text-secondary">{place.category}</p>
+            {showPlaceHeader && (
+                <Link to={`/place/${place.id}`} className="p-3 border-b border-gray-700 hover:bg-gray-700/50 transition-colors">
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <h3 className="font-bold text-text-primary truncate">{place.name}</h3>
+                            <p className="text-sm text-text-secondary">{place.category}</p>
+                        </div>
+                        <ChevronRight size={20} className="text-text-secondary" />
                     </div>
-                    <ChevronRight size={20} className="text-text-secondary" />
-                </div>
-            </Link>
+                </Link>
+            )}
             <div ref={scrollContainerRef} className="flex-grow overflow-y-auto no-scrollbar">
                 {isLoading ? (
                     <LoadingSpinner message="Carregando..." />

@@ -22,18 +22,18 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
                 <div className="flex-grow">
                     <h3 className="font-bold text-lg text-text-primary">{place.name}</h3>
                     <p className="text-sm text-text-secondary">{place.category} &bull; {place.city}</p>
-                    <div className="flex items-center text-sm mt-2 space-x-4">
-                        <div className="flex items-center text-text-secondary">
-                            <Users size={16} className="mr-1 text-primary" />
+                    <div className="flex items-center flex-wrap gap-2 mt-3">
+                        <div className="flex items-center text-xs bg-primary/20 text-primary font-semibold px-2 py-1 rounded-full">
+                            <Users size={14} className="mr-1.5" />
                             <span>{crowdCount} aqui</span>
                         </div>
-                         <div className="flex items-center text-text-secondary">
-                            <CalendarClock size={16} className="mr-1 text-accent" />
-                            <span className="font-semibold">{goingCount} vão</span>
+                        <div className="flex items-center text-xs bg-accent/20 text-accent font-semibold px-2 py-1 rounded-full">
+                            <CalendarClock size={14} className="mr-1.5" />
+                            <span>{goingCount} vão</span>
                         </div>
-                        <div className="flex items-center text-text-secondary">
-                            <Radio size={16} className="mr-1 text-blue-400" />
-                            <span className="font-semibold">{livePostCount} ao vivo</span>
+                        <div className="flex items-center text-xs bg-blue-400/20 text-blue-400 font-semibold px-2 py-1 rounded-full">
+                            <Radio size={14} className="mr-1.5" />
+                            <span>{livePostCount} vivo</span>
                         </div>
                     </div>
                 </div>

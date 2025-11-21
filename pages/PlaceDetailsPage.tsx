@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio, Ticket } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio } from 'lucide-react';
 import MapModal from '../components/MapModal';
 import LivePostForm from '../components/LivePostForm';
 import LiveFeedBox from '../components/LiveFeedBox';
@@ -25,8 +25,7 @@ const PlaceDetailsPage: React.FC = () => {
         removeFavorite,
         places,
         getLivePostCount,
-        createLivePost,
-        getPromotionsForPlace
+        createLivePost
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -34,8 +33,6 @@ const PlaceDetailsPage: React.FC = () => {
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
     const currentGoingIntention = getCurrentGoingIntention();
-
-    const promotionsForPlace = id ? getPromotionsForPlace(id) : [];
 
     const isCheckedInHere = currentCheckIn?.placeId === id;
     const isGoingHere = currentGoingIntention?.placeId === id;
@@ -78,7 +75,7 @@ const PlaceDetailsPage: React.FC = () => {
             <img src={place.photoUrl} alt={place.name} className="w-full h-64 object-cover" />
             <div className="absolute top-4 left-4">
                 <button onClick={() => navigate(-1)} className="bg-black/50 text-white rounded-full p-2">
-                     <svg xmlns="http://www.w.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                 </button>
             </div>
             <div className="absolute top-4 right-4">
@@ -177,26 +174,6 @@ const PlaceDetailsPage: React.FC = () => {
                         );
                     })()}
                 </div>
-
-                {promotionsForPlace.length > 0 && (
-                    <div className="mt-8">
-                        <h2 className="text-2xl font-bold mb-4">Promoções Ativas</h2>
-                        <div className="space-y-4">
-                            {promotionsForPlace.map(promo => (
-                                <div key={promo.id} className="bg-surface p-4 rounded-lg border border-accent/50">
-                                    <div className="flex items-center mb-2">
-                                        <Ticket size={20} className="text-accent mr-2" />
-                                        <h3 className="font-bold text-lg text-accent">{promo.title}</h3>
-                                    </div>
-                                    <p className="text-text-secondary text-sm mb-2">{promo.description}</p>
-                                    <p className="text-xs text-text-secondary">
-                                        Válido até {new Date(promo.end_date).toLocaleDateString('pt-BR')}
-                                    </p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
 
                 <div className="mt-8">
                     <h2 className="text-2xl font-bold mb-4">Feed Ao Vivo</h2>

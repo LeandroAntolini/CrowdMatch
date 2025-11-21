@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion } from '../types';
+import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
@@ -28,7 +28,6 @@ interface AppContextType {
     matches: Match[];
     favorites: Favorite[];
     goingIntentions: GoingIntention[];
-    promotions: Promotion[];
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     isLoading: boolean;
@@ -41,7 +40,7 @@ interface AppContextType {
     getPlaceById: (id: string) => Place | undefined;
     getUserById: (id: string) => User | undefined;
     sendMessage: (matchId: string, text: string) => Promise<void>;
-    updateUserProfile: (updatedUser: Partial<User>) => Promise<{ success: boolean; error?: any }>;
+    updateUserProfile: (updatedUser: Partial<User>) => Promise<void>;
     addGoingIntention: (placeId: string) => void;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
@@ -51,7 +50,6 @@ interface AppContextType {
     addFavorite: (placeId: string) => Promise<void>;
     removeFavorite: (placeId: string) => Promise<void>;
     isFavorite: (placeId: string) => boolean;
-    getPromotionsForPlace: (placeId: string) => Promotion[];
     hasNewNotification: boolean;
     clearChatNotifications: () => void;
     fetchLivePostsForPlace: (placeId: string) => Promise<void>;
@@ -72,7 +70,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [matches, setMatches] = useState<Match[]>([]);
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
-    const [promotions, setPromotions] = useState<Promotion[]>([]);
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -117,10 +114,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     .single();
 
                 if (profileError) throw profileError;
-                
-                // Adiciona o email do objeto de sessão ao objeto de perfil
-                const userWithEmail = { ...profileData, email: session.user.email } as User;
-                setCurrentUser(userWithEmail);
+                setCurrentUser(profileData as User);
 
                 const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
                 if (allProfilesError) throw allProfilesError;
@@ -141,10 +135,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const { data: favoritesData, error: favoritesError } = await supabase.from('favorites').select('*').eq('user_id', session.user.id);
                 if (favoritesError) throw favoritesError;
                 setFavorites(favoritesData.map(f => ({ id: f.id, userId: f.user_id, placeId: f.place_id })));
-
-                const { data: promotionsData, error: promotionsError } = await supabase.from('promotions').select('*').gte('end_date', new Date().toISOString());
-                if (promotionsError) throw promotionsError;
-                setPromotions(promotionsData as Promotion[]);
                 
                 await refreshActiveLivePosts();
 
@@ -254,7 +244,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
     const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id);
     const isFavorite = (placeId: string) => favorites.some(f => f.placeId === placeId);
-    const getPromotionsForPlace = (placeId: string) => promotions.filter(p => p.place_id === placeId);
     const clearNewMatch = () => setNewlyFormedMatch(null);
     const clearChatNotifications = () => setHasNewNotification(false);
     const getLivePostCount = (placeId: string) => activeLivePosts.filter(p => p.place_id === placeId).length;
@@ -298,31 +287,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await supabase.from('messages').insert({ match_id: matchId, sender_id: currentUser.id, content });
     };
 
-    const updateUserProfile = async (updatedUser: Partial<User>): Promise<{ success: boolean; error?: any }> => {
-        if (!currentUser) return { success: false, error: { message: 'Usuário não autenticado.' } };
-
-        const userToUpdate = { ...updatedUser };
-        delete userToUpdate.id;
-        delete userToUpdate.email;
-
-        const { data, error } = await supabase
-            .from('profiles')
-            .update(userToUpdate)
-            .eq('id', currentUser.id)
-            .select()
-            .single();
-
-        if (error) {
-            console.error("Error updating profile:", error);
-            return { success: false, error };
+    const updateUserProfile = async (updatedUser: Partial<User>) => {
+        if (!currentUser) return;
+        const { data, error } = await supabase.from('profiles').update(updatedUser).eq('id', currentUser.id).select().single();
+        if (!error && data) {
+            setCurrentUser(data as User);
         }
-
-        if (data) {
-            setCurrentUser(prevUser => ({ ...prevUser, ...data } as User));
-            return { success: true };
-        }
-
-        return { success: false, error: { message: 'Nenhum dado retornado após a atualização.' } };
     };
 
     const addFavorite = async (placeId: string) => {
@@ -353,7 +323,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         matches,
         favorites,
         goingIntentions,
-        promotions,
         livePostsByPlace,
         activeLivePosts,
         isLoading,
@@ -376,7 +345,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addFavorite,
         removeFavorite,
         isFavorite,
-        getPromotionsForPlace,
         hasNewNotification,
         clearChatNotifications,
         fetchLivePostsForPlace,

@@ -12,7 +12,6 @@ const ProfilePage: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -55,19 +54,18 @@ const ProfilePage: React.FC = () => {
     };
     
     const handleToggleAvailability = () => {
-        setUser(prev => prev ? { ...prev, isAvailableForMatch: !prev.isAvailableForMatch } : null);
+        setUser(prevUser => {
+            if (!prevUser) return null;
+            const updatedUser = { ...prevUser, isAvailableForMatch: !prevUser.isAvailableForMatch };
+            updateUserProfile(updatedUser);
+            return updatedUser;
+        });
     };
 
-    const handleSave = async () => {
+    const handleSave = () => {
         if (user) {
-            setIsSaving(true);
-            const result = await updateUserProfile(user);
-            setIsSaving(false);
-            if (result.success) {
-                alert("Perfil salvo com sucesso!");
-            } else {
-                alert(`Erro ao salvar o perfil: ${result.error?.message || 'Tente novamente.'}`);
-            }
+            updateUserProfile(user);
+            alert("Perfil salvo!");
         }
     };
 
@@ -78,8 +76,10 @@ const ProfilePage: React.FC = () => {
         const [selectedPhoto] = newPhotos.splice(indexToMakeMain, 1);
         newPhotos.unshift(selectedPhoto);
         
-        setUser({ ...user, photos: newPhotos });
-        await updateUserProfile({ photos: newPhotos });
+        const updatedUser = { ...user, photos: newPhotos };
+        
+        setUser(updatedUser);
+        await updateUserProfile(updatedUser);
     };
 
     const handleDeletePhoto = async (indexToDelete: number) => {
@@ -94,7 +94,9 @@ const ProfilePage: React.FC = () => {
         const newPhotos = user.photos.filter((_, i) => i !== indexToDelete);
 
         const originalUser = { ...user };
-        setUser({ ...user, photos: newPhotos });
+        const updatedUser = { ...user, photos: newPhotos };
+        
+        setUser(updatedUser);
 
         try {
             const url = new URL(photoUrlToDelete);
@@ -162,9 +164,10 @@ const ProfilePage: React.FC = () => {
 
         if (data?.publicUrl) {
             const newPhotos = [...user.photos, data.publicUrl];
-            setUser({ ...user, photos: newPhotos });
+            const updatedUser = { ...user, photos: newPhotos };
+            setUser(updatedUser);
             
-            await updateUserProfile({ photos: newPhotos });
+            await updateUserProfile(updatedUser);
             alert("Foto enviada e perfil atualizado com sucesso!");
         } else {
              alert("Erro ao obter o URL público da foto.");
@@ -283,9 +286,7 @@ const ProfilePage: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-                <button onClick={handleSave} disabled={isSaving} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 flex items-center justify-center disabled:bg-gray-600">
-                    {isSaving ? <Loader2 size={20} className="animate-spin" /> : 'Salvar Alterações'}
-                </button>
+                <button onClick={handleSave} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600">Salvar Alterações</button>
                 <button onClick={logout} className="w-full bg-surface text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-700">Sair</button>
                 <button onClick={() => setIsDeleteModalOpen(true)} className="w-full text-red-500 text-sm mt-2">Excluir Conta</button>
             </div>

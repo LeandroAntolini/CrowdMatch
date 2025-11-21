@@ -56,10 +56,11 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'Você precisa estar com check-in ativo neste local para postar.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Filtro de profanidade
-    const lowerCaseContent = content.toLowerCase();
+    // Filtro de profanidade aprimorado
     for (const word of PROFANITY_LIST) {
-        if (lowerCaseContent.includes(word)) {
+        // Usar limites de palavra (\b) para evitar falsos positivos em palavras como "espetacular"
+        const regex = new RegExp(`\\b${word}\\b`, 'i');
+        if (regex.test(content)) {
             return new Response(JSON.stringify({ error: 'Seu post contém linguagem imprópria e não pode ser publicado.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
     }

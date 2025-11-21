@@ -8,6 +8,23 @@ const Header: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
+    const getTitle = () => {
+        switch (location.pathname) {
+            case '/':
+                return 'Locais';
+            case '/promotions':
+                return 'Promoções';
+            case '/match':
+                return 'Match';
+            case '/chats':
+                return 'Conversas';
+            case '/profile':
+                return 'Perfil';
+            default:
+                return 'CrowdMatch'; // Título padrão
+        }
+    };
+
     const isProfilePage = location.pathname === '/profile';
     const isChatRelatedPage = location.pathname.startsWith('/chats') || location.pathname.startsWith('/chat/');
 
@@ -36,6 +53,9 @@ const Header: React.FC = () => {
             >
                 <UserIcon size={28} />
             </button>
+
+            <h1 className="text-xl font-bold text-text-primary">{getTitle()}</h1>
+
             <button 
                 onClick={handleChatClick} 
                 className={`relative p-2 transition-colors ${isChatRelatedPage ? 'text-primary' : 'text-text-secondary hover:text-primary'}`}

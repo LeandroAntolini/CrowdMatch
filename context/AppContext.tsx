@@ -88,7 +88,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         const fetchData = async () => {
-            // ... (fetchData logic remains largely the same, omitting live posts from initial bulk fetch)
+            setIsLoading(true);
+            try {
+                const { data: profileData, error: profileError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (profileError) throw profileError;
+                setCurrentUser(profileData as User);
+
+                const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
+                if (allProfilesError) throw allProfilesError;
+                setUsers(allProfilesData as User[]);
+
+                if (profileData?.city && profileData?.state) {
+                    await fetchPlaces(profileData.city, profileData.state);
+                }
+
+                const { data: checkInsData, error: checkInsError } = await supabase.from('check_ins').select('*');
+                if (checkInsError) throw checkInsError;
+                setCheckIns(checkInsData.map(c => ({ userId: c.user_id, placeId: c.place_id, timestamp: new Date(c.created_at).getTime() })));
+
+                const { data: goingData, error: goingError } = await supabase.from('going_intentions').select('*');
+                if (goingError) throw goingError;
+                setGoingIntentions(goingData.map(g => ({ userId: g.user_id, placeId: g.place_id, timestamp: new Date(g.created_at).getTime() })));
+
+                const { data: favoritesData, error: favoritesError } = await supabase.from('favorites').select('*').eq('user_id', session.user.id);
+                if (favoritesError) throw favoritesError;
+                setFavorites(favoritesData.map(f => ({ id: f.id, userId: f.user_id, placeId: f.place_id })));
+
+            } catch (e: any) {
+                setError(e.message);
+            } finally {
+                setIsLoading(false);
+            }
         };
 
         fetchData();
@@ -112,13 +147,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             )
             .subscribe();
 
-        // ... (other subscriptions remain the same)
-
         return () => {
             supabase.removeChannel(livePostsChannel);
-            // ... (remove other channels)
         };
     }, [session]);
+
+    const completeOnboarding = () => {
+        localStorage.setItem('onboarded', 'true');
+        setHasOnboarded(true);
+    };
+
+    const logout = async () => {
+        await supabase.auth.signOut();
+        setCurrentUser(null);
+        setSession(null);
+    };
 
     const fetchPlaces = async (city: string, state: string, query?: string): Promise<Place[]> => {
         if (!city || !state) return [];
@@ -130,7 +173,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             });
             if (error) throw error;
             if (Array.isArray(data)) {
-                // Adiciona novos locais aos existentes, evitando duplicatas
                 setPlaces(prevPlaces => {
                     const existingIds = new Set(prevPlaces.map(p => p.id));
                     const newPlaces = data.filter(p => !existingIds.has(p.id));
@@ -153,7 +195,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             .select('*, profiles(id, name, photos)')
             .eq('place_id', placeId)
             .order('created_at', { ascending: false })
-            .limit(50); // Limita a 50 posts por performance
+            .limit(50);
         
         if (error) {
             console.error(`Error fetching live posts for ${placeId}:`, error);
@@ -172,13 +214,112 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
-    // ... (rest of the context functions: logout, checkInUser, etc.)
-    // Note: The original implementation of other functions is kept, only relevant parts are shown.
-    
+    const getPlaceById = (id: string) => places.find(p => p.id === id);
+    const getUserById = (id: string) => users.find(u => u.id === id);
+    const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
+    const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id);
+    const isFavorite = (placeId: string) => favorites.some(f => f.placeId === placeId);
+    const clearNewMatch = () => setNewlyFormedMatch(null);
+    const clearChatNotifications = () => setHasNewNotification(false);
+
+    const checkInUser = async (placeId: string) => {
+        if (!currentUser) return;
+        await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
+        await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
+        const { data, error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
+        if (!error && data) {
+            setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
+            setGoingIntentions(prev => prev.filter(gi => gi.userId !== currentUser.id));
+        }
+    };
+
+    const checkOutUser = async () => {
+        if (!currentUser) return;
+        await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
+        setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
+    };
+
+    const addGoingIntention = async (placeId: string) => {
+        if (!currentUser) return;
+        await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
+        await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
+        const { data, error } = await supabase.from('going_intentions').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
+        if (!error && data) {
+            setGoingIntentions(prev => [...prev.filter(gi => gi.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
+            setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
+        }
+    };
+
+    const removeGoingIntention = async () => {
+        if (!currentUser) return;
+        await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
+        setGoingIntentions(prev => prev.filter(gi => gi.userId !== currentUser.id));
+    };
+
+    const sendMessage = async (matchId: string, content: string) => {
+        if (!currentUser) return;
+        await supabase.from('messages').insert({ match_id: matchId, sender_id: currentUser.id, content });
+    };
+
+    const updateUserProfile = async (updatedUser: Partial<User>) => {
+        if (!currentUser) return;
+        const { data, error } = await supabase.from('profiles').update(updatedUser).eq('id', currentUser.id).select().single();
+        if (!error && data) {
+            setCurrentUser(data as User);
+        }
+    };
+
+    const addFavorite = async (placeId: string) => {
+        if (!currentUser || isFavorite(placeId)) return;
+        const { data, error } = await supabase.from('favorites').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
+        if (!error && data) {
+            setFavorites(prev => [...prev, { id: data.id, userId: data.user_id, placeId: data.place_id }]);
+        }
+    };
+
+    const removeFavorite = async (placeId: string) => {
+        if (!currentUser) return;
+        const favorite = favorites.find(f => f.placeId === placeId);
+        if (!favorite) return;
+        const { error } = await supabase.from('favorites').delete().eq('id', favorite.id);
+        if (!error) {
+            setFavorites(prev => prev.filter(f => f.placeId !== placeId));
+        }
+    };
+
     const value = {
-        // ... (all other context values)
+        isAuthenticated: !!session?.user,
+        hasOnboarded,
+        currentUser,
+        places,
+        users,
+        checkIns,
+        matches,
+        favorites,
+        goingIntentions,
         livePostsByPlace,
+        isLoading,
+        error,
+        logout,
+        completeOnboarding,
+        checkInUser,
+        checkOutUser,
+        getCurrentCheckIn,
+        getPlaceById,
+        getUserById,
+        sendMessage,
+        updateUserProfile,
+        addGoingIntention,
+        removeGoingIntention,
+        getCurrentGoingIntention,
         fetchPlaces,
+        newlyFormedMatch,
+        clearNewMatch,
+        addFavorite,
+        removeFavorite,
+        isFavorite,
+        hasNewNotification,
+        clearChatNotifications,
         fetchLivePostsForPlace,
         createLivePost,
     };

@@ -241,6 +241,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const errorData = JSON.parse(error.context?.response?.text || '{}');
             throw new Error(errorData.error || 'Falha ao criar o post.');
         }
+        await refreshActiveLivePosts();
     };
 
     const getPlaceById = (id: string) => places.find(p => p.id === id);

@@ -54,12 +54,12 @@ const ProfilePage: React.FC = () => {
     };
     
     const handleToggleAvailability = () => {
-        setUser(prevUser => {
-            if (!prevUser) return null;
-            const updatedUser = { ...prevUser, isAvailableForMatch: !prevUser.isAvailableForMatch };
-            updateUserProfile(updatedUser);
-            return updatedUser;
-        });
+        if (!user) return;
+        const newAvailability = !user.isAvailableForMatch;
+        // Optimistically update UI
+        setUser({ ...user, isAvailableForMatch: newAvailability });
+        // Update backend with only the changed field
+        updateUserProfile({ isAvailableForMatch: newAvailability });
     };
 
     const handleSave = () => {
@@ -76,10 +76,8 @@ const ProfilePage: React.FC = () => {
         const [selectedPhoto] = newPhotos.splice(indexToMakeMain, 1);
         newPhotos.unshift(selectedPhoto);
         
-        const updatedUser = { ...user, photos: newPhotos };
-        
-        setUser(updatedUser);
-        await updateUserProfile(updatedUser);
+        setUser({ ...user, photos: newPhotos });
+        await updateUserProfile({ photos: newPhotos });
     };
 
     const handleDeletePhoto = async (indexToDelete: number) => {
@@ -94,9 +92,7 @@ const ProfilePage: React.FC = () => {
         const newPhotos = user.photos.filter((_, i) => i !== indexToDelete);
 
         const originalUser = { ...user };
-        const updatedUser = { ...user, photos: newPhotos };
-        
-        setUser(updatedUser);
+        setUser({ ...user, photos: newPhotos });
 
         try {
             const url = new URL(photoUrlToDelete);
@@ -164,10 +160,9 @@ const ProfilePage: React.FC = () => {
 
         if (data?.publicUrl) {
             const newPhotos = [...user.photos, data.publicUrl];
-            const updatedUser = { ...user, photos: newPhotos };
-            setUser(updatedUser);
+            setUser({ ...user, photos: newPhotos });
             
-            await updateUserProfile(updatedUser);
+            await updateUserProfile({ photos: newPhotos });
             alert("Foto enviada e perfil atualizado com sucesso!");
         } else {
              alert("Erro ao obter o URL público da foto.");

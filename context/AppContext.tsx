@@ -169,17 +169,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             .on<LivePost>(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'live_posts' },
-                async (payload) => {
-                    const newPost = payload.new as any;
-                    await refreshActiveLivePosts();
-                    const { data: profileData } = await supabase.from('profiles').select('id, name, photos').eq('id', newPost.user_id).single();
-                    if (profileData) {
-                        newPost.profiles = profileData;
-                        setLivePostsByPlace(prev => ({
-                            ...prev,
-                            [newPost.place_id]: [newPost, ...(prev[newPost.place_id] || [])]
-                        }));
-                    }
+                (payload) => {
+                    refreshActiveLivePosts();
                 }
             )
             .subscribe();

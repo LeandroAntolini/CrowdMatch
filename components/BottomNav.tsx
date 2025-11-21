@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { MapPin, Sparkles, Ticket } from 'lucide-react';
+import { MapPin, Sparkles, Ticket, Radio } from 'lucide-react';
 
 const navItems = [
     { to: '/', icon: MapPin, label: 'Locais' },
     { to: '/promotions', icon: Ticket, label: 'Promoções' },
     { to: '/match', icon: Sparkles, label: 'Match' },
+    { to: '/live', icon: Radio, label: 'Ao Vivo' },
 ];
 
 const BottomNav: React.FC = () => {

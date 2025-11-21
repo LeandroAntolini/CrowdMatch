@@ -16,6 +16,8 @@ const Header: React.FC = () => {
                 return 'Promoções';
             case '/match':
                 return 'Match';
+            case '/live':
+                return 'Ao Vivo';
             case '/chats':
                 return 'Conversas';
             case '/profile':

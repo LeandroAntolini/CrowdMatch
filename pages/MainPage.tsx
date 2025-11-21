@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Place } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart, Map, Radio } from 'lucide-react';
+import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart, Map, Radio, Ticket } from 'lucide-react';
 import { citiesByState } from '../data/locations';
 import FavoritePlacesList from '../components/FavoritePlacesList';
 import MapModal from '../components/MapModal';
@@ -15,6 +15,9 @@ const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' 
 };
 
 const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number; livePostCount: number }> = ({ place, crowdCount, goingCount, livePostCount }) => {
+    const hasPromotion = place.hasPromotion || false;
+    const promotionClass = hasPromotion ? 'bg-yellow-400/20 text-yellow-400' : 'bg-gray-600/50 text-gray-500';
+
     return (
         <Link to={`/place/${place.id}`} className="block bg-surface rounded-lg p-4 mb-4 shadow-md hover:bg-gray-700 transition-all duration-200">
             <div className="flex items-center space-x-4">
@@ -34,6 +37,10 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
                         <div className="flex items-center text-xs bg-blue-400/20 text-blue-400 font-semibold px-2 py-1 rounded-full">
                             <Radio size={14} className="mr-1.5" />
                             <span>{livePostCount} vivo</span>
+                        </div>
+                        <div className={`flex items-center text-xs font-semibold px-2 py-1 rounded-full ${promotionClass}`}>
+                            <Ticket size={14} className="mr-1.5" />
+                            <span>Promoção</span>
                         </div>
                     </div>
                 </div>

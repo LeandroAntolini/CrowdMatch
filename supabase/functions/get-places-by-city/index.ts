@@ -14,6 +14,7 @@ interface Place {
   lng: number;
   city: string;
   state: string;
+  hasPromotion?: boolean;
 }
 
 const corsHeaders = {
@@ -105,6 +106,7 @@ serve(async (req) => {
             city: city,
             state: state,
             distance: Math.round(Math.random() * 5000), // Distância de exemplo
+            hasPromotion: Math.random() > 0.7, // Simula que 30% dos locais têm promoção
         };
     });
 

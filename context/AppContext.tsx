@@ -29,7 +29,7 @@ interface AppContextType {
     favorites: Favorite[];
     goingIntentions: GoingIntention[];
     livePostsByPlace: { [key: string]: LivePost[] };
-    activeLivePosts: LivePost[];
+    activeLivePosts: { place_id: string }[];
     isLoading: boolean;
     error: string | null;
     logout: () => void;
@@ -71,7 +71,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
-    const [activeLivePosts, setActiveLivePosts] = useState<LivePost[]>([]);
+    const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
@@ -81,26 +81,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data, error } = await supabase
             .from('live_posts')
-            .select('*, profiles(id, name, photos)')
-            .gt('created_at', oneHourAgo)
-            .order('created_at', { ascending: false });
+            .select('place_id')
+            .gt('created_at', oneHourAgo);
         
         if (error) {
             console.error("Error refreshing active live posts:", error);
         } else {
-            const posts = (data || []) as LivePost[];
-            setActiveLivePosts(posts);
-
-            const postsByPlace = posts.reduce((acc, post) => {
-                const placeId = post.place_id;
-                if (!acc[placeId]) {
-                    acc[placeId] = [];
-                }
-                acc[placeId].push(post);
-                return acc;
-            }, {} as { [key: string]: LivePost[] });
-
-            setLivePostsByPlace(postsByPlace);
+            setActiveLivePosts(data || []);
         }
     }, []);
 
@@ -169,8 +156,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             .on<LivePost>(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'live_posts' },
-                (payload) => {
-                    refreshActiveLivePosts();
+                async (payload) => {
+                    const newPost = payload.new as any;
+                    await refreshActiveLivePosts();
+                    const { data: profileData } = await supabase.from('profiles').select('id, name, photos').eq('id', newPost.user_id).single();
+                    if (profileData) {
+                        newPost.profiles = profileData;
+                        setLivePostsByPlace(prev => ({
+                            ...prev,
+                            [newPost.place_id]: [newPost, ...(prev[newPost.place_id] || [])]
+                        }));
+                    }
                 }
             )
             .subscribe();
@@ -234,22 +230,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const createLivePost = async (placeId: string, content: string) => {
-        if (!currentUser) throw new Error("Usuário não autenticado.");
-
-        const { error } = await supabase.from('live_posts').insert({
-            user_id: currentUser.id,
-            place_id: placeId,
-            content: content,
+        const { error } = await supabase.functions.invoke('create-live-post', {
+            body: { placeId, content },
         });
-
         if (error) {
-            if (error.code === '42501') { // Violação de RLS
-                 throw new Error('Você precisa estar com check-in ativo neste local para postar.');
-            }
-            throw new Error(error.message || 'Falha ao criar o post.');
+            const errorData = JSON.parse(error.context?.response?.text || '{}');
+            throw new Error(errorData.error || 'Falha ao criar o post.');
         }
-        // A subscrição em tempo real cuidará da atualização, mas uma atualização manual garante a resposta imediata.
-        await refreshActiveLivePosts();
     };
 
     const getPlaceById = (id: string) => places.find(p => p.id === id);

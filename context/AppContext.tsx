@@ -120,6 +120,47 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return () => subscription.unsubscribe();
     }, []);
 
+    const fetchPlaces = useCallback(async (city: string, state: string, query?: string): Promise<Place[]> => {
+        if (!city || !state) return [];
+        setIsLoading(true);
+        setError(null);
+        try {
+            const { data, error } = await supabase.functions.invoke('get-places-by-city', {
+                body: { city, state, query },
+            });
+            if (error) throw error;
+            if (Array.isArray(data)) {
+                setPlaces(prevPlaces => {
+                    const existingIds = new Set(prevPlaces.map(p => p.id));
+                    const newPlaces = data.filter(p => !existingIds.has(p.id));
+                    return [...prevPlaces, ...newPlaces];
+                });
+                return data;
+            }
+            throw new Error("Dados de locais inválidos.");
+        } catch (e: any) {
+            setError("Não foi possível carregar os locais.");
+            return [];
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    const fetchLivePostsForPlace = useCallback(async (placeId: string) => {
+        const { data, error } = await supabase
+            .from('live_posts')
+            .select('*, profiles(id, name, photos)')
+            .eq('place_id', placeId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        
+        if (error) {
+            console.error(`Error fetching live posts for ${placeId}:`, error);
+        } else {
+            setLivePostsByPlace(prev => ({ ...prev, [placeId]: data as LivePost[] }));
+        }
+    }, []);
+
     useEffect(() => {
         if (!session?.user) {
             setCurrentUser(null);
@@ -203,7 +244,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             clearInterval(intervalId);
             supabase.removeChannel(livePostsChannel);
         };
-    }, [session, refreshActiveLivePosts]);
+    }, [session, refreshActiveLivePosts, fetchPlaces]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -215,48 +256,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setCurrentUser(null);
         setSession(null);
     };
-
-    const fetchPlaces = async (city: string, state: string, query?: string): Promise<Place[]> => {
-        if (!city || !state) return [];
-        setIsLoading(true);
-        setError(null);
-        try {
-            const { data, error } = await supabase.functions.invoke('get-places-by-city', {
-                body: { city, state, query },
-            });
-            if (error) throw error;
-            if (Array.isArray(data)) {
-                setPlaces(prevPlaces => {
-                    const existingIds = new Set(prevPlaces.map(p => p.id));
-                    const newPlaces = data.filter(p => !existingIds.has(p.id));
-                    return [...prevPlaces, ...newPlaces];
-                });
-                return data;
-            }
-            throw new Error("Dados de locais inválidos.");
-        } catch (e: any) {
-            setError("Não foi possível carregar os locais.");
-            return [];
-        } finally {
-            setIsLoading(false);
-        }
-    };
     
-    const fetchLivePostsForPlace = async (placeId: string) => {
-        const { data, error } = await supabase
-            .from('live_posts')
-            .select('*, profiles(id, name, photos)')
-            .eq('place_id', placeId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        
-        if (error) {
-            console.error(`Error fetching live posts for ${placeId}:`, error);
-        } else {
-            setLivePostsByPlace(prev => ({ ...prev, [placeId]: data as LivePost[] }));
-        }
-    };
-
     const createLivePost = async (placeId: string, content: string) => {
         const { error } = await supabase.functions.invoke('create-live-post', {
             body: { placeId, content },

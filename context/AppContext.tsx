@@ -41,6 +41,7 @@ interface AppContextType {
     getUserById: (id: string) => User | undefined;
     sendMessage: (matchId: string, text: string) => Promise<void>;
     updateUserProfile: (updatedUser: Partial<User>) => Promise<void>;
+    updateCurrentUserState: (updatedFields: Partial<User>) => void;
     addGoingIntention: (placeId: string) => void;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
@@ -314,6 +315,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    const updateCurrentUserState = (updatedFields: Partial<User>) => {
+        if (currentUser) {
+            setCurrentUser(prevUser => prevUser ? { ...prevUser, ...updatedFields } : null);
+        }
+    };
+
     const addFavorite = async (placeId: string) => {
         if (!currentUser || isFavorite(placeId)) return;
         const { data, error } = await supabase.from('favorites').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
@@ -355,6 +362,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getUserById,
         sendMessage,
         updateUserProfile,
+        updateCurrentUserState,
         addGoingIntention,
         removeGoingIntention,
         getCurrentGoingIntention,

@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import DeleteAccountModal from '../components/DeleteAccountModal';
 
 const ProfilePage: React.FC = () => {
-    const { currentUser, updateUserProfile, logout } = useAppContext();
+    const { currentUser, updateUserProfile, logout, updateCurrentUserState } = useAppContext();
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
@@ -69,10 +69,11 @@ const ProfilePage: React.FC = () => {
                 throw new Error(error.message);
             }
             
-            // Atualiza o estado local apenas após o sucesso da chamada da função
+            // Atualiza o estado local da página
             setUser(prevUser => prevUser ? { ...prevUser, isAvailableForMatch: newAvailability } : null);
-            // Atualiza o contexto global também
-            await updateUserProfile({ isAvailableForMatch: newAvailability });
+            
+            // Atualiza o estado global do contexto, sem chamar o banco de dados novamente
+            updateCurrentUserState({ isAvailableForMatch: newAvailability });
 
         } catch (error: any) {
             alert(`Falha ao atualizar a disponibilidade: ${error.message}`);

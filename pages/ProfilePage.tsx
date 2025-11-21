@@ -61,20 +61,8 @@ const ProfilePage: React.FC = () => {
         const newAvailability = !user.isAvailableForMatch;
 
         try {
-            const { error } = await supabase.functions.invoke('toggle-match-availability', {
-                body: { isAvailable: newAvailability },
-            });
-
-            if (error) {
-                throw new Error(error.message);
-            }
-            
-            // Atualiza o estado local da página
+            await updateUserProfile({ isAvailableForMatch: newAvailability });
             setUser(prevUser => prevUser ? { ...prevUser, isAvailableForMatch: newAvailability } : null);
-            
-            // Atualiza o estado global do contexto, sem chamar o banco de dados novamente
-            updateCurrentUserState({ isAvailableForMatch: newAvailability });
-
         } catch (error: any) {
             alert(`Falha ao atualizar a disponibilidade: ${error.message}`);
         } finally {

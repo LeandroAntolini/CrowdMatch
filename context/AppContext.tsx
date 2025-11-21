@@ -293,13 +293,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const updateUserProfile = async (updatedUser: Partial<User>) => {
         if (!currentUser) return;
 
-        const payload = { ...updatedUser };
-        delete payload.email;
-        delete payload.id;
+        const dbPayload: { [key: string]: any } = {};
+        if (updatedUser.name !== undefined) dbPayload.name = updatedUser.name;
+        if (updatedUser.age !== undefined) dbPayload.age = updatedUser.age;
+        if (updatedUser.bio !== undefined) dbPayload.bio = updatedUser.bio;
+        if (updatedUser.interests !== undefined) dbPayload.interests = updatedUser.interests;
+        if (updatedUser.photos !== undefined) dbPayload.photos = updatedUser.photos;
+        if (updatedUser.gender !== undefined) dbPayload.gender = updatedUser.gender;
+        if (updatedUser.sexualOrientation !== undefined) dbPayload.sexual_orientation = updatedUser.sexualOrientation;
+        if (updatedUser.matchPreferences !== undefined) dbPayload.match_preferences = updatedUser.matchPreferences;
+        if (updatedUser.city !== undefined) dbPayload.city = updatedUser.city;
+        if (updatedUser.state !== undefined) dbPayload.state = updatedUser.state;
+        if (updatedUser.isAvailableForMatch !== undefined) dbPayload.is_available_for_match = updatedUser.isAvailableForMatch;
 
         const { data, error } = await supabase
             .from('profiles')
-            .update(payload)
+            .update(dbPayload)
             .eq('id', currentUser.id)
             .select()
             .single();
@@ -310,7 +319,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         if (data) {
-            const updatedProfile = { ...data, email: currentUser.email } as User;
+            const updatedProfile: User = {
+                ...currentUser,
+                id: data.id,
+                name: data.name,
+                age: data.age,
+                bio: data.bio,
+                interests: data.interests,
+                photos: data.photos,
+                gender: data.gender,
+                sexualOrientation: data.sexual_orientation,
+                matchPreferences: data.match_preferences,
+                city: data.city,
+                state: data.state,
+                isAvailableForMatch: data.is_available_for_match,
+                role: data.role,
+            };
             setCurrentUser(updatedProfile);
         }
     };

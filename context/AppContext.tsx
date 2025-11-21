@@ -114,7 +114,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     .single();
 
                 if (profileError) throw profileError;
-                setCurrentUser(profileData as User);
+                
+                const userWithEmail = { ...profileData, email: session.user.email } as User;
+                setCurrentUser(userWithEmail);
 
                 const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
                 if (allProfilesError) throw allProfilesError;
@@ -289,9 +291,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const updateUserProfile = async (updatedUser: Partial<User>) => {
         if (!currentUser) return;
-        const { data, error } = await supabase.from('profiles').update(updatedUser).eq('id', currentUser.id).select().single();
-        if (!error && data) {
-            setCurrentUser(data as User);
+
+        const payload = { ...updatedUser };
+        delete payload.email;
+        delete payload.id;
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .update(payload)
+            .eq('id', currentUser.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error updating profile:", error);
+            throw new Error(`Falha ao atualizar o perfil: ${error.message}`);
+        }
+
+        if (data) {
+            const updatedProfile = { ...data, email: currentUser.email } as User;
+            setCurrentUser(updatedProfile);
         }
     };
 

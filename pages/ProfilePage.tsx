@@ -12,6 +12,7 @@ const ProfilePage: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -53,19 +54,31 @@ const ProfilePage: React.FC = () => {
         });
     };
     
-    const handleToggleAvailability = () => {
-        setUser(prevUser => {
-            if (!prevUser) return null;
-            const updatedUser = { ...prevUser, isAvailableForMatch: !prevUser.isAvailableForMatch };
-            updateUserProfile(updatedUser);
-            return updatedUser;
-        });
+    const handleToggleAvailability = async () => {
+        if (!user) return;
+        const originalUser = { ...user };
+        const updatedUser = { ...user, isAvailableForMatch: !user.isAvailableForMatch };
+        setUser(updatedUser);
+
+        try {
+            await updateUserProfile(updatedUser);
+        } catch (error: any) {
+            alert(error.message || "Ocorreu um erro ao atualizar a disponibilidade.");
+            setUser(originalUser);
+        }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (user) {
-            updateUserProfile(user);
-            alert("Perfil salvo!");
+            setIsSaving(true);
+            try {
+                await updateUserProfile(user);
+                alert("Perfil salvo com sucesso!");
+            } catch (error: any) {
+                alert(error.message || "Ocorreu um erro ao salvar o perfil.");
+            } finally {
+                setIsSaving(false);
+            }
         }
     };
 
@@ -100,7 +113,7 @@ const ProfilePage: React.FC = () => {
 
         try {
             const url = new URL(photoUrlToDelete);
-            const pathParts = url.pathname.split('/profile-photos/');
+            const pathParts = url.pathname.split('/storage/v1/object/public/profile-photos/');
             const filePath = pathParts.length > 1 ? pathParts[1] : null;
             
             if (filePath) {
@@ -286,7 +299,10 @@ const ProfilePage: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-                <button onClick={handleSave} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600">Salvar Alterações</button>
+                <button onClick={handleSave} disabled={isSaving} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 flex items-center justify-center disabled:bg-gray-600">
+                    {isSaving ? <Loader2 size={20} className="animate-spin mr-2" /> : null}
+                    {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
                 <button onClick={logout} className="w-full bg-surface text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-700">Sair</button>
                 <button onClick={() => setIsDeleteModalOpen(true)} className="w-full text-red-500 text-sm mt-2">Excluir Conta</button>
             </div>

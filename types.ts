@@ -20,6 +20,7 @@ export interface User {
   matchPreferences: MatchPreferences;
   city?: string;
   state?: string;
+  role?: 'user' | 'owner';
 }
 
 export interface Place {
@@ -64,4 +65,14 @@ export interface Message {
   senderId: string;
   content: string;
   createdAt: string;
+}
+
+export interface Promotion {
+    id: string;
+    place_id: string;
+    place_name: string;
+    place_photo_url: string;
+    title: string;
+    description: string | null;
+    end_date: string;
 }

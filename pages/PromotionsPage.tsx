@@ -3,16 +3,7 @@ import { Link } from 'react-router-dom';
 import { Ticket } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../components/LoadingSpinner';
-
-interface Promotion {
-    id: string;
-    place_id: string;
-    place_name: string;
-    place_photo_url: string;
-    title: string;
-    description: string;
-    end_date: string;
-}
+import { Promotion } from '../types';
 
 const PromotionCard: React.FC<{ promotion: Promotion }> = ({ promotion }) => {
     const endDate = new Date(promotion.end_date);

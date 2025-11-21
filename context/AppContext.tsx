@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
+import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
@@ -28,6 +28,7 @@ interface AppContextType {
     matches: Match[];
     favorites: Favorite[];
     goingIntentions: GoingIntention[];
+    promotions: Promotion[];
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     isLoading: boolean;
@@ -50,6 +51,7 @@ interface AppContextType {
     addFavorite: (placeId: string) => Promise<void>;
     removeFavorite: (placeId: string) => Promise<void>;
     isFavorite: (placeId: string) => boolean;
+    getPromotionsForPlace: (placeId: string) => Promotion[];
     hasNewNotification: boolean;
     clearChatNotifications: () => void;
     fetchLivePostsForPlace: (placeId: string) => Promise<void>;
@@ -70,6 +72,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [matches, setMatches] = useState<Match[]>([]);
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
+    const [promotions, setPromotions] = useState<Promotion[]>([]);
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -135,6 +138,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const { data: favoritesData, error: favoritesError } = await supabase.from('favorites').select('*').eq('user_id', session.user.id);
                 if (favoritesError) throw favoritesError;
                 setFavorites(favoritesData.map(f => ({ id: f.id, userId: f.user_id, placeId: f.place_id })));
+
+                const { data: promotionsData, error: promotionsError } = await supabase.from('promotions').select('*').gte('end_date', new Date().toISOString());
+                if (promotionsError) throw promotionsError;
+                setPromotions(promotionsData as Promotion[]);
                 
                 await refreshActiveLivePosts();
 
@@ -244,6 +251,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
     const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id);
     const isFavorite = (placeId: string) => favorites.some(f => f.placeId === placeId);
+    const getPromotionsForPlace = (placeId: string) => promotions.filter(p => p.place_id === placeId);
     const clearNewMatch = () => setNewlyFormedMatch(null);
     const clearChatNotifications = () => setHasNewNotification(false);
     const getLivePostCount = (placeId: string) => activeLivePosts.filter(p => p.place_id === placeId).length;
@@ -323,6 +331,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         matches,
         favorites,
         goingIntentions,
+        promotions,
         livePostsByPlace,
         activeLivePosts,
         isLoading,
@@ -345,6 +354,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addFavorite,
         removeFavorite,
         isFavorite,
+        getPromotionsForPlace,
         hasNewNotification,
         clearChatNotifications,
         fetchLivePostsForPlace,

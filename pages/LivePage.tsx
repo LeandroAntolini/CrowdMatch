@@ -1,115 +1,102 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import LivePostForm from '../components/LivePostForm';
-import LivePostCard from '../components/LivePostCard';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Radio, ChevronDown } from 'lucide-react';
+import { Search, Radio } from 'lucide-react';
 import { Place } from '../types';
+import LiveFeedBox from '../components/LiveFeedBox';
 
 const LivePage: React.FC = () => {
     const { 
         places,
-        getCurrentCheckIn, 
-        livePosts, 
-        fetchLivePosts, 
-        createLivePost 
+        checkIns,
+        currentUser,
+        getCurrentCheckIn,
+        getPlaceById,
+        createLivePost,
+        fetchPlaces,
+        isLoading
     } = useAppContext();
     
-    const [isLoading, setIsLoading] = useState(false);
-    const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchedPlaces, setSearchedPlaces] = useState<Place[] | null>(null);
 
     const currentCheckIn = getCurrentCheckIn();
-    const checkedInPlace = currentCheckIn ? places.find(p => p.id === currentCheckIn.placeId) : null;
+    const checkedInPlace = currentCheckIn ? getPlaceById(currentCheckIn.placeId) : null;
 
-    // Define o local do check-in como padrão na primeira vez que a página carrega
-    useEffect(() => {
-        if (checkedInPlace && !selectedPlace) {
-            setSelectedPlace(checkedInPlace);
-        }
-    }, [checkedInPlace, selectedPlace]);
+    const topPlaces = useMemo(() => {
+        if (searchedPlaces) return searchedPlaces;
 
-    // Busca os posts sempre que um novo local é selecionado
-    useEffect(() => {
-        if (selectedPlace) {
-            setIsLoading(true);
-            fetchLivePosts(selectedPlace.id).finally(() => setIsLoading(false));
-        } else {
-            // Limpa os posts se nenhum local estiver selecionado
-            fetchLivePosts(''); 
-        }
-    }, [selectedPlace, fetchLivePosts]);
+        const placeCounts = checkIns.reduce((acc, checkIn) => {
+            acc[checkIn.placeId] = (acc[checkIn.placeId] || 0) + 1;
+            return acc;
+        }, {} as { [key: string]: number });
 
-    // Fecha o dropdown se clicar fora dele
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsDropdownOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        return places
+            .map(place => ({ ...place, count: placeCounts[place.id] || 0 }))
+            .filter(place => place.count > 0)
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 3);
+    }, [checkIns, places, searchedPlaces]);
+
+    const handleSearch = async () => {
+        if (!searchQuery.trim() || !currentUser?.city || !currentUser?.state) return;
+        const results = await fetchPlaces(currentUser.city, currentUser.state, searchQuery.trim());
+        setSearchedPlaces(results);
+    };
 
     const handlePostSubmit = async (content: string) => {
-        if (selectedPlace) {
-            await createLivePost(selectedPlace.id, content);
+        if (checkedInPlace) {
+            await createLivePost(checkedInPlace.id, content);
         }
     };
 
-    const canPost = currentCheckIn?.placeId === selectedPlace?.id;
-
     return (
-        <div className="p-4">
-            <h1 className="text-3xl font-bold mb-4">Feed Ao Vivo</h1>
-            
-            <div className="relative mb-6" ref={dropdownRef}>
-                <button 
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="w-full flex items-center justify-between bg-surface px-4 py-3 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                    <span className="truncate">{selectedPlace ? selectedPlace.name : 'Selecione um local para ver o feed'}</span>
-                    <ChevronDown size={20} className={`transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isDropdownOpen && (
-                    <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
-                        {places.length > 0 ? places.map(place => (
-                            <li 
-                                key={place.id} 
-                                onClick={() => { setSelectedPlace(place); setIsDropdownOpen(false); }} 
-                                className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer"
-                            >
-                                {place.name}
-                            </li>
-                        )) : <li className="px-4 py-2 text-text-secondary">Nenhum local encontrado.</li>}
-                    </ul>
-                )}
+        <div className="p-4 space-y-6">
+            <div>
+                <h1 className="text-3xl font-bold">Feed Ao Vivo</h1>
+                <p className="text-text-secondary">Veja o que está rolando nos locais mais quentes.</p>
             </div>
 
-            {!selectedPlace ? (
-                <div className="flex flex-col items-center justify-center text-center p-4 mt-8">
-                    <Radio size={48} className="text-primary mb-4" />
-                    <p className="text-text-secondary">Selecione um local acima para ver o que está acontecendo em tempo real.</p>
+            <div className="relative">
+                <input
+                    type="text"
+                    placeholder="Buscar um local específico..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    className="w-full bg-surface px-4 py-2 pl-10 pr-12 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <button 
+                    onClick={handleSearch}
+                    className="absolute right-0 top-0 bottom-0 px-3 flex items-center text-text-secondary hover:text-accent"
+                    aria-label="Buscar local"
+                >
+                    <Search size={20} />
+                </button>
+                <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
+            </div>
+
+            {checkedInPlace && (
+                <div>
+                    <h2 className="text-lg font-semibold mb-2">Postar em {checkedInPlace.name}</h2>
+                    <LivePostForm onSubmit={handlePostSubmit} />
+                </div>
+            )}
+
+            {isLoading && !topPlaces.length ? (
+                <LoadingSpinner />
+            ) : topPlaces.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {topPlaces.map(place => (
+                        <LiveFeedBox key={place.id} place={place} />
+                    ))}
                 </div>
             ) : (
-                <div>
-                    {canPost && <LivePostForm onSubmit={handlePostSubmit} />}
-                    
-                    {isLoading ? (
-                        <LoadingSpinner message={`Carregando feed de ${selectedPlace.name}...`} />
-                    ) : (
-                        <div className="space-y-4">
-                            {livePosts.length > 0 ? (
-                                livePosts.map(post => <LivePostCard key={post.id} post={post} />)
-                            ) : (
-                                <p className="text-center text-text-secondary mt-8">
-                                    Ninguém comentou ainda em {selectedPlace.name}. 
-                                    {canPost ? ' Seja o primeiro!' : ''}
-                                </p>
-                            )}
-                        </div>
-                    )}
+                <div className="text-center text-text-secondary mt-8 p-4">
+                    <Radio size={48} className="mx-auto text-primary mb-4" />
+                    <p className="text-lg font-semibold">Nenhum feed ao vivo disponível.</p>
+                    <p className="text-sm mt-2">Parece que os locais estão tranquilos agora. Tente buscar por um local específico ou volte mais tarde!</p>
                 </div>
             )}
         </div>

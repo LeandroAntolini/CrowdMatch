@@ -20,6 +20,7 @@ export interface User {
   matchPreferences: MatchPreferences;
   city?: string;
   state?: string;
+  role?: string;
 }
 
 export interface Place {

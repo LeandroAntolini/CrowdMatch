@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
 import { supabase } from '@/integrations/supabase/client';
-import { Session } from '@supabase/supabase-js';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 interface Favorite {
     id: string;
@@ -61,6 +61,26 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Helper function to map snake_case from DB to camelCase for the app
+const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): User => {
+    return {
+        id: profileData.id,
+        email: sessionUser?.email || '',
+        name: profileData.name,
+        age: profileData.age,
+        bio: profileData.bio,
+        interests: profileData.interests,
+        photos: profileData.photos,
+        gender: profileData.gender,
+        sexualOrientation: profileData.sexual_orientation,
+        matchPreferences: profileData.match_preferences,
+        city: profileData.city,
+        state: profileData.state,
+        isAvailableForMatch: profileData.is_available_for_match,
+        role: profileData.role,
+    };
+};
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -118,12 +138,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 if (profileError) throw profileError;
                 
-                const userWithEmail = { ...profileData, email: session.user.email } as User;
-                setCurrentUser(userWithEmail);
+                setCurrentUser(mapProfileToUser(profileData, session.user));
 
                 const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
                 if (allProfilesError) throw allProfilesError;
-                setUsers(allProfilesData as User[]);
+                setUsers(allProfilesData.map(p => mapProfileToUser(p, null)));
 
                 if (profileData?.city && profileData?.state) {
                     await fetchPlaces(profileData.city, profileData.state);
@@ -297,7 +316,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const updateUserProfile = async (updatedUser: Partial<User>) => {
-        if (!currentUser) return;
+        if (!currentUser || !session?.user) return;
 
         const dbPayload: { [key: string]: any } = {};
         if (updatedUser.name !== undefined) dbPayload.name = updatedUser.name;
@@ -325,23 +344,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         if (data) {
-            const updatedProfile: User = {
-                ...currentUser,
-                id: data.id,
-                name: data.name,
-                age: data.age,
-                bio: data.bio,
-                interests: data.interests,
-                photos: data.photos,
-                gender: data.gender,
-                sexualOrientation: data.sexual_orientation,
-                matchPreferences: data.match_preferences,
-                city: data.city,
-                state: data.state,
-                isAvailableForMatch: data.is_available_for_match,
-                role: data.role,
-            };
-            setCurrentUser(updatedProfile);
+            setCurrentUser(mapProfileToUser(data, session.user));
         }
     };
 

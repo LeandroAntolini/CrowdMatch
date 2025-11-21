@@ -41,7 +41,7 @@ interface AppContextType {
     getPlaceById: (id: string) => Place | undefined;
     getUserById: (id: string) => User | undefined;
     sendMessage: (matchId: string, text: string) => Promise<void>;
-    updateUserProfile: (updatedUser: Partial<User>) => Promise<void>;
+    updateUserProfile: (updatedUser: Partial<User>) => Promise<{ success: boolean; error?: any }>;
     addGoingIntention: (placeId: string) => void;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
@@ -117,7 +117,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     .single();
 
                 if (profileError) throw profileError;
-                setCurrentUser(profileData as User);
+                
+                // Adiciona o email do objeto de sessão ao objeto de perfil
+                const userWithEmail = { ...profileData, email: session.user.email } as User;
+                setCurrentUser(userWithEmail);
 
                 const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
                 if (allProfilesError) throw allProfilesError;
@@ -295,12 +298,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await supabase.from('messages').insert({ match_id: matchId, sender_id: currentUser.id, content });
     };
 
-    const updateUserProfile = async (updatedUser: Partial<User>) => {
-        if (!currentUser) return;
-        const { data, error } = await supabase.from('profiles').update(updatedUser).eq('id', currentUser.id).select().single();
-        if (!error && data) {
-            setCurrentUser(data as User);
+    const updateUserProfile = async (updatedUser: Partial<User>): Promise<{ success: boolean; error?: any }> => {
+        if (!currentUser) return { success: false, error: { message: 'Usuário não autenticado.' } };
+
+        const userToUpdate = { ...updatedUser };
+        delete userToUpdate.id;
+        delete userToUpdate.email;
+
+        const { data, error } = await supabase
+            .from('profiles')
+            .update(userToUpdate)
+            .eq('id', currentUser.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error updating profile:", error);
+            return { success: false, error };
         }
+
+        if (data) {
+            setCurrentUser(prevUser => ({ ...prevUser, ...data } as User));
+            return { success: true };
+        }
+
+        return { success: false, error: { message: 'Nenhum dado retornado após a atualização.' } };
     };
 
     const addFavorite = async (placeId: string) => {

@@ -12,6 +12,7 @@ const ProfilePage: React.FC = () => {
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,18 +55,19 @@ const ProfilePage: React.FC = () => {
     };
     
     const handleToggleAvailability = () => {
-        if (!user) return;
-        const newAvailability = !user.isAvailableForMatch;
-        // Optimistically update UI
-        setUser({ ...user, isAvailableForMatch: newAvailability });
-        // Update backend with only the changed field
-        updateUserProfile({ isAvailableForMatch: newAvailability });
+        setUser(prev => prev ? { ...prev, isAvailableForMatch: !prev.isAvailableForMatch } : null);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (user) {
-            updateUserProfile(user);
-            alert("Perfil salvo!");
+            setIsSaving(true);
+            const result = await updateUserProfile(user);
+            setIsSaving(false);
+            if (result.success) {
+                alert("Perfil salvo com sucesso!");
+            } else {
+                alert(`Erro ao salvar o perfil: ${result.error?.message || 'Tente novamente.'}`);
+            }
         }
     };
 
@@ -281,7 +283,9 @@ const ProfilePage: React.FC = () => {
             </div>
             
             <div className="space-y-2">
-                <button onClick={handleSave} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600">Salvar Alterações</button>
+                <button onClick={handleSave} disabled={isSaving} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 flex items-center justify-center disabled:bg-gray-600">
+                    {isSaving ? <Loader2 size={20} className="animate-spin" /> : 'Salvar Alterações'}
+                </button>
                 <button onClick={logout} className="w-full bg-surface text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-700">Sair</button>
                 <button onClick={() => setIsDeleteModalOpen(true)} className="w-full text-red-500 text-sm mt-2">Excluir Conta</button>
             </div>

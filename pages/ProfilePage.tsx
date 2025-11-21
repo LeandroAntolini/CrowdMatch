@@ -13,6 +13,7 @@ const ProfilePage: React.FC = () => {
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isTogglingAvailability, setIsTogglingAvailability] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,15 +57,27 @@ const ProfilePage: React.FC = () => {
     
     const handleToggleAvailability = async () => {
         if (!user) return;
-        const originalUser = { ...user };
-        const updatedUser = { ...user, isAvailableForMatch: !user.isAvailableForMatch };
-        setUser(updatedUser);
+        setIsTogglingAvailability(true);
+        const newAvailability = !user.isAvailableForMatch;
 
         try {
-            await updateUserProfile(updatedUser);
+            const { error } = await supabase.functions.invoke('toggle-match-availability', {
+                body: { isAvailable: newAvailability },
+            });
+
+            if (error) {
+                throw new Error(error.message);
+            }
+            
+            // Atualiza o estado local apenas após o sucesso da chamada da função
+            setUser(prevUser => prevUser ? { ...prevUser, isAvailableForMatch: newAvailability } : null);
+            // Atualiza o contexto global também
+            await updateUserProfile({ isAvailableForMatch: newAvailability });
+
         } catch (error: any) {
-            alert(error.message || "Ocorreu um erro ao atualizar a disponibilidade.");
-            setUser(originalUser);
+            alert(`Falha ao atualizar a disponibilidade: ${error.message}`);
+        } finally {
+            setIsTogglingAvailability(false);
         }
     };
 
@@ -293,8 +306,12 @@ const ProfilePage: React.FC = () => {
 
             <div className="flex items-center justify-between bg-surface p-3 rounded-lg">
                 <span id="availability-label" className="font-medium">Disponível para Match</span>
-                <button onClick={handleToggleAvailability} role="switch" aria-checked={user.isAvailableForMatch} aria-labelledby="availability-label" className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${user.isAvailableForMatch ? 'bg-accent' : 'bg-gray-600'}`}>
-                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${user.isAvailableForMatch ? 'translate-x-6' : 'translate-x-1'}`} />
+                <button onClick={handleToggleAvailability} disabled={isTogglingAvailability} role="switch" aria-checked={user.isAvailableForMatch} aria-labelledby="availability-label" className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors disabled:opacity-50 ${user.isAvailableForMatch ? 'bg-accent' : 'bg-gray-600'}`}>
+                    {isTogglingAvailability ? (
+                        <Loader2 size={16} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-spin text-white" />
+                    ) : (
+                        <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${user.isAvailableForMatch ? 'translate-x-6' : 'translate-x-1'}`} />
+                    )}
                 </button>
             </div>
             

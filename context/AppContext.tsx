@@ -147,6 +147,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         fetchData();
 
+        const intervalId = setInterval(() => {
+            refreshActiveLivePosts();
+        }, 60000); // Refresh every 60 seconds
+
         const livePostsChannel = supabase
             .channel('live-posts-feed')
             .on<LivePost>(
@@ -154,7 +158,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 { event: 'INSERT', schema: 'public', table: 'live_posts' },
                 async (payload) => {
                     const newPost = payload.new as any;
-                    await refreshActiveLivePosts(); // Refresh the count
+                    await refreshActiveLivePosts();
                     const { data: profileData } = await supabase.from('profiles').select('id, name, photos').eq('id', newPost.user_id).single();
                     if (profileData) {
                         newPost.profiles = profileData;
@@ -168,6 +172,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             .subscribe();
 
         return () => {
+            clearInterval(intervalId);
             supabase.removeChannel(livePostsChannel);
         };
     }, [session, refreshActiveLivePosts]);

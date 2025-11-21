@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import LivePostForm from '../components/LivePostForm';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Search, Radio } from 'lucide-react';
+import { Search, Radio, Clock } from 'lucide-react';
 import { Place } from '../types';
 import LiveFeedBox from '../components/LiveFeedBox';
 
@@ -80,6 +80,10 @@ const LivePage: React.FC = () => {
             {checkedInPlace && (
                 <div>
                     <h2 className="text-lg font-semibold mb-2">Postar em {checkedInPlace.name}</h2>
+                    <div className="flex items-center text-sm text-text-secondary mb-2 p-2 bg-gray-800 rounded-lg">
+                        <Clock size={16} className="mr-2 text-accent" />
+                        <span>Seu post ficará visível por 1 hora.</span>
+                    </div>
                     <LivePostForm onSubmit={handlePostSubmit} />
                 </div>
             )}

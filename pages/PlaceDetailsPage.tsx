@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio, Clock } from 'lucide-react';
 import MapModal from '../components/MapModal';
 import LivePostForm from '../components/LivePostForm';
 import LiveFeedBox from '../components/LiveFeedBox';
@@ -179,6 +179,10 @@ const PlaceDetailsPage: React.FC = () => {
                     <h2 className="text-2xl font-bold mb-4">Feed Ao Vivo</h2>
                     {isCheckedInHere && (
                         <div className="mb-6">
+                            <div className="flex items-center text-sm text-text-secondary mb-2 p-2 bg-gray-800 rounded-lg">
+                                <Clock size={16} className="mr-2 text-accent" />
+                                <span>Seu post ficará visível por 1 hora.</span>
+                            </div>
                             <LivePostForm onSubmit={handlePostSubmit} />
                         </div>
                     )}

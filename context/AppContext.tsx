@@ -53,6 +53,7 @@ interface AppContextType {
     clearChatNotifications: () => void;
     fetchLivePostsForPlace: (placeId: string) => Promise<void>;
     createLivePost: (placeId: string, content: string) => Promise<void>;
+    getLivePostCount: (placeId: string) => number;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -69,6 +70,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [goingIntentions, setGoingIntentions] = useState<GoingIntention[]>([]);
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
+    const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
@@ -118,6 +120,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const { data: favoritesData, error: favoritesError } = await supabase.from('favorites').select('*').eq('user_id', session.user.id);
                 if (favoritesError) throw favoritesError;
                 setFavorites(favoritesData.map(f => ({ id: f.id, userId: f.user_id, placeId: f.place_id })));
+                
+                const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+                const { data: livePostsData, error: livePostsError } = await supabase.from('live_posts').select('place_id').gt('created_at', oneHourAgo);
+                if (livePostsError) throw livePostsError;
+                setActiveLivePosts(livePostsData);
+
 
             } catch (e: any) {
                 setError(e.message);
@@ -135,6 +143,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 { event: 'INSERT', schema: 'public', table: 'live_posts' },
                 async (payload) => {
                     const newPost = payload.new as any;
+                    setActiveLivePosts(prev => [...prev, { place_id: newPost.place_id }]);
                     const { data: profileData } = await supabase.from('profiles').select('id, name, photos').eq('id', newPost.user_id).single();
                     if (profileData) {
                         newPost.profiles = profileData;
@@ -221,6 +230,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const isFavorite = (placeId: string) => favorites.some(f => f.placeId === placeId);
     const clearNewMatch = () => setNewlyFormedMatch(null);
     const clearChatNotifications = () => setHasNewNotification(false);
+    const getLivePostCount = (placeId: string) => activeLivePosts.filter(p => p.place_id === placeId).length;
 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
@@ -322,6 +332,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clearChatNotifications,
         fetchLivePostsForPlace,
         createLivePost,
+        getLivePostCount,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

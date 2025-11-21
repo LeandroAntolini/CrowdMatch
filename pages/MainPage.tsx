@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { Place } from '../types';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart, Map } from 'lucide-react';
+import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart, Map, Radio } from 'lucide-react';
 import { citiesByState } from '../data/locations';
 import FavoritePlacesList from '../components/FavoritePlacesList';
 import MapModal from '../components/MapModal';
@@ -14,7 +14,7 @@ const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' 
     return 'Agitado';
 };
 
-const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number }> = ({ place, crowdCount, goingCount }) => {
+const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number; livePostCount: number }> = ({ place, crowdCount, goingCount, livePostCount }) => {
     return (
         <Link to={`/place/${place.id}`} className="block bg-surface rounded-lg p-4 mb-4 shadow-md hover:bg-gray-700 transition-all duration-200">
             <div className="flex items-center space-x-4">
@@ -31,6 +31,10 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
                             <CalendarClock size={16} className="mr-1 text-accent" />
                             <span className="font-semibold">{goingCount} vão</span>
                         </div>
+                        <div className="flex items-center text-text-secondary">
+                            <Radio size={16} className="mr-1 text-blue-400" />
+                            <span className="font-semibold">{livePostCount} ao vivo</span>
+                        </div>
                     </div>
                 </div>
                  <div className={`px-3 py-1 text-xs font-semibold rounded-full ${place.isOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
@@ -43,7 +47,7 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
 
 
 const MainPage: React.FC = () => {
-    const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces } = useAppContext();
+    const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces, getLivePostCount } = useAppContext();
     const navigate = useNavigate();
     
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -267,6 +271,7 @@ const MainPage: React.FC = () => {
                                 place={place} 
                                 crowdCount={getCrowdCount(place.id)}
                                 goingCount={getGoingCount(place.id)}
+                                livePostCount={getLivePostCount(place.id)}
                                 />
                             ))
                         ) : (

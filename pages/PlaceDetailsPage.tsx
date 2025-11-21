@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio } from 'lucide-react';
 import MapModal from '../components/MapModal';
 
 const PlaceDetailsPage: React.FC = () => {
@@ -21,7 +21,8 @@ const PlaceDetailsPage: React.FC = () => {
         isFavorite,
         addFavorite,
         removeFavorite,
-        places // Adicionado para passar ao mapa
+        places,
+        getLivePostCount
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -58,13 +59,14 @@ const PlaceDetailsPage: React.FC = () => {
 
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place.id).length;
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place.id).length;
+    const livePostCount = getLivePostCount(place.id);
 
     return (
         <div className="relative">
             <img src={place.photoUrl} alt={place.name} className="w-full h-64 object-cover" />
             <div className="absolute top-4 left-4">
                 <button onClick={() => navigate(-1)} className="bg-black/50 text-white rounded-full p-2">
-                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                     <svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                 </button>
             </div>
             <div className="absolute top-4 right-4">
@@ -89,6 +91,10 @@ const PlaceDetailsPage: React.FC = () => {
                     <div className="flex items-center">
                         <CalendarClock size={18} className="text-accent mr-1" />
                         <span>{goingCount} pretendem ir</span>
+                    </div>
+                    <div className="flex items-center">
+                        <Radio size={18} className="text-blue-400 mr-1" />
+                        <span>{livePostCount} ao vivo</span>
                     </div>
                 </div>
                 

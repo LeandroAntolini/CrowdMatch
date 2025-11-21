@@ -129,7 +129,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchData();
 
         const livePostsChannel = supabase
-            .channel('public:live_posts')
+            .channel('live-posts-feed')
             .on<LivePost>(
                 'postgres_changes',
                 { event: 'INSERT', schema: 'public', table: 'live_posts' },

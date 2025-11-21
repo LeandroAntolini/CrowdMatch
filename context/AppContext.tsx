@@ -234,13 +234,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const createLivePost = async (placeId: string, content: string) => {
-        const { error } = await supabase.functions.invoke('create-live-post', {
-            body: { placeId, content },
+        if (!currentUser) throw new Error("Usuário não autenticado.");
+
+        const { error } = await supabase.from('live_posts').insert({
+            user_id: currentUser.id,
+            place_id: placeId,
+            content: content,
         });
+
         if (error) {
-            const errorData = JSON.parse(error.context?.response?.text || '{}');
-            throw new Error(errorData.error || 'Falha ao criar o post.');
+            if (error.code === '42501') { // Violação de RLS
+                 throw new Error('Você precisa estar com check-in ativo neste local para postar.');
+            }
+            throw new Error(error.message || 'Falha ao criar o post.');
         }
+        // A subscrição em tempo real cuidará da atualização, mas uma atualização manual garante a resposta imediata.
         await refreshActiveLivePosts();
     };
 

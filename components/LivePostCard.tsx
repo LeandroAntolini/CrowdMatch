@@ -1,5 +1,6 @@
 import React from 'react';
 import { User } from '../types';
+import { LivePost } from '../context/AppContext';
 
 // Função para formatar o tempo relativo
 const timeAgo = (date: Date): string => {
@@ -16,13 +17,6 @@ const timeAgo = (date: Date): string => {
     if (interval > 1) return Math.floor(interval) + "min";
     return Math.floor(seconds) + "s";
 };
-
-interface LivePost {
-    id: string;
-    content: string;
-    created_at: string;
-    profiles: Pick<User, 'name' | 'photos'>;
-}
 
 interface LivePostCardProps {
     post: LivePost;

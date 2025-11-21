@@ -157,7 +157,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (error) {
             console.error(`Error fetching live posts for ${placeId}:`, error);
         } else {
-            setLivePostsByPlace(prev => ({ ...prev, [placeId]: data as LivePost[] }));
+            // Mapeamento explícito para garantir que a estrutura de dados aninhada seja correta
+            const mappedData: LivePost[] = (data || []).map((item: any) => ({
+                id: item.id,
+                user_id: item.user_id,
+                place_id: item.place_id,
+                content: item.content,
+                created_at: item.created_at,
+                profiles: item.profiles,
+            }));
+            setLivePostsByPlace(prev => ({ ...prev, [placeId]: mappedData }));
         }
     }, []);
 
@@ -244,7 +253,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             clearInterval(intervalId);
             supabase.removeChannel(livePostsChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces]);
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchLivePostsForPlace]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');

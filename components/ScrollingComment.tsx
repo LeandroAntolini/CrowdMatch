@@ -1,5 +1,6 @@
 import React from 'react';
 import { User } from '../types';
+import { LivePost } from '../context/AppContext';
 
 const timeAgo = (date: Date): string => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -9,13 +10,6 @@ const timeAgo = (date: Date): string => {
     if (interval > 1) return Math.floor(interval) + "min atrás";
     return "agora";
 };
-
-interface LivePost {
-    id: string;
-    content: string;
-    created_at: string;
-    profiles: Pick<User, 'name' | 'photos'>;
-}
 
 interface ScrollingCommentProps {
     post: LivePost;

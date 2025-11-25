@@ -48,7 +48,12 @@ const OwnerDashboardPage: React.FC = () => {
                     >
                         Fazer uma Postagem no Feed
                     </button>
-                    <button className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors">Verificar QR Code de Cliente</button>
+                    <button 
+                        onClick={() => navigate('/owner/verify-qr')}
+                        className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors"
+                    >
+                        Verificar QR Code de Cliente
+                    </button>
                 </div>
             </div>
         </div>

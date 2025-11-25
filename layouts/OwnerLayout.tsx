@@ -5,6 +5,7 @@ import OwnerProfilePage from '../pages/owner/OwnerProfilePage';
 import PromotionsPage from '../pages/PromotionsPage'; // Reutilizável
 import OwnerFeedsPage from '../pages/owner/OwnerFeedsPage';
 import CreateFeedPostPage from '../pages/owner/CreateFeedPostPage';
+import VerifyQrPage from '../pages/owner/VerifyQrPage';
 import OwnerHeader from '../components/owner/OwnerHeader';
 import OwnerBottomNav from '../components/owner/OwnerBottomNav';
 
@@ -19,6 +20,7 @@ const OwnerLayout: React.FC = () => {
                     <Route path="/owner/create-post" element={<CreateFeedPostPage />} />
                     <Route path="/owner/promotions" element={<PromotionsPage />} />
                     <Route path="/owner/profile" element={<OwnerProfilePage />} />
+                    <Route path="/owner/verify-qr" element={<VerifyQrPage />} />
                     <Route path="*" element={<Navigate to="/dashboard" />} />
                 </Routes>
             </div>

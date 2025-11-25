@@ -81,6 +81,7 @@ interface AppContextType {
     ownedPlaceIds: string[];
     addOwnedPlace: (placeId: string) => Promise<void>;
     removeOwnedPlace: (placeId: string) => Promise<void>;
+    verifyQrCode: (qrCodeValue: string) => Promise<any>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -600,6 +601,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOwnedPlaceIds(prev => prev.filter(id => id !== placeId));
     };
 
+    const verifyQrCode = async (qrCodeValue: string) => {
+        const { data, error } = await supabase.functions.invoke('verify-qrcode', {
+            body: { qrCodeValue },
+        });
+        if (error) throw error;
+        return data;
+    };
+
     const value = {
         isAuthenticated: !!session?.user,
         hasOnboarded,
@@ -648,6 +657,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ownedPlaceIds,
         addOwnedPlace,
         removeOwnedPlace,
+        verifyQrCode,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

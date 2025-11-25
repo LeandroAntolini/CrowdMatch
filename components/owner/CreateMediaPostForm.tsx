@@ -5,7 +5,7 @@ import { Loader2, UploadCloud, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Place } from '../../types';
 
-const CreateFeedPostForm: React.FC = () => {
+const CreateMediaPostForm: React.FC = () => {
     const { currentUser, createOwnerFeedPost, ownedPlaceIds, getPlaceById, places } = useAppContext();
     const navigate = useNavigate();
     
@@ -180,4 +180,4 @@ const CreateFeedPostForm: React.FC = () => {
     );
 };
 
-export default CreateFeedPostForm;
+export default CreateMediaPostForm;

@@ -7,6 +7,8 @@ import CreatePromotionPage from '../pages/owner/CreatePromotionPage';
 import EditPromotionPage from '../pages/owner/EditPromotionPage';
 import OwnerFeedsPage from '../pages/owner/OwnerFeedsPage';
 import CreateFeedPostPage from '../pages/owner/CreateFeedPostPage';
+import CreateMediaPostPage from '../pages/owner/CreateMediaPostPage';
+import CreateLiveRepostPage from '../pages/owner/CreateLiveRepostPage';
 import VerifyQrPage from '../pages/owner/VerifyQrPage';
 import OwnerHeader from '../components/owner/OwnerHeader';
 import OwnerBottomNav from '../components/owner/OwnerBottomNav';
@@ -20,6 +22,8 @@ const OwnerLayout: React.FC = () => {
                     <Route path="/dashboard" element={<OwnerDashboardPage />} />
                     <Route path="/owner/feeds" element={<OwnerFeedsPage />} />
                     <Route path="/owner/create-post" element={<CreateFeedPostPage />} />
+                    <Route path="/owner/create-media-post" element={<CreateMediaPostPage />} />
+                    <Route path="/owner/create-live-repost" element={<CreateLiveRepostPage />} />
                     <Route path="/owner/promotions" element={<OwnerPromotionsPage />} />
                     <Route path="/owner/promotions/create" element={<CreatePromotionPage />} />
                     <Route path="/owner/promotions/edit/:promotionId" element={<EditPromotionPage />} />

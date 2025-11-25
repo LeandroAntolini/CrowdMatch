@@ -61,6 +61,7 @@ interface AppContextType {
     promotions: Promotion[];
     ownerPromotions: (Promotion & { claim_count?: number })[];
     promotionClaims: PromotionClaim[];
+    allFeedPosts: FeedPost[];
     isLoading: boolean;
     error: string | null;
     logout: () => void;
@@ -166,6 +167,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [ownerPromotions, setOwnerPromotions] = useState<(Promotion & { claim_count?: number })[]>([]);
     const [promotionClaims, setPromotionClaims] = useState<PromotionClaim[]>([]);
     const [ownerFeedPosts, setOwnerFeedPosts] = useState<FeedPost[]>([]);
+    const [allFeedPosts, setAllFeedPosts] = useState<FeedPost[]>([]);
     const [ownedPlaceIds, setOwnedPlaceIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
@@ -292,11 +294,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     await fetchPlaces(profileData.city, profileData.state);
                 }
 
+                const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
                 if (mappedUser.role === 'owner') {
                     const { data: postsData, error: postsError } = await supabase
                         .from('feed_posts')
                         .select('*')
                         .eq('user_id', session.user.id)
+                        .gt('created_at', oneHourAgo)
                         .order('created_at', { ascending: false });
                     
                     if (postsError) throw postsError;
@@ -352,6 +357,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     }));
                     setOwnerPromotions(mappedOwnerPromos);
                 }
+
+                const { data: allPostsData, error: allPostsError } = await supabase
+                    .from('feed_posts')
+                    .select('*')
+                    .gt('created_at', oneHourAgo)
+                    .order('created_at', { ascending: false });
+                
+                if (allPostsError) throw allPostsError;
+                
+                const mappedAllPosts: FeedPost[] = allPostsData.map((p: any) => ({
+                    id: p.id,
+                    placeId: p.place_id,
+                    placeName: p.place_name,
+                    placeLogoUrl: p.place_logo_url || '',
+                    type: p.type,
+                    mediaUrl: p.media_url,
+                    caption: p.caption,
+                    likes: 0,
+                    comments: [],
+                    timestamp: new Date(p.created_at).toISOString(),
+                }));
+                setAllFeedPosts(mappedAllPosts);
 
                 const { data: checkInsData, error: checkInsError } = await supabase.from('check_ins').select('*');
                 if (checkInsError) throw checkInsError;
@@ -785,6 +812,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         promotions,
         ownerPromotions,
         promotionClaims,
+        allFeedPosts,
         isLoading,
         error,
         logout,

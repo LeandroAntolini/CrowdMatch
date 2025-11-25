@@ -2,6 +2,22 @@ import React from 'react';
 import { FeedPost } from '../types';
 import { Heart, MessageCircle, Send } from 'lucide-react';
 
+const timeAgo = (dateString: string): string => {
+    const date = new Date(dateString);
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + "a";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + "m";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + "d";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + "h";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + "min";
+    return "agora";
+};
+
 const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
     const renderMedia = () => {
         if (post.type === 'video') {
@@ -16,12 +32,6 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
         return <img src={post.mediaUrl} alt={post.placeName} className="w-full h-full object-cover" />;
     };
 
-    const formattedTimestamp = new Date(post.timestamp).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric'
-    });
-
     return (
         <div className="bg-surface rounded-lg overflow-hidden mb-6">
             {/* Header */}
@@ -29,7 +39,7 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                 <img src={post.placeLogoUrl || 'https://i.pravatar.cc/150?u=default'} alt={`${post.placeName} logo`} className="w-10 h-10 rounded-full object-cover mr-3" />
                 <div>
                     <span className="font-bold text-text-primary">{post.placeName}</span>
-                    <p className="text-xs text-text-secondary">{formattedTimestamp}</p>
+                    <p className="text-xs text-text-secondary">{timeAgo(post.timestamp)}</p>
                 </div>
             </div>
 

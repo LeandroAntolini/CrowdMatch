@@ -321,7 +321,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         .eq('user_id', session.user.id);
                     
                     if (ownedPlacesError) throw ownedPlacesError;
-                    setOwnedPlaceIds(ownedPlacesData.map(p => p.place_id));
+                    const ids = ownedPlacesData.map(p => p.place_id);
+                    setOwnedPlaceIds(ids);
+
+                    if (ids.length > 0) {
+                        const { data: ownedPlacesDetails, error: detailsError } = await supabase.functions.invoke('get-places-by-ids', {
+                            body: { placeIds: ids },
+                        });
+
+                        if (detailsError) {
+                            console.error("Error fetching owned place details:", detailsError);
+                        } else if (Array.isArray(ownedPlacesDetails)) {
+                            setPlaces(prevPlaces => {
+                                const existingIds = new Set(prevPlaces.map(p => p.id));
+                                const newPlaces = ownedPlacesDetails.filter(p => !existingIds.has(p.id));
+                                return [...prevPlaces, ...newPlaces];
+                            });
+                        }
+                    }
 
                     const { data: ownerPromosData, error: ownerPromosError } = await supabase
                         .from('promotions')

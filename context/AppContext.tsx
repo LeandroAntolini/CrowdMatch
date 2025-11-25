@@ -33,6 +33,18 @@ interface CreatePostPayload {
     type: 'image' | 'video';
 }
 
+interface CreatePromotionPayload {
+    title: string;
+    description?: string;
+    placeId: string;
+    placeName: string;
+    placePhotoUrl?: string;
+    promotionType: PromotionType;
+    limitCount: number;
+    startDate: string;
+    endDate: string;
+}
+
 interface AppContextType {
     isAuthenticated: boolean;
     hasOnboarded: boolean;
@@ -47,6 +59,7 @@ interface AppContextType {
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     promotions: Promotion[];
+    ownerPromotions: (Promotion & { claim_count?: number })[];
     promotionClaims: PromotionClaim[];
     isLoading: boolean;
     error: string | null;
@@ -82,6 +95,7 @@ interface AppContextType {
     addOwnedPlace: (placeId: string) => Promise<void>;
     removeOwnedPlace: (placeId: string) => Promise<void>;
     verifyQrCode: (qrCodeValue: string) => Promise<any>;
+    createPromotion: (payload: CreatePromotionPayload) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -146,6 +160,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [promotions, setPromotions] = useState<Promotion[]>([]);
+    const [ownerPromotions, setOwnerPromotions] = useState<(Promotion & { claim_count?: number })[]>([]);
     const [promotionClaims, setPromotionClaims] = useState<PromotionClaim[]>([]);
     const [ownerFeedPosts, setOwnerFeedPosts] = useState<FeedPost[]>([]);
     const [ownedPlaceIds, setOwnedPlaceIds] = useState<string[]>([]);
@@ -211,7 +226,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (error) {
             console.error(`Error fetching live posts for ${placeId}:`, error);
         } else {
-            // Mapeamento explícito para garantir que a estrutura de dados aninhada seja correta
             const mappedData: LivePost[] = (data || []).map((item: any) => ({
                 id: item.id,
                 user_id: item.user_id,
@@ -283,6 +297,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     
                     if (ownedPlacesError) throw ownedPlacesError;
                     setOwnedPlaceIds(ownedPlacesData.map(p => p.place_id));
+
+                    const { data: ownerPromosData, error: ownerPromosError } = await supabase
+                        .from('promotions')
+                        .select('*, promotion_claims(count)')
+                        .eq('created_by', session.user.id);
+
+                    if (ownerPromosError) throw ownerPromosError;
+                    const mappedOwnerPromos = ownerPromosData.map(p => ({
+                        ...mapPromotion(p),
+                        claim_count: p.promotion_claims[0]?.count || 0,
+                    }));
+                    setOwnerPromotions(mappedOwnerPromos);
                 }
 
                 const { data: checkInsData, error: checkInsError } = await supabase.from('check_ins').select('*');
@@ -609,6 +635,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return data;
     };
 
+    const createPromotion = async (payload: CreatePromotionPayload) => {
+        if (!currentUser) throw new Error("Usuário não autenticado.");
+        const { error } = await supabase.from('promotions').insert({
+            title: payload.title,
+            description: payload.description,
+            place_id: payload.placeId,
+            place_name: payload.placeName,
+            place_photo_url: payload.placePhotoUrl,
+            promotion_type: payload.promotionType,
+            limit_count: payload.limitCount,
+            start_date: payload.startDate,
+            end_date: payload.endDate,
+            created_by: currentUser.id,
+        });
+        if (error) throw error;
+        // Refresh owner promotions list
+        const { data: ownerPromosData, error: ownerPromosError } = await supabase
+            .from('promotions')
+            .select('*, promotion_claims(count)')
+            .eq('created_by', currentUser.id);
+        if (ownerPromosError) throw ownerPromosError;
+        const mappedOwnerPromos = ownerPromosData.map(p => ({
+            ...mapPromotion(p),
+            claim_count: p.promotion_claims[0]?.count || 0,
+        }));
+        setOwnerPromotions(mappedOwnerPromos);
+    };
+
     const value = {
         isAuthenticated: !!session?.user,
         hasOnboarded,
@@ -623,6 +677,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         livePostsByPlace,
         activeLivePosts,
         promotions,
+        ownerPromotions,
         promotionClaims,
         isLoading,
         error,
@@ -658,6 +713,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addOwnedPlace,
         removeOwnedPlace,
         verifyQrCode,
+        createPromotion,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

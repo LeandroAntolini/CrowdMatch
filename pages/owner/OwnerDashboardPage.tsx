@@ -41,7 +41,12 @@ const OwnerDashboardPage: React.FC = () => {
             <div className="bg-surface p-6 rounded-lg">
                 <h2 className="text-xl font-bold mb-4">Ações Rápidas</h2>
                 <div className="space-y-3">
-                    <button className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors">Criar Nova Promoção</button>
+                    <button 
+                        onClick={() => navigate('/owner/promotions/create')}
+                        className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors"
+                    >
+                        Criar Nova Promoção
+                    </button>
                     <button 
                         onClick={() => navigate('/owner/create-post')}
                         className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors"

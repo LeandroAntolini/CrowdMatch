@@ -2,7 +2,8 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import OwnerDashboardPage from '../pages/owner/OwnerDashboardPage';
 import OwnerProfilePage from '../pages/owner/OwnerProfilePage';
-import PromotionsPage from '../pages/PromotionsPage'; // Reutilizável
+import OwnerPromotionsPage from '../pages/owner/OwnerPromotionsPage';
+import CreatePromotionPage from '../pages/owner/CreatePromotionPage';
 import OwnerFeedsPage from '../pages/owner/OwnerFeedsPage';
 import CreateFeedPostPage from '../pages/owner/CreateFeedPostPage';
 import VerifyQrPage from '../pages/owner/VerifyQrPage';
@@ -18,7 +19,8 @@ const OwnerLayout: React.FC = () => {
                     <Route path="/dashboard" element={<OwnerDashboardPage />} />
                     <Route path="/owner/feeds" element={<OwnerFeedsPage />} />
                     <Route path="/owner/create-post" element={<CreateFeedPostPage />} />
-                    <Route path="/owner/promotions" element={<PromotionsPage />} />
+                    <Route path="/owner/promotions" element={<OwnerPromotionsPage />} />
+                    <Route path="/owner/promotions/create" element={<CreatePromotionPage />} />
                     <Route path="/owner/profile" element={<OwnerProfilePage />} />
                     <Route path="/owner/verify-qr" element={<VerifyQrPage />} />
                     <Route path="*" element={<Navigate to="/dashboard" />} />

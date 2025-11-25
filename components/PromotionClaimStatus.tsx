@@ -1,7 +1,7 @@
 import React from 'react';
 import { Promotion, PromotionClaim } from '../types';
 import { CheckCircle, Clock, Ticket, AlertTriangle } from 'lucide-react';
-import { default as QRCode } from 'qrcode.react';
+import { QRCode } from 'qrcode.react';
 
 interface PromotionClaimStatusProps {
     promotion: Promotion;

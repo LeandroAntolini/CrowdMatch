@@ -18,6 +18,14 @@ export interface LivePost {
     profiles: Pick<User, 'id' | 'name' | 'photos'>;
 }
 
+interface ClaimResult {
+    success: boolean;
+    message: string;
+    isWinner: boolean;
+    claimOrder?: number;
+    claimId?: string;
+}
+
 interface AppContextType {
     isAuthenticated: boolean;
     hasOnboarded: boolean;
@@ -60,7 +68,7 @@ interface AppContextType {
     createLivePost: (placeId: string, content: string) => Promise<void>;
     getLivePostCount: (placeId: string) => number;
     getActivePromotionsForPlace: (placeId: string, type?: PromotionType) => Promotion[];
-    claimPromotion: (promotionId: string) => Promise<{ success: boolean, message: string, isWinner: boolean } | undefined>;
+    claimPromotion: (promotionId: string) => Promise<ClaimResult | undefined>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -323,7 +331,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
-    const claimPromotion = useCallback(async (promotionId: string): Promise<{ success: boolean, message: string, isWinner: boolean } | undefined> => {
+    const claimPromotion = useCallback(async (promotionId: string): Promise<ClaimResult | undefined> => {
         if (!currentUser) return;
 
         try {
@@ -356,6 +364,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 success: data.success,
                 message: data.message,
                 isWinner: data.isWinner,
+                claimOrder: data.claimOrder, // Captura a ordem
+                claimId: data.claimId, // Captura o ID da reivindicação
             };
 
         } catch (e: any) {

@@ -53,13 +53,41 @@ serve(async (req) => {
     const { data: insertData, error: insertError } = await supabaseAdmin
         .from('promotion_claims')
         .insert({ promotion_id: promotionId, user_id: userId })
-        .select('claimed_at')
+        .select('id, claimed_at')
         .single();
 
     if (insertError) {
         if (insertError.code === '23505') {
-            // User already claimed this promotion.
-            return new Response(JSON.stringify({ success: false, message: 'Você já reivindicou esta promoção.', claimed: true }), {
+            // User already claimed this promotion. Fetch existing claim data to return
+            const { data: existingClaim, error: fetchExistingError } = await supabaseAdmin
+                .from('promotion_claims')
+                .select('id, claimed_at')
+                .eq('promotion_id', promotionId)
+                .eq('user_id', userId)
+                .single();
+
+            if (fetchExistingError || !existingClaim) {
+                 return new Response(JSON.stringify({ error: 'Falha ao buscar reivindicação existente.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+            
+            // Recalculate order for existing claim
+            const { count: existingCount, error: countError } = await supabaseAdmin
+                .from('promotion_claims')
+                .select('id', { count: 'exact' })
+                .eq('promotion_id', promotionId)
+                .lte('claimed_at', existingClaim.claimed_at);
+                
+            const existingClaimOrder = existingCount || 0;
+            const isWinner = existingClaimOrder > 0 && existingClaimOrder <= promotion.limit_count;
+
+            return new Response(JSON.stringify({ 
+                success: false, 
+                message: 'Você já reivindicou esta promoção.', 
+                claimed: true,
+                claimId: existingClaim.id,
+                claimOrder: existingClaimOrder,
+                isWinner: isWinner
+            }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 200,
             });
@@ -93,6 +121,7 @@ serve(async (req) => {
     const responseBody = {
         success: true,
         claimed: true,
+        claimId: insertData.id, // Retorna o ID da nova reivindicação
         promotionTitle: promotion.title,
         claimOrder: claimOrder,
         limit: promotion.limit_count,

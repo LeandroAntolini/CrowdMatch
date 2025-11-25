@@ -9,6 +9,12 @@ import LiveFeedBox from '../components/LiveFeedBox';
 import PromotionClaimStatus from '../components/PromotionClaimStatus';
 import { PromotionType } from '../types';
 
+interface ClaimResultState {
+    message: string;
+    isWinner: boolean;
+    claimOrder?: number;
+}
+
 const PlaceDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -34,7 +40,7 @@ const PlaceDetailsPage: React.FC = () => {
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-    const [claimMessage, setClaimMessage] = useState<{ message: string, isWinner: boolean } | null>(null);
+    const [claimMessage, setClaimMessage] = useState<ClaimResultState | null>(null);
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
@@ -165,6 +171,7 @@ const PlaceDetailsPage: React.FC = () => {
                                 key={promo.id} 
                                 promotion={promo} 
                                 claim={getUserClaim(promo.id)}
+                                claimOrder={claimMessage?.claimOrder} // Passa a ordem para exibição imediata
                             />
                         ))}
                     </div>

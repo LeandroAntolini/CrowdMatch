@@ -66,3 +66,29 @@ export interface Message {
   content: string;
   createdAt: string;
 }
+
+export type PromotionType = 'FIRST_N_GOING' | 'FIRST_N_CHECKIN';
+
+export interface Promotion {
+  id: string;
+  placeId: string;
+  placeName: string;
+  placePhotoUrl?: string;
+  title: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  promotionType: PromotionType;
+  limitCount: number;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface PromotionClaim {
+  id: string;
+  promotionId: string;
+  userId: string;
+  claimedAt: string;
+  status: 'claimed' | 'redeemed' | 'expired';
+  promotion?: Promotion; // Para conveniência
+}

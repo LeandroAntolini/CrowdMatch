@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio, Clock } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, DoorOpen, XCircle, Heart, Radio, Clock, Ticket } from 'lucide-react';
 import MapModal from '../components/MapModal';
 import LivePostForm from '../components/LivePostForm';
 import LiveFeedBox from '../components/LiveFeedBox';
+import PromotionClaimStatus from '../components/PromotionClaimStatus';
+import { PromotionType } from '../types';
 
 const PlaceDetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -25,10 +27,14 @@ const PlaceDetailsPage: React.FC = () => {
         removeFavorite,
         places,
         getLivePostCount,
-        createLivePost
+        createLivePost,
+        getActivePromotionsForPlace,
+        promotionClaims,
+        claimPromotion
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+    const [claimMessage, setClaimMessage] = useState<{ message: string, isWinner: boolean } | null>(null);
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
@@ -41,6 +47,11 @@ const PlaceDetailsPage: React.FC = () => {
     const busyPlace = busyPlaceId ? getPlaceById(busyPlaceId) : null;
     
     const isCurrentlyFavorite = id ? isFavorite(id) : false;
+
+    const activeGoingPromotions = id ? getActivePromotionsForPlace(id, 'FIRST_N_GOING') : [];
+    const activeCheckinPromotions = id ? getActivePromotionsForPlace(id, 'FIRST_N_CHECKIN') : [];
+    
+    const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
 
     const handleMarkerClick = (placeId: string) => {
         setIsMapModalOpen(false);
@@ -64,6 +75,32 @@ const PlaceDetailsPage: React.FC = () => {
         if (place) {
             await createLivePost(place.id, content);
         }
+    };
+
+    const handleCheckIn = async () => {
+        if (!id) return;
+        await checkInUser(id);
+        
+        // Handle promotion claims after successful check-in
+        activeCheckinPromotions.forEach(async (promo) => {
+            const result = await claimPromotion(promo.id);
+            if (result) {
+                setClaimMessage(result);
+            }
+        });
+    };
+
+    const handleAddGoingIntention = async () => {
+        if (!id) return;
+        await addGoingIntention(id);
+
+        // Handle promotion claims after successful going intention
+        activeGoingPromotions.forEach(async (promo) => {
+            const result = await claimPromotion(promo.id);
+            if (result) {
+                setClaimMessage(result);
+            }
+        });
     };
 
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place.id).length;
@@ -115,6 +152,30 @@ const PlaceDetailsPage: React.FC = () => {
                     <MapPin size={24} className="mr-2 flex-shrink-0 mt-1 text-accent" />
                     <span>{place.address}</span>
                 </button>
+                
+                {/* Seção de Promoções */}
+                {(activeGoingPromotions.length > 0 || activeCheckinPromotions.length > 0) && (
+                    <div className="mt-6 mb-6">
+                        <h2 className="text-2xl font-bold mb-3 flex items-center">
+                            <Ticket size={24} className="mr-2 text-accent" />
+                            Promoções Ativas
+                        </h2>
+                        {[...activeGoingPromotions, ...activeCheckinPromotions].map(promo => (
+                            <PromotionClaimStatus 
+                                key={promo.id} 
+                                promotion={promo} 
+                                claim={getUserClaim(promo.id)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Mensagem de Reivindicação */}
+                {claimMessage && (
+                    <div className={`p-4 rounded-lg mb-4 ${claimMessage.isWinner ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                        <p className="font-semibold">{claimMessage.message}</p>
+                    </div>
+                )}
 
                 <div className="mt-6 p-4 bg-surface rounded-lg">
                     {(() => {
@@ -152,7 +213,7 @@ const PlaceDetailsPage: React.FC = () => {
                             <div>
                                 <div className="flex flex-col sm:flex-row gap-4">
                                     <button 
-                                        onClick={() => checkInUser(place.id)}
+                                        onClick={handleCheckIn}
                                         disabled={!place.isOpen}
                                         className="flex-1 bg-primary text-background font-bold py-3 px-4 rounded-lg hover:bg-pink-200 transition-colors disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
                                     >
@@ -160,7 +221,7 @@ const PlaceDetailsPage: React.FC = () => {
                                         Estou Aqui
                                     </button>
                                     <button 
-                                        onClick={() => addGoingIntention(place.id)}
+                                        onClick={handleAddGoingIntention}
                                         className="flex-1 bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 transition-colors flex items-center justify-center"
                                     >
                                         <CalendarClock className="mr-2" size={20} />

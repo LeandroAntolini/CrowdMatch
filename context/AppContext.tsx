@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { User, Place, CheckIn, Match, Message, GoingIntention } from '../types';
+import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -31,11 +31,13 @@ interface AppContextType {
     swipes: { swiped_id: string }[];
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
+    promotions: Promotion[];
+    promotionClaims: PromotionClaim[];
     isLoading: boolean;
     error: string | null;
     logout: () => void;
     completeOnboarding: () => void;
-    checkInUser: (placeId: string) => void;
+    checkInUser: (placeId: string) => Promise<void>;
     checkOutUser: () => void;
     getCurrentCheckIn: () => CheckIn | undefined;
     getPlaceById: (id: string) => Place | undefined;
@@ -43,7 +45,7 @@ interface AppContextType {
     sendMessage: (matchId: string, text: string) => Promise<void>;
     updateUserProfile: (updatedUser: Partial<User>) => Promise<void>;
     updateCurrentUserState: (updatedFields: Partial<User>) => void;
-    addGoingIntention: (placeId: string) => void;
+    addGoingIntention: (placeId: string) => Promise<void>;
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
     fetchPlaces: (city: string, state: string, query?: string) => Promise<Place[]>;
@@ -57,6 +59,8 @@ interface AppContextType {
     fetchLivePostsForPlace: (placeId: string) => Promise<void>;
     createLivePost: (placeId: string, content: string) => Promise<void>;
     getLivePostCount: (placeId: string) => number;
+    getActivePromotionsForPlace: (placeId: string, type?: PromotionType) => Promotion[];
+    claimPromotion: (promotionId: string) => Promise<{ success: boolean, message: string, isWinner: boolean } | undefined>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -81,6 +85,31 @@ const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): U
     };
 };
 
+const mapPromotion = (p: any): Promotion => ({
+    id: p.id,
+    placeId: p.place_id,
+    placeName: p.place_name,
+    placePhotoUrl: p.place_photo_url,
+    title: p.title,
+    description: p.description,
+    startDate: p.start_date,
+    endDate: p.end_date,
+    promotionType: p.promotion_type,
+    limitCount: p.limit_count,
+    createdBy: p.created_by,
+    createdAt: p.created_at,
+});
+
+const mapClaim = (c: any): PromotionClaim => ({
+    id: c.id,
+    promotionId: c.promotion_id,
+    userId: c.user_id,
+    claimedAt: c.claimed_at,
+    status: c.status,
+    promotion: c.promotions ? mapPromotion(c.promotions) : undefined,
+});
+
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -95,6 +124,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [swipes, setSwipes] = useState<{ swiped_id: string }[]>([]);
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
+    const [promotions, setPromotions] = useState<Promotion[]>([]);
+    const [promotionClaims, setPromotionClaims] = useState<PromotionClaim[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
@@ -214,6 +245,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (swipesError) throw swipesError;
                 setSwipes(swipesData);
                 
+                // Fetch Promotions
+                const { data: promotionsData, error: promotionsError } = await supabase
+                    .from('promotions')
+                    .select('*')
+                    .gte('end_date', new Date().toISOString()); // Only active promotions
+                if (promotionsError) throw promotionsError;
+                setPromotions(promotionsData.map(mapPromotion));
+
+                // Fetch User Claims
+                const { data: claimsData, error: claimsError } = await supabase
+                    .from('promotion_claims')
+                    .select('*, promotions(*)')
+                    .eq('user_id', session.user.id);
+                if (claimsError) throw claimsError;
+                setPromotionClaims(claimsData.map(mapClaim));
+
                 await refreshActiveLivePosts();
 
             } catch (e: any) {
@@ -253,7 +300,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             clearInterval(intervalId);
             supabase.removeChannel(livePostsChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchLivePostsForPlace]);
+    }, [session, refreshActiveLivePosts, fetchPlaces]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -276,6 +323,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    const claimPromotion = useCallback(async (promotionId: string): Promise<{ success: boolean, message: string, isWinner: boolean } | undefined> => {
+        if (!currentUser) return;
+
+        try {
+            const { data, error } = await supabase.functions.invoke('claim-promotion', {
+                method: 'POST',
+                body: { promotionId },
+            });
+
+            if (error) {
+                const errorData = JSON.parse(error.context?.response?.text || '{}');
+                throw new Error(errorData.error || 'Falha ao reivindicar a promoção.');
+            }
+            
+            // If the claim was successful (even if not a winner), update local state
+            if (data.claimed && !promotionClaims.some(c => c.promotionId === promotionId)) {
+                // We need to refetch the claim details including the promotion object
+                const { data: newClaimData, error: fetchError } = await supabase
+                    .from('promotion_claims')
+                    .select('*, promotions(*)')
+                    .eq('promotion_id', promotionId)
+                    .eq('user_id', currentUser.id)
+                    .single();
+
+                if (!fetchError && newClaimData) {
+                    setPromotionClaims(prev => [...prev, mapClaim(newClaimData)]);
+                }
+            }
+
+            return {
+                success: data.success,
+                message: data.message,
+                isWinner: data.isWinner,
+            };
+
+        } catch (e: any) {
+            console.error("Error claiming promotion:", e);
+            return { success: false, message: e.message, isWinner: false };
+        }
+    }, [currentUser, promotionClaims]);
+
+
     const getPlaceById = (id: string) => places.find(p => p.id === id);
     const getUserById = (id: string) => users.find(u => u.id === id);
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
@@ -284,6 +373,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const clearNewMatch = () => setNewlyFormedMatch(null);
     const clearChatNotifications = () => setHasNewNotification(false);
     const getLivePostCount = (placeId: string) => activeLivePosts.filter(p => p.place_id === placeId).length;
+    
+    const getActivePromotionsForPlace = (placeId: string, type?: PromotionType) => {
+        const now = new Date();
+        return promotions.filter(p => 
+            p.placeId === placeId && 
+            new Date(p.startDate) <= now && 
+            new Date(p.endDate) >= now &&
+            (!type || p.promotionType === type)
+        );
+    };
 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
@@ -293,6 +392,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!error && data) {
             setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
             setGoingIntentions(prev => prev.filter(gi => gi.userId !== currentUser.id));
+            
+            // Claim promotions related to Check-in
+            // NOTE: The actual claim logic is now handled by the caller (PlaceDetailsPage) to display the result message.
         }
     };
 
@@ -310,6 +412,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!error && data) {
             setGoingIntentions(prev => [...prev.filter(gi => gi.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
             setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
+            
+            // Claim promotions related to Going Intention
+            // NOTE: The actual claim logic is now handled by the caller (PlaceDetailsPage) to display the result message.
         }
     };
 
@@ -394,6 +499,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         swipes,
         livePostsByPlace,
         activeLivePosts,
+        promotions,
+        promotionClaims,
         isLoading,
         error,
         logout,
@@ -420,6 +527,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchLivePostsForPlace,
         createLivePost,
         getLivePostCount,
+        getActivePromotionsForPlace,
+        claimPromotion,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

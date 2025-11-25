@@ -1,7 +1,10 @@
 import React from 'react';
 import { Promotion, PromotionClaim } from '../types';
 import { CheckCircle, Clock, Ticket, AlertTriangle } from 'lucide-react';
-import QRCode from 'qrcode.react';
+import * as QRCodeModule from 'qrcode.react';
+
+// Tenta obter a exportação padrão ou a exportação nomeada 'QRCode'
+const QRCode = (QRCodeModule as any).default || (QRCodeModule as any).QRCode;
 
 interface PromotionClaimStatusProps {
     promotion: Promotion;
@@ -60,6 +63,12 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
             </div>
         );
     };
+
+    // Verifica se o QRCode foi carregado corretamente antes de renderizar
+    if (!QRCode) {
+        console.error("QRCode component failed to load.");
+        return <div className="text-red-500 p-4">Erro ao carregar o componente QR Code.</div>;
+    }
 
     return (
         <div className="bg-gray-800 p-4 rounded-lg border border-accent/50 mb-4">

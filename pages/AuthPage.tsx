@@ -5,11 +5,13 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabase } from '@/integrations/supabase/client';
 import { useAppContext } from '../context/AppContext';
 import SignUpForm from '../components/SignUpForm';
+import BusinessSignUpForm from '../components/BusinessSignUpForm';
 
 const AuthPage: React.FC = () => {
     const { isAuthenticated } = useAppContext();
     const navigate = useNavigate();
     const [view, setView] = useState<'sign_in' | 'sign_up'>('sign_in');
+    const [signUpType, setSignUpType] = useState<'user' | 'owner'>('user');
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -71,7 +73,24 @@ const AuthPage: React.FC = () => {
                         showLinks={false}
                     />
                 ) : (
-                    <SignUpForm />
+                    <div>
+                        <div className="flex justify-center mb-4 rounded-lg bg-surface p-1">
+                            <button
+                                onClick={() => setSignUpType('user')}
+                                className={`w-1/2 py-2 text-sm font-semibold rounded-md transition-colors ${signUpType === 'user' ? 'bg-accent text-white' : 'text-text-secondary'}`}
+                            >
+                                Sou Usuário
+                            </button>
+                            <button
+                                onClick={() => setSignUpType('owner')}
+                                className={`w-1/2 py-2 text-sm font-semibold rounded-md transition-colors ${signUpType === 'owner' ? 'bg-accent text-white' : 'text-text-secondary'}`}
+                            >
+                                Sou Lojista
+                            </button>
+                        </div>
+                        
+                        {signUpType === 'user' ? <SignUpForm /> : <BusinessSignUpForm />}
+                    </div>
                 )}
             </div>
         </div>

@@ -36,7 +36,6 @@ export interface Place {
   lng: number;
   city: string;
   state: string;
-  hasPromotion?: boolean;
 }
 
 export interface CheckIn {

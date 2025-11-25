@@ -14,9 +14,8 @@ const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' 
     return 'Agitado';
 };
 
-const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number; livePostCount: number }> = ({ place, crowdCount, goingCount, livePostCount }) => {
-    const hasPromotion = place.hasPromotion || false;
-    const promotionClass = hasPromotion ? 'bg-yellow-400/20 text-yellow-400' : 'bg-gray-600/50 text-gray-500';
+const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number; livePostCount: number; hasActivePromotion: boolean }> = ({ place, crowdCount, goingCount, livePostCount, hasActivePromotion }) => {
+    const promotionClass = hasActivePromotion ? 'bg-yellow-400/20 text-yellow-400' : 'bg-gray-600/50 text-gray-500';
 
     return (
         <Link to={`/place/${place.id}`} className="block bg-surface rounded-lg p-4 mb-4 shadow-md hover:bg-gray-700 transition-all duration-200">
@@ -54,7 +53,7 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
 
 
 const MainPage: React.FC = () => {
-    const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces, getLivePostCount } = useAppContext();
+    const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces, getLivePostCount, getActivePromotionsForPlace } = useAppContext();
     const navigate = useNavigate();
     
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -272,15 +271,19 @@ const MainPage: React.FC = () => {
 
                     <div>
                         {filteredPlaces.length > 0 ? (
-                            filteredPlaces.map(place => (
-                                <PlaceCard 
-                                key={place.id} 
-                                place={place} 
-                                crowdCount={getCrowdCount(place.id)}
-                                goingCount={getGoingCount(place.id)}
-                                livePostCount={getLivePostCount(place.id)}
-                                />
-                            ))
+                            filteredPlaces.map(place => {
+                                const hasActivePromotion = getActivePromotionsForPlace(place.id).length > 0;
+                                return (
+                                    <PlaceCard 
+                                        key={place.id} 
+                                        place={place} 
+                                        crowdCount={getCrowdCount(place.id)}
+                                        goingCount={getGoingCount(place.id)}
+                                        livePostCount={getLivePostCount(place.id)}
+                                        hasActivePromotion={hasActivePromotion}
+                                    />
+                                );
+                            })
                         ) : (
                             <div className="text-center text-text-secondary mt-8">
                                 <p>Nenhum local encontrado para "{selectedLocation}" com os filtros aplicados.</p>

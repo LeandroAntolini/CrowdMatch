@@ -1,19 +1,11 @@
 import React, { useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './context/AppContext';
 import OnboardingPage from './pages/OnboardingPage';
 import AuthPage from './pages/AuthPage';
-import MainPage from './pages/MainPage';
-import PlaceDetailsPage from './pages/PlaceDetailsPage';
-import MatchPage from './pages/MatchPage';
-import ChatListPage from './pages/ChatListPage';
-import ChatPage from './pages/ChatPage';
-import ProfilePage from './pages/ProfilePage';
-import PromotionsPage from './pages/PromotionsPage';
-import LivePage from './pages/LivePage';
-import BottomNav from './components/BottomNav';
-import MatchNotificationModal from './components/MatchNotificationModal';
-import Header from './components/Header';
+import UserLayout from './layouts/UserLayout';
+import OwnerLayout from './layouts/OwnerLayout';
+import LoadingSpinner from './components/LoadingSpinner';
 
 const App: React.FC = () => {
     useEffect(() => {
@@ -23,51 +15,44 @@ const App: React.FC = () => {
     return (
         <AppProvider>
             <HashRouter>
-                <Layout />
+                <AppRoutes />
             </HashRouter>
         </AppProvider>
     );
 };
 
-const Layout: React.FC = () => {
-    const { isAuthenticated, hasOnboarded } = useAppContext();
-    const location = useLocation();
+const AppRoutes: React.FC = () => {
+    const { isAuthenticated, hasOnboarded, currentUser, isLoading } = useAppContext();
 
-    const noHeaderRoutes = ['/place', '/chat/'];
-    const showHeader = isAuthenticated && !noHeaderRoutes.some(path => location.pathname.startsWith(path));
+    if (isLoading && hasOnboarded) {
+        return (
+            <div className="h-screen w-screen bg-background flex items-center justify-center">
+                <LoadingSpinner message="Carregando sua sessão..." />
+            </div>
+        );
+    }
 
     return (
         <div className="h-screen w-screen bg-background text-text-primary font-sans overflow-hidden">
-            <main className="h-full w-full max-w-md mx-auto flex flex-col">
-                {showHeader && <Header />}
-                <div className="flex-1 overflow-y-auto no-scrollbar">
-                    <Routes>
-                        {!hasOnboarded && <Route path="/" element={<OnboardingPage />} />}
-                        {hasOnboarded && !isAuthenticated && (
-                            <>
-                                <Route path="/auth" element={<AuthPage />} />
-                                <Route path="*" element={<Navigate to="/auth" />} />
-                            </>
-                        )}
-                        {isAuthenticated && (
-                            <>
-                                <Route path="/" element={<MainPage />} />
-                                <Route path="/place/:id" element={<PlaceDetailsPage />} />
-                                <Route path="/promotions" element={<PromotionsPage />} />
-                                <Route path="/match" element={<MatchPage />} />
-                                <Route path="/live" element={<LivePage />} />
-                                <Route path="/chats" element={<ChatListPage />} />
-                                <Route path="/chat/:matchId" element={<ChatPage />} />
-                                <Route path="/profile" element={<ProfilePage />} />
-                                <Route path="*" element={<Navigate to="/" />} />
-                            </>
-                        )}
-                        {hasOnboarded && <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/auth"} />} />}
-                    </Routes>
-                </div>
-                {isAuthenticated && <BottomNav />}
+            <main className="h-full w-full">
+                <Routes>
+                    {!hasOnboarded ? (
+                        <>
+                            <Route path="/" element={<OnboardingPage />} />
+                            <Route path="*" element={<Navigate to="/" />} />
+                        </>
+                    ) : !isAuthenticated ? (
+                        <>
+                            <Route path="/auth" element={<AuthPage />} />
+                            <Route path="*" element={<Navigate to="/auth" />} />
+                        </>
+                    ) : currentUser?.role === 'owner' ? (
+                        <Route path="/*" element={<OwnerLayout />} />
+                    ) : (
+                        <Route path="/*" element={<UserLayout />} />
+                    )}
+                </Routes>
             </main>
-            {isAuthenticated && <MatchNotificationModal />}
         </div>
     );
 };

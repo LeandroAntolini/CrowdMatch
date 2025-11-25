@@ -10,18 +10,16 @@ interface AddPlaceModalProps {
 }
 
 const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
-    const { currentUser, fetchPlaces, addOwnedPlace, ownedPlaceIds } = useAppContext();
+    const { currentUser, searchPlaces, addOwnedPlace, ownedPlaceIds } = useAppContext();
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<Place[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // New state for location selection
     const [selectedState, setSelectedState] = useState<string>(currentUser?.state || 'ES');
     const [selectedCity, setSelectedCity] = useState<string>(currentUser?.city || 'Vitória');
     const [availableCities, setAvailableCities] = useState<string[]>(citiesByState[selectedState] || []);
 
-    // Effect to update cities when state changes
     useEffect(() => {
         const newCities = citiesByState[selectedState] || [];
         setAvailableCities(newCities);
@@ -46,7 +44,7 @@ const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
         setIsLoading(true);
         setError(null);
         try {
-            const results = await fetchPlaces(selectedCity, selectedState, searchQuery);
+            const results = await searchPlaces(selectedCity, selectedState, searchQuery);
             setSearchResults(results);
         } catch (err: any) {
             setError(err.message || "Ocorreu um erro ao buscar. Tente novamente.");
@@ -58,7 +56,6 @@ const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
     const handleAddPlace = async (place: Place) => {
         try {
             await addOwnedPlace(place.id);
-            // Optionally show a success message before closing
             onClose();
         } catch (err: any) {
             setError(err.message || "Não foi possível adicionar o local.");
@@ -80,7 +77,6 @@ const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
                     Selecione a localização e busque pelo nome do seu estabelecimento. Se não encontrar, verifique se o local está cadastrado no Google Maps.
                 </p>
                 
-                {/* Location Selectors */}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label htmlFor="state-select" className="block text-sm font-medium text-text-secondary mb-1">Estado</label>

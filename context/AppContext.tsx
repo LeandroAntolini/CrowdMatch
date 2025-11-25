@@ -77,6 +77,7 @@ interface AppContextType {
     removeGoingIntention: () => void;
     getCurrentGoingIntention: () => GoingIntention | undefined;
     fetchPlaces: (city: string, state: string, query?: string) => Promise<Place[]>;
+    searchPlaces: (city: string, state: string, query: string) => Promise<Place[]>;
     newlyFormedMatch: Match | null;
     clearNewMatch: () => void;
     addFavorite: (placeId: string) => Promise<void>;
@@ -212,6 +213,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return [];
         } finally {
             setIsLoading(false);
+        }
+    }, []);
+
+    const searchPlaces = useCallback(async (city: string, state: string, query: string): Promise<Place[]> => {
+        if (!city || !state || !query.trim()) return [];
+        try {
+            const { data, error } = await supabase.functions.invoke('get-places-by-city', {
+                body: { city, state, query: query.trim() },
+            });
+
+            if (error) {
+                throw error;
+            }
+
+            if (Array.isArray(data)) {
+                return data;
+            }
+            
+            throw new Error("A busca retornou um formato de dados inválido.");
+        } catch (e: any) {
+            console.error("Erro ao buscar locais:", e);
+            throw new Error(e.message || "Não foi possível realizar a busca.");
         }
     }, []);
 
@@ -695,6 +718,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         removeGoingIntention,
         getCurrentGoingIntention,
         fetchPlaces,
+        searchPlaces,
         newlyFormedMatch,
         clearNewMatch,
         addFavorite,

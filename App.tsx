@@ -11,6 +11,7 @@ import ChatPage from './pages/ChatPage';
 import ProfilePage from './pages/ProfilePage';
 import PromotionsPage from './pages/PromotionsPage';
 import LivePage from './pages/LivePage';
+import FeedsPage from './pages/FeedsPage';
 import BottomNav from './components/BottomNav';
 import MatchNotificationModal from './components/MatchNotificationModal';
 import Header from './components/Header';
@@ -51,6 +52,7 @@ const Layout: React.FC = () => {
                         )}
                         {isAuthenticated && (
                             <>
+                                <Route path="/feeds" element={<FeedsPage />} />
                                 <Route path="/" element={<MainPage />} />
                                 <Route path="/place/:id" element={<PlaceDetailsPage />} />
                                 <Route path="/promotions" element={<PromotionsPage />} />

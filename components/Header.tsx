@@ -10,6 +10,8 @@ const Header: React.FC = () => {
 
     const getTitle = () => {
         switch (location.pathname) {
+            case '/feeds':
+                return 'Feeds';
             case '/':
                 return 'Locais';
             case '/promotions':

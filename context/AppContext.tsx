@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType } from '../types';
+import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -24,6 +24,13 @@ interface ClaimResult {
     isWinner: boolean;
     claimOrder?: number;
     claimId?: string;
+}
+
+interface CreatePostPayload {
+    placeId: string;
+    caption: string;
+    mediaUrl: string;
+    type: 'image' | 'video';
 }
 
 interface AppContextType {
@@ -69,6 +76,8 @@ interface AppContextType {
     getLivePostCount: (placeId: string) => number;
     getActivePromotionsForPlace: (placeId: string, type?: PromotionType) => Promotion[];
     claimPromotion: (promotionId: string) => Promise<ClaimResult | undefined>;
+    createOwnerFeedPost: (payload: CreatePostPayload) => Promise<void>;
+    ownerFeedPosts: FeedPost[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -134,6 +143,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [promotions, setPromotions] = useState<Promotion[]>([]);
     const [promotionClaims, setPromotionClaims] = useState<PromotionClaim[]>([]);
+    const [ownerFeedPosts, setOwnerFeedPosts] = useState<FeedPost[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
@@ -227,7 +237,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 if (profileError) throw profileError;
                 
-                setCurrentUser(mapProfileToUser(profileData, session.user));
+                const mappedUser = mapProfileToUser(profileData, session.user);
+                setCurrentUser(mappedUser);
 
                 const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
                 if (allProfilesError) throw allProfilesError;
@@ -235,6 +246,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 if (profileData?.city && profileData?.state) {
                     await fetchPlaces(profileData.city, profileData.state);
+                }
+
+                if (mappedUser.role === 'owner') {
+                    const { data: postsData, error: postsError } = await supabase
+                        .from('feed_posts')
+                        .select('*')
+                        .eq('user_id', session.user.id)
+                        .order('created_at', { ascending: false });
+                    
+                    if (postsError) throw postsError;
+                    
+                    const mappedPosts: FeedPost[] = postsData.map((p: any) => ({
+                        id: p.id,
+                        placeId: p.place_id,
+                        placeName: p.place_name,
+                        placeLogoUrl: p.place_logo_url || '',
+                        type: p.type,
+                        mediaUrl: p.media_url,
+                        caption: p.caption,
+                        likes: 0,
+                        comments: [],
+                        timestamp: new Date(p.created_at).toISOString(),
+                    }));
+                    setOwnerFeedPosts(mappedPosts);
                 }
 
                 const { data: checkInsData, error: checkInsError } = await supabase.from('check_ins').select('*');
@@ -253,15 +288,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (swipesError) throw swipesError;
                 setSwipes(swipesData);
                 
-                // Fetch Promotions
                 const { data: promotionsData, error: promotionsError } = await supabase
                     .from('promotions')
                     .select('*')
-                    .gte('end_date', new Date().toISOString()); // Only active promotions
+                    .gte('end_date', new Date().toISOString());
                 if (promotionsError) throw promotionsError;
                 setPromotions(promotionsData.map(mapPromotion));
 
-                // Fetch User Claims
                 const { data: claimsData, error: claimsError } = await supabase
                     .from('promotion_claims')
                     .select('*, promotions(*)')
@@ -282,7 +315,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         const intervalId = setInterval(() => {
             refreshActiveLivePosts();
-        }, 60000); // Refresh every 60 seconds
+        }, 60000);
 
         const livePostsChannel = supabase
             .channel('live-posts-feed')
@@ -345,9 +378,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 throw new Error(errorData.error || 'Falha ao reivindicar a promoção.');
             }
             
-            // If the claim was successful (even if not a winner), update local state
             if (data.claimed && !promotionClaims.some(c => c.promotionId === promotionId)) {
-                // We need to refetch the claim details including the promotion object
                 const { data: newClaimData, error: fetchError } = await supabase
                     .from('promotion_claims')
                     .select('*, promotions(*)')
@@ -364,8 +395,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 success: data.success,
                 message: data.message,
                 isWinner: data.isWinner,
-                claimOrder: data.claimOrder, // Captura a ordem
-                claimId: data.claimId, // Captura o ID da reivindicação
+                claimOrder: data.claimOrder,
+                claimId: data.claimId,
             };
 
         } catch (e: any) {
@@ -396,7 +427,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
-        // Remove any previous status to ensure only one is active
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
         
@@ -415,7 +445,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const addGoingIntention = async (placeId: string) => {
         if (!currentUser) return;
-        // Remove any previous status to ensure only one is active
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
 
@@ -494,6 +523,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    const createOwnerFeedPost = async (payload: CreatePostPayload) => {
+        if (!currentUser || currentUser.role !== 'owner') {
+            throw new Error("Apenas lojistas podem criar postagens.");
+        }
+        
+        const placeDetails = getPlaceById(payload.placeId);
+
+        const { error } = await supabase.from('feed_posts').insert({
+            user_id: currentUser.id,
+            place_id: payload.placeId,
+            place_name: placeDetails?.name || payload.placeId,
+            place_logo_url: placeDetails?.photoUrl || '',
+            type: payload.type,
+            media_url: payload.mediaUrl,
+            caption: payload.caption,
+        }).select();
+
+        if (error) {
+            console.error("Error inserting feed post:", error);
+            throw error;
+        }
+        
+        const { data: postsData, error: postsError } = await supabase
+            .from('feed_posts')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false });
+        
+        if (!postsError && postsData) {
+             const mappedPosts: FeedPost[] = postsData.map((p: any) => ({
+                id: p.id,
+                placeId: p.place_id,
+                placeName: p.place_name,
+                placeLogoUrl: p.place_logo_url || '',
+                type: p.type,
+                mediaUrl: p.media_url,
+                caption: p.caption,
+                likes: 0,
+                comments: [],
+                timestamp: new Date(p.created_at).toISOString(),
+            }));
+            setOwnerFeedPosts(mappedPosts);
+        }
+    };
+
     const value = {
         isAuthenticated: !!session?.user,
         hasOnboarded,
@@ -537,6 +611,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getLivePostCount,
         getActivePromotionsForPlace,
         claimPromotion,
+        createOwnerFeedPost,
+        ownerFeedPosts,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

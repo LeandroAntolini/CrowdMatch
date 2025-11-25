@@ -1,7 +1,6 @@
 import React from 'react';
 import { FeedPost } from '../types';
 import { Heart, MessageCircle, Send } from 'lucide-react';
-import ScrollingComment from './ScrollingComment'; // Reutilizando o componente de comentário
 
 const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
     const renderMedia = () => {
@@ -10,44 +9,28 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                 <video
                     src={post.mediaUrl}
                     className="w-full h-full object-cover"
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
+                    controls
                 />
-            );
-        }
-        if (post.type === 'live-highlight' && post.livePosts) {
-            return (
-                <div className="relative w-full h-full">
-                    <img src={post.mediaUrl} alt={post.placeName} className="w-full h-full object-cover brightness-50" />
-                    <div className="absolute inset-0 flex flex-col justify-center p-4 overflow-hidden">
-                        <div className="h-full overflow-y-auto no-scrollbar space-y-2">
-                            {post.livePosts.map(livePost => (
-                                <div key={livePost.id} className="bg-black/50 p-2 rounded-lg">
-                                    <div className="flex items-start space-x-2">
-                                        <img src={livePost.profiles.photos[0]} alt={livePost.profiles.name} className="w-8 h-8 rounded-full object-cover" />
-                                        <div>
-                                            <p className="font-semibold text-sm text-white">{livePost.profiles.name}</p>
-                                            <p className="text-sm text-gray-200">{livePost.content}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
             );
         }
         return <img src={post.mediaUrl} alt={post.placeName} className="w-full h-full object-cover" />;
     };
 
+    const formattedTimestamp = new Date(post.timestamp).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+    });
+
     return (
         <div className="bg-surface rounded-lg overflow-hidden mb-6">
             {/* Header */}
             <div className="flex items-center p-3">
-                <img src={post.placeLogoUrl} alt={`${post.placeName} logo`} className="w-10 h-10 rounded-full object-cover mr-3" />
-                <span className="font-bold text-text-primary">{post.placeName}</span>
+                <img src={post.placeLogoUrl || 'https://i.pravatar.cc/150?u=default'} alt={`${post.placeName} logo`} className="w-10 h-10 rounded-full object-cover mr-3" />
+                <div>
+                    <span className="font-bold text-text-primary">{post.placeName}</span>
+                    <p className="text-xs text-text-secondary">{formattedTimestamp}</p>
+                </div>
             </div>
 
             {/* Media */}
@@ -80,8 +63,6 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                         ))}
                     </div>
                 )}
-
-                <p className="text-xs text-text-secondary uppercase mt-3">{post.timestamp}</p>
             </div>
         </div>
     );

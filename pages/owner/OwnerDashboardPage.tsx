@@ -1,9 +1,11 @@
 import React from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { BarChart2, Ticket, Newspaper } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const OwnerDashboardPage: React.FC = () => {
     const { currentUser } = useAppContext();
+    const navigate = useNavigate();
 
     return (
         <div className="p-6 space-y-8">
@@ -40,7 +42,12 @@ const OwnerDashboardPage: React.FC = () => {
                 <h2 className="text-xl font-bold mb-4">Ações Rápidas</h2>
                 <div className="space-y-3">
                     <button className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors">Criar Nova Promoção</button>
-                    <button className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors">Fazer uma Postagem no Feed</button>
+                    <button 
+                        onClick={() => navigate('/owner/create-post')}
+                        className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors"
+                    >
+                        Fazer uma Postagem no Feed
+                    </button>
                     <button className="w-full text-left p-3 bg-gray-800 hover:bg-accent rounded-md transition-colors">Verificar QR Code de Cliente</button>
                 </div>
             </div>

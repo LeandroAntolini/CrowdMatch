@@ -92,3 +92,32 @@ export interface PromotionClaim {
   status: 'claimed' | 'redeemed' | 'expired';
   promotion?: Promotion; // Para conveniência
 }
+
+// Tipos para o Feed
+export interface FeedPostComment {
+  user: string;
+  text: string;
+}
+
+export interface LivePostInFeed {
+    id: string;
+    content: string;
+    profiles: {
+        name: string;
+        photos: string[];
+    };
+}
+
+export interface FeedPost {
+  id: string;
+  placeId: string;
+  placeName: string;
+  placeLogoUrl: string;
+  type: 'image' | 'video' | 'live-highlight';
+  mediaUrl: string;
+  caption: string;
+  likes: number;
+  comments: FeedPostComment[];
+  timestamp: string;
+  livePosts?: LivePostInFeed[];
+}

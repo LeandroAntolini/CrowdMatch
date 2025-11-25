@@ -8,10 +8,10 @@ import ChatPage from '../pages/ChatPage';
 import ProfilePage from '../pages/ProfilePage';
 import PromotionsPage from '../pages/PromotionsPage';
 import LivePage from '../pages/LivePage';
-import FeedsPage from '../src/pages/FeedsPage';
-import BottomNav from '../src/components/BottomNav';
+import FeedsPage from '../pages/FeedsPage';
+import BottomNav from '../components/BottomNav';
 import MatchNotificationModal from '../components/MatchNotificationModal';
-import Header from '../src/components/Header';
+import Header from '../components/Header';
 
 const UserLayout: React.FC = () => {
     const location = useLocation();

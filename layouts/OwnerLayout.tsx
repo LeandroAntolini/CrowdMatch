@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import OwnerDashboardPage from '../pages/owner/OwnerDashboardPage';
 import OwnerProfilePage from '../pages/owner/OwnerProfilePage';
 import PromotionsPage from '../pages/PromotionsPage'; // Reutilizável
-import FeedsPage from '../src/pages/FeedsPage'; // Reutilizável
+import FeedsPage from '../pages/FeedsPage'; // Reutilizável
 import OwnerHeader from '../components/owner/OwnerHeader';
 import OwnerBottomNav from '../components/owner/OwnerBottomNav';
 

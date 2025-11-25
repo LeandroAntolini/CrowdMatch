@@ -1,6 +1,6 @@
 import React from 'react';
 import { FeedPost } from '../types';
-import { Heart, MessageCircle, Send } from 'lucide-react';
+import { Beer, UserVoice } from 'lucide-react';
 
 const timeAgo = (dateString: string): string => {
     const date = new Date(dateString);
@@ -51,9 +51,8 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
             {/* Actions & Content */}
             <div className="p-4">
                 <div className="flex items-center space-x-4 mb-3">
-                    <button className="text-text-primary hover:text-accent transition-colors"><Heart size={26} /></button>
-                    <button className="text-text-primary hover:text-accent transition-colors"><MessageCircle size={26} /></button>
-                    <button className="text-text-primary hover:text-accent transition-colors"><Send size={26} /></button>
+                    <button className="text-text-primary hover:text-accent transition-colors"><Beer size={26} /></button>
+                    <button className="text-text-primary hover:text-accent transition-colors"><UserVoice size={26} /></button>
                 </div>
 
                 {post.likes > 0 && (

@@ -78,6 +78,9 @@ interface AppContextType {
     claimPromotion: (promotionId: string) => Promise<ClaimResult | undefined>;
     createOwnerFeedPost: (payload: CreatePostPayload) => Promise<void>;
     ownerFeedPosts: FeedPost[];
+    ownedPlaceIds: string[];
+    addOwnedPlace: (placeId: string) => Promise<void>;
+    removeOwnedPlace: (placeId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -144,6 +147,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [promotions, setPromotions] = useState<Promotion[]>([]);
     const [promotionClaims, setPromotionClaims] = useState<PromotionClaim[]>([]);
     const [ownerFeedPosts, setOwnerFeedPosts] = useState<FeedPost[]>([]);
+    const [ownedPlaceIds, setOwnedPlaceIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
@@ -270,6 +274,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         timestamp: new Date(p.created_at).toISOString(),
                     }));
                     setOwnerFeedPosts(mappedPosts);
+
+                    const { data: ownedPlacesData, error: ownedPlacesError } = await supabase
+                        .from('place_owners')
+                        .select('place_id')
+                        .eq('user_id', session.user.id);
+                    
+                    if (ownedPlacesError) throw ownedPlacesError;
+                    setOwnedPlaceIds(ownedPlacesData.map(p => p.place_id));
                 }
 
                 const { data: checkInsData, error: checkInsError } = await supabase.from('check_ins').select('*');
@@ -568,6 +580,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    const addOwnedPlace = async (placeId: string) => {
+        if (!currentUser || ownedPlaceIds.includes(placeId)) return;
+        const { error } = await supabase.from('place_owners').insert({
+            user_id: currentUser.id,
+            place_id: placeId
+        });
+        if (error) throw error;
+        setOwnedPlaceIds(prev => [...prev, placeId]);
+    };
+
+    const removeOwnedPlace = async (placeId: string) => {
+        if (!currentUser) return;
+        const { error } = await supabase.from('place_owners')
+            .delete()
+            .eq('user_id', currentUser.id)
+            .eq('place_id', placeId);
+        if (error) throw error;
+        setOwnedPlaceIds(prev => prev.filter(id => id !== placeId));
+    };
+
     const value = {
         isAuthenticated: !!session?.user,
         hasOnboarded,
@@ -613,6 +645,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         claimPromotion,
         createOwnerFeedPost,
         ownerFeedPosts,
+        ownedPlaceIds,
+        addOwnedPlace,
+        removeOwnedPlace,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

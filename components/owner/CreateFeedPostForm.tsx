@@ -1,19 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, UploadCloud, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-interface PlaceOwner {
-    id: string;
-    place_id: string;
-}
+import { Place } from '../../types';
 
 const CreateFeedPostForm: React.FC = () => {
-    const { currentUser, createOwnerFeedPost } = useAppContext();
+    const { currentUser, createOwnerFeedPost, ownedPlaceIds, getPlaceById, places } = useAppContext();
     const navigate = useNavigate();
     
-    const [ownedPlaces, setOwnedPlaces] = useState<PlaceOwner[]>([]);
     const [selectedPlaceId, setSelectedPlaceId] = useState<string>('');
     const [caption, setCaption] = useState('');
     const [file, setFile] = useState<File | null>(null);
@@ -21,33 +16,21 @@ const CreateFeedPostForm: React.FC = () => {
     const [fileType, setFileType] = useState<'image' | 'video' | null>(null);
     
     const [isLoading, setIsLoading] = useState(false);
-    const [isFetchingPlaces, setIsFetchingPlaces] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const ownedPlacesDetails = useMemo(() => {
+        return ownedPlaceIds
+            .map(id => getPlaceById(id))
+            .filter((p): p is Place => p !== undefined);
+    }, [ownedPlaceIds, places, getPlaceById]);
+
     useEffect(() => {
-        const fetchOwnedPlaces = async () => {
-            if (!currentUser) return;
-            setIsFetchingPlaces(true);
-            const { data, error } = await supabase
-                .from('place_owners')
-                .select('id, place_id')
-                .eq('user_id', currentUser.id);
-            
-            if (error) {
-                console.error("Error fetching owned places:", error);
-                setError("Não foi possível carregar seus locais.");
-            } else {
-                setOwnedPlaces(data);
-                if (data.length > 0) {
-                    setSelectedPlaceId(data[0].place_id);
-                }
-            }
-            setIsFetchingPlaces(false);
-        };
-        fetchOwnedPlaces();
-    }, [currentUser]);
+        if (ownedPlacesDetails.length > 0 && !selectedPlaceId) {
+            setSelectedPlaceId(ownedPlacesDetails[0].id);
+        }
+    }, [ownedPlacesDetails, selectedPlaceId]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
@@ -125,11 +108,7 @@ const CreateFeedPostForm: React.FC = () => {
         }
     };
 
-    if (isFetchingPlaces) {
-        return <Loader2 className="animate-spin mx-auto" />;
-    }
-
-    if (ownedPlaces.length === 0) {
+    if (ownedPlacesDetails.length === 0) {
         return <p className="text-text-secondary">Você precisa registrar um local em seu perfil antes de poder postar.</p>;
     }
 
@@ -143,8 +122,8 @@ const CreateFeedPostForm: React.FC = () => {
                     onChange={(e) => setSelectedPlaceId(e.target.value)}
                     className="w-full px-3 py-2 text-text-primary bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
                 >
-                    {ownedPlaces.map(place => (
-                        <option key={place.id} value={place.place_id}>{place.place_id}</option>
+                    {ownedPlacesDetails.map(place => (
+                        <option key={place.id} value={place.id}>{place.name}</option>
                     ))}
                 </select>
             </div>

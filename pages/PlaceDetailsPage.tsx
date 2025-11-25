@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -8,6 +8,7 @@ import LivePostForm from '../components/LivePostForm';
 import LiveFeedBox from '../components/LiveFeedBox';
 import PromotionClaimStatus from '../components/PromotionClaimStatus';
 import { PromotionType } from '../types';
+import ConfirmationTicket from '../components/ConfirmationTicket';
 
 interface ClaimResultState {
     message: string;
@@ -36,11 +37,13 @@ const PlaceDetailsPage: React.FC = () => {
         createLivePost,
         getActivePromotionsForPlace,
         promotionClaims,
-        claimPromotion
+        claimPromotion,
+        currentUser
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
     const [claimMessage, setClaimMessage] = useState<ClaimResultState | null>(null);
+    const [confirmationTicket, setConfirmationTicket] = useState<{ type: 'check-in' | 'going'; timestamp: number; order: number } | null>(null);
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
@@ -57,6 +60,27 @@ const PlaceDetailsPage: React.FC = () => {
     const activeGoingPromotions = id ? getActivePromotionsForPlace(id, 'FIRST_N_GOING') : [];
     const activeCheckinPromotions = id ? getActivePromotionsForPlace(id, 'FIRST_N_CHECKIN') : [];
     
+    const crowdCount = (checkIns || []).filter(ci => ci.placeId === place?.id).length;
+    const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place?.id).length;
+
+    useEffect(() => {
+        if (isCheckedInHere) {
+            setConfirmationTicket({
+                type: 'check-in',
+                timestamp: currentCheckIn?.timestamp || Date.now(),
+                order: crowdCount
+            });
+        } else if (isGoingHere) {
+            setConfirmationTicket({
+                type: 'going',
+                timestamp: currentGoingIntention?.timestamp || Date.now(),
+                order: goingCount
+            });
+        } else {
+            setConfirmationTicket(null);
+        }
+    }, [isCheckedInHere, isGoingHere, currentCheckIn, currentGoingIntention, crowdCount, goingCount]);
+
     const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
 
     const handleMarkerClick = (placeId: string) => {
@@ -86,32 +110,36 @@ const PlaceDetailsPage: React.FC = () => {
     const handleCheckIn = async () => {
         if (!id) return;
         await checkInUser(id);
-        
-        // Handle promotion claims after successful check-in
         activeCheckinPromotions.forEach(async (promo) => {
             const result = await claimPromotion(promo.id);
-            if (result) {
-                setClaimMessage(result);
-            }
+            if (result) setClaimMessage(result);
         });
     };
 
     const handleAddGoingIntention = async () => {
         if (!id) return;
         await addGoingIntention(id);
-
-        // Handle promotion claims after successful going intention
         activeGoingPromotions.forEach(async (promo) => {
             const result = await claimPromotion(promo.id);
-            if (result) {
-                setClaimMessage(result);
-            }
+            if (result) setClaimMessage(result);
         });
     };
 
-    const crowdCount = (checkIns || []).filter(ci => ci.placeId === place.id).length;
-    const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place.id).length;
+    const handleCheckOut = () => {
+        checkOutUser();
+        setConfirmationTicket(null);
+    };
+
+    const handleRemoveGoing = () => {
+        removeGoingIntention();
+        setConfirmationTicket(null);
+    };
+
     const livePostCount = getLivePostCount(place.id);
+    
+    const qrCodeValue = confirmationTicket && currentUser
+        ? `${currentUser.id}|${place.id}|${confirmationTicket.timestamp}|${confirmationTicket.type}`
+        : 'invalid';
 
     return (
         <div className="relative">
@@ -159,7 +187,6 @@ const PlaceDetailsPage: React.FC = () => {
                     <span>{place.address}</span>
                 </button>
                 
-                {/* Seção de Promoções */}
                 {(activeGoingPromotions.length > 0 || activeCheckinPromotions.length > 0) && (
                     <div className="mt-6 mb-6">
                         <h2 className="text-2xl font-bold mb-3 flex items-center">
@@ -171,13 +198,12 @@ const PlaceDetailsPage: React.FC = () => {
                                 key={promo.id} 
                                 promotion={promo} 
                                 claim={getUserClaim(promo.id)}
-                                claimOrder={claimMessage?.claimOrder} // Passa a ordem para exibição imediata
+                                claimOrder={claimMessage?.claimOrder}
                             />
                         ))}
                     </div>
                 )}
 
-                {/* Mensagem de Reivindicação */}
                 {claimMessage && (
                     <div className={`p-4 rounded-lg mb-4 ${claimMessage.isWinner ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                         <p className="font-semibold">{claimMessage.message}</p>
@@ -185,62 +211,59 @@ const PlaceDetailsPage: React.FC = () => {
                 )}
 
                 <div className="mt-6 p-4 bg-surface rounded-lg">
-                    {(() => {
-                        if (isCheckedInHere) {
-                            return (
-                                <div className="text-center">
-                                    <p className="text-green-400 font-semibold mb-2">Você está aqui!</p>
-                                    <button onClick={checkOutUser} className="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center">
-                                        <DoorOpen className="mr-2" size={20} />
-                                        Sair do Local
-                                    </button>
-                                </div>
-                            );
-                        }
-                        if (isGoingHere) {
-                            return (
-                                <div className="text-center">
-                                    <p className="text-accent font-semibold mb-2">Você marcou que vai!</p>
-                                    <button onClick={removeGoingIntention} className="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center">
-                                        <XCircle className="mr-2" size={20} />
-                                        Cancelar Intenção
-                                    </button>
-                                </div>
-                            );
-                        }
-                        if (isBusyElsewhere) {
-                            return (
-                                <div className="text-center">
-                                    <p className="text-yellow-400 font-semibold">Você já tem um plano!</p>
+                    <div className="flex flex-col sm:flex-row gap-4 items-start">
+                        <div className="w-full sm:w-1/2 space-y-3">
+                            {isBusyElsewhere && !isCheckedInHere && !isGoingHere ? (
+                                <div className="text-center p-4 bg-gray-800 rounded-lg h-full flex flex-col justify-center">
+                                    <p className="font-semibold text-yellow-400">Você já tem um plano!</p>
                                     <p className="text-sm text-text-secondary">Seu status está ativo em "{busyPlace?.name}".</p>
                                 </div>
-                            );
-                        }
-                        return (
-                            <div>
-                                <div className="flex flex-col sm:flex-row gap-4">
+                            ) : (
+                                <>
                                     <button 
                                         onClick={handleCheckIn}
-                                        disabled={!place.isOpen}
-                                        className="flex-1 bg-primary text-background font-bold py-3 px-4 rounded-lg hover:bg-pink-200 transition-colors disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center"
+                                        disabled={!place.isOpen || isCheckedInHere || isGoingHere}
+                                        className="w-full bg-primary text-background font-bold py-2 px-4 rounded-lg hover:bg-pink-200 transition-colors disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center text-sm"
                                     >
-                                        <Users className="mr-2" size={20} />
+                                        <Users className="mr-2" size={18} />
                                         Estou Aqui
                                     </button>
                                     <button 
                                         onClick={handleAddGoingIntention}
-                                        className="flex-1 bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 transition-colors flex items-center justify-center"
+                                        disabled={isCheckedInHere || isGoingHere}
+                                        className="w-full bg-accent text-white font-bold py-2 px-4 rounded-lg hover:bg-pink-600 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center text-sm"
                                     >
-                                        <CalendarClock className="mr-2" size={20} />
+                                        <CalendarClock className="mr-2" size={18} />
                                         Eu Vou
                                     </button>
+                                    {!place.isOpen && !isCheckedInHere && (
+                                        <p className="text-xs text-center text-text-secondary mt-2">O check-in fica disponível durante o horário de funcionamento.</p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        <div className="w-full sm:w-1/2">
+                            {confirmationTicket && (
+                                <div className="flex flex-col items-center">
+                                    <ConfirmationTicket 
+                                        type={confirmationTicket.type}
+                                        placeName={place.name}
+                                        timestamp={confirmationTicket.timestamp}
+                                        order={confirmationTicket.order}
+                                        qrCodeValue={qrCodeValue}
+                                    />
+                                    <button 
+                                        onClick={isCheckedInHere ? handleCheckOut : handleRemoveGoing}
+                                        className="mt-3 w-full bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center text-sm"
+                                    >
+                                        <XCircle className="mr-2" size={18} />
+                                        {isCheckedInHere ? 'Cancelar Check-in' : 'Cancelar Intenção'}
+                                    </button>
                                 </div>
-                                {!place.isOpen && (
-                                    <p className="text-xs text-center text-text-secondary mt-3">O botão "Estou Aqui" fica disponível durante o horário de funcionamento.</p>
-                                )}
-                            </div>
-                        );
-                    })()}
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="mt-8">

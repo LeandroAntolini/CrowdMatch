@@ -56,9 +56,11 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                     <button className="text-text-primary hover:text-accent transition-colors"><Send size={26} /></button>
                 </div>
 
-                <p className="font-bold text-text-primary">{post.likes.toLocaleString('pt-BR')} curtidas</p>
+                {post.likes > 0 && (
+                    <p className="font-bold text-text-primary">{post.likes.toLocaleString('pt-BR')} curtidas</p>
+                )}
 
-                <p className="text-text-primary mt-2">
+                <p className={`text-text-primary ${post.likes > 0 ? 'mt-2' : ''}`}>
                     <span className="font-bold mr-2">{post.placeName}</span>
                     {post.caption}
                 </p>

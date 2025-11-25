@@ -97,6 +97,8 @@ interface AppContextType {
     removeOwnedPlace: (placeId: string) => Promise<void>;
     verifyQrCode: (qrCodeValue: string) => Promise<any>;
     createPromotion: (payload: CreatePromotionPayload) => Promise<void>;
+    updatePromotion: (promotionId: string, payload: Partial<CreatePromotionPayload>) => Promise<void>;
+    deletePromotion: (promotionId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -695,6 +697,61 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOwnerPromotions(mappedOwnerPromos);
     };
 
+    const updatePromotion = async (promotionId: string, payload: Partial<CreatePromotionPayload>) => {
+        if (!currentUser) throw new Error("Usuário não autenticado.");
+
+        const dbPayload: { [key: string]: any } = {};
+        if (payload.title !== undefined) dbPayload.title = payload.title;
+        if (payload.description !== undefined) dbPayload.description = payload.description;
+        if (payload.limitCount !== undefined) dbPayload.limit_count = payload.limitCount;
+        if (payload.endDate !== undefined) dbPayload.end_date = new Date(payload.endDate).toISOString();
+
+        const { data, error } = await supabase
+            .from('promotions')
+            .update(dbPayload)
+            .eq('id', promotionId)
+            .eq('created_by', currentUser.id)
+            .select('*, promotion_claims(count)')
+            .single();
+
+        if (error) throw error;
+
+        if (data) {
+            const updatedPromotion = {
+                ...mapPromotion(data),
+                claim_count: data.promotion_claims[0]?.count || 0,
+            };
+            setOwnerPromotions(prev => prev.map(p => p.id === promotionId ? updatedPromotion : p));
+        }
+    };
+
+    const deletePromotion = async (promotionId: string) => {
+        if (!currentUser) throw new Error("Usuário não autenticado.");
+
+        const { error: claimsError } = await supabase
+            .from('promotion_claims')
+            .delete()
+            .eq('promotion_id', promotionId);
+
+        if (claimsError) {
+            console.error("Error deleting promotion claims:", claimsError);
+            throw new Error(`Falha ao remover reivindicações: ${claimsError.message}`);
+        }
+
+        const { error } = await supabase
+            .from('promotions')
+            .delete()
+            .eq('id', promotionId)
+            .eq('created_by', currentUser.id);
+
+        if (error) {
+            console.error("Error deleting promotion:", error);
+            throw new Error(`Falha ao excluir promoção: ${error.message}`);
+        }
+
+        setOwnerPromotions(prev => prev.filter(p => p.id !== promotionId));
+    };
+
     const value = {
         isAuthenticated: !!session?.user,
         hasOnboarded,
@@ -747,6 +804,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         removeOwnedPlace,
         verifyQrCode,
         createPromotion,
+        updatePromotion,
+        deletePromotion,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

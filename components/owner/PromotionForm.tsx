@@ -2,11 +2,16 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Place, PromotionType } from '../../types';
+import { Place, Promotion, PromotionType } from '../../types';
 
-const PromotionForm: React.FC = () => {
-    const { createPromotion, ownedPlaceIds, getPlaceById, places } = useAppContext();
+interface PromotionFormProps {
+    existingPromotion?: Promotion;
+}
+
+const PromotionForm: React.FC<PromotionFormProps> = ({ existingPromotion }) => {
+    const { createPromotion, updatePromotion, ownedPlaceIds, getPlaceById, places } = useAppContext();
     const navigate = useNavigate();
+    const isEditMode = !!existingPromotion;
 
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -25,10 +30,20 @@ const PromotionForm: React.FC = () => {
     }, [ownedPlaceIds, places, getPlaceById]);
 
     useEffect(() => {
-        if (ownedPlacesDetails.length > 0 && !placeId) {
+        if (existingPromotion) {
+            setTitle(existingPromotion.title);
+            setDescription(existingPromotion.description || '');
+            setPlaceId(existingPromotion.placeId);
+            setPromotionType(existingPromotion.promotionType);
+            setLimitCount(existingPromotion.limitCount);
+            // Formata a data para o input datetime-local
+            const localDate = new Date(existingPromotion.endDate);
+            localDate.setMinutes(localDate.getMinutes() - localDate.getTimezoneOffset());
+            setEndDate(localDate.toISOString().slice(0, 16));
+        } else if (ownedPlacesDetails.length > 0 && !placeId) {
             setPlaceId(ownedPlacesDetails[0].id);
         }
-    }, [ownedPlacesDetails, placeId]);
+    }, [existingPromotion, ownedPlacesDetails, placeId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -40,23 +55,33 @@ const PromotionForm: React.FC = () => {
         setError(null);
 
         try {
-            const place = getPlaceById(placeId);
-            if (!place) throw new Error("Local selecionado não é válido.");
+            if (isEditMode && existingPromotion) {
+                await updatePromotion(existingPromotion.id, {
+                    title,
+                    description,
+                    promotionType,
+                    limitCount,
+                    endDate,
+                });
+            } else {
+                const place = getPlaceById(placeId);
+                if (!place) throw new Error("Local selecionado não é válido.");
 
-            await createPromotion({
-                title,
-                description,
-                placeId,
-                placeName: place.name,
-                placePhotoUrl: place.photoUrl,
-                promotionType,
-                limitCount,
-                startDate: new Date().toISOString(),
-                endDate: new Date(endDate).toISOString(),
-            });
+                await createPromotion({
+                    title,
+                    description,
+                    placeId,
+                    placeName: place.name,
+                    placePhotoUrl: place.photoUrl,
+                    promotionType,
+                    limitCount,
+                    startDate: new Date().toISOString(),
+                    endDate: new Date(endDate).toISOString(),
+                });
+            }
             navigate('/owner/promotions');
         } catch (err: any) {
-            setError(err.message || "Ocorreu um erro ao criar a promoção.");
+            setError(err.message || `Ocorreu um erro ao ${isEditMode ? 'atualizar' : 'criar'} a promoção.`);
         } finally {
             setIsLoading(false);
         }
@@ -74,7 +99,8 @@ const PromotionForm: React.FC = () => {
                     id="placeId"
                     value={placeId}
                     onChange={(e) => setPlaceId(e.target.value)}
-                    className="w-full px-3 py-2 text-text-primary bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                    disabled={isEditMode}
+                    className="w-full px-3 py-2 text-text-primary bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-900 disabled:cursor-not-allowed"
                 >
                     {ownedPlacesDetails.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
@@ -108,7 +134,8 @@ const PromotionForm: React.FC = () => {
                         id="promotionType"
                         value={promotionType}
                         onChange={(e) => setPromotionType(e.target.value as PromotionType)}
-                        className="w-full px-3 py-2 text-text-primary bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        disabled={isEditMode}
+                        className="w-full px-3 py-2 text-text-primary bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-900 disabled:cursor-not-allowed"
                     >
                         <option value="FIRST_N_CHECKIN">Para quem está AQUI</option>
                         <option value="FIRST_N_GOING">Para quem VAI</option>
@@ -143,7 +170,7 @@ const PromotionForm: React.FC = () => {
                 className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 transition-colors flex items-center justify-center disabled:bg-gray-600"
             >
                 {isLoading ? <Loader2 size={20} className="animate-spin mr-2" /> : null}
-                {isLoading ? 'Criando...' : 'Criar Promoção'}
+                {isLoading ? 'Salvando...' : isEditMode ? 'Salvar Alterações' : 'Criar Promoção'}
             </button>
         </form>
     );

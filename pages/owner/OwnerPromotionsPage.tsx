@@ -6,8 +6,16 @@ import { useNavigate } from 'react-router-dom';
 import OwnerPromotionCard from '../../components/owner/OwnerPromotionCard';
 
 const OwnerPromotionsPage: React.FC = () => {
-    const { ownerPromotions, isLoading } = useAppContext();
+    const { ownerPromotions, isLoading, deletePromotion } = useAppContext();
     const navigate = useNavigate();
+
+    const handleDelete = async (promotionId: string) => {
+        try {
+            await deletePromotion(promotionId);
+        } catch (error: any) {
+            alert(`Erro ao excluir promoção: ${error.message}`);
+        }
+    };
 
     if (isLoading) {
         return <LoadingSpinner message="Carregando suas promoções..." />;
@@ -35,7 +43,7 @@ const OwnerPromotionsPage: React.FC = () => {
             ) : (
                 <div className="space-y-4">
                     {ownerPromotions.map(promo => (
-                        <OwnerPromotionCard key={promo.id} promotion={promo} />
+                        <OwnerPromotionCard key={promo.id} promotion={promo} onDelete={handleDelete} />
                     ))}
                 </div>
             )}

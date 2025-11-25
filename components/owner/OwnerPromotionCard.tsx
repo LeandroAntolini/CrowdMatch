@@ -1,8 +1,15 @@
 import React from 'react';
 import { Promotion } from '../../types';
-import { Calendar, Users, CheckCircle } from 'lucide-react';
+import { Calendar, Users, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const OwnerPromotionCard: React.FC<{ promotion: Promotion & { claim_count?: number } }> = ({ promotion }) => {
+interface OwnerPromotionCardProps {
+    promotion: Promotion & { claim_count?: number };
+    onDelete: (promotionId: string) => void;
+}
+
+const OwnerPromotionCard: React.FC<OwnerPromotionCardProps> = ({ promotion, onDelete }) => {
+    const navigate = useNavigate();
     const now = new Date();
     const endDate = new Date(promotion.endDate);
     const isActive = endDate > now;
@@ -14,6 +21,12 @@ const OwnerPromotionCard: React.FC<{ promotion: Promotion & { claim_count?: numb
             month: '2-digit',
             year: 'numeric'
         });
+    };
+
+    const handleDelete = () => {
+        if (window.confirm(`Tem certeza que deseja excluir a promoção "${promotion.title}"? Esta ação não pode ser desfeita.`)) {
+            onDelete(promotion.id);
+        }
     };
 
     return (
@@ -28,14 +41,22 @@ const OwnerPromotionCard: React.FC<{ promotion: Promotion & { claim_count?: numb
                 </span>
             </div>
             <p className="text-sm text-text-secondary mt-2">{promotion.description}</p>
-            <div className="mt-4 pt-3 border-t border-gray-700 flex justify-between items-center text-sm text-text-secondary">
-                <div className="flex items-center">
+            <div className="mt-4 pt-3 border-t border-gray-700 flex justify-between items-center">
+                <div className="flex items-center text-sm text-text-secondary">
                     <Calendar size={14} className="mr-2" />
                     <span>Expira em: {formatDate(promotion.endDate)}</span>
                 </div>
-                <div className="flex items-center font-semibold">
+                <div className="flex items-center font-semibold text-sm text-text-secondary">
                     <Users size={14} className="mr-2 text-primary" />
                     <span>{claimCount} / {promotion.limitCount} Reivindicados</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <button onClick={() => navigate(`/owner/promotions/edit/${promotion.id}`)} className="p-2 text-text-secondary hover:text-primary" aria-label="Editar promoção">
+                        <Edit size={16} />
+                    </button>
+                    <button onClick={handleDelete} className="p-2 text-text-secondary hover:text-red-500" aria-label="Excluir promoção">
+                        <Trash2 size={16} />
+                    </button>
                 </div>
             </div>
         </div>

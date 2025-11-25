@@ -55,7 +55,7 @@ const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
 
     const handleAddPlace = async (place: Place) => {
         try {
-            await addOwnedPlace(place.id);
+            await addOwnedPlace(place);
             onClose();
         } catch (err: any) {
             setError(err.message || "Não foi possível adicionar o local.");

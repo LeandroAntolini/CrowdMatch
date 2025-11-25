@@ -93,7 +93,7 @@ interface AppContextType {
     createOwnerFeedPost: (payload: CreatePostPayload) => Promise<void>;
     ownerFeedPosts: FeedPost[];
     ownedPlaceIds: string[];
-    addOwnedPlace: (placeId: string) => Promise<void>;
+    addOwnedPlace: (place: Place) => Promise<void>;
     removeOwnedPlace: (placeId: string) => Promise<void>;
     verifyQrCode: (qrCodeValue: string) => Promise<any>;
     createPromotion: (payload: CreatePromotionPayload) => Promise<void>;
@@ -630,14 +630,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
-    const addOwnedPlace = async (placeId: string) => {
-        if (!currentUser || ownedPlaceIds.includes(placeId)) return;
+    const addOwnedPlace = async (place: Place) => {
+        if (!currentUser || ownedPlaceIds.includes(place.id)) return;
         const { error } = await supabase.from('place_owners').insert({
             user_id: currentUser.id,
-            place_id: placeId
+            place_id: place.id
         });
         if (error) throw error;
-        setOwnedPlaceIds(prev => [...prev, placeId]);
+    
+        setOwnedPlaceIds(prev => [...prev, place.id]);
+    
+        setPlaces(prevPlaces => {
+            const placeExists = prevPlaces.some(p => p.id === place.id);
+            if (!placeExists) {
+                return [...prevPlaces, place];
+            }
+            return prevPlaces;
+        });
     };
 
     const removeOwnedPlace = async (placeId: string) => {

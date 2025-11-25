@@ -1,11 +1,18 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { BarChart2, Ticket, Newspaper } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const OwnerDashboardPage: React.FC = () => {
-    const { currentUser } = useAppContext();
+    const { currentUser, ownerPromotions, ownerFeedPosts } = useAppContext();
     const navigate = useNavigate();
+
+    const activePromotionsCount = useMemo(() => {
+        if (!ownerPromotions) return 0;
+        return ownerPromotions.filter(p => new Date(p.endDate) > new Date()).length;
+    }, [ownerPromotions]);
+
+    const feedPostsCount = ownerFeedPosts?.length || 0;
 
     return (
         <div className="p-6 space-y-8">
@@ -26,14 +33,14 @@ const OwnerDashboardPage: React.FC = () => {
                     <Ticket size={32} className="text-accent" />
                     <div>
                         <p className="text-text-secondary text-sm">Promoções Ativas</p>
-                        <p className="text-xl font-bold">3</p>
+                        <p className="text-xl font-bold">{activePromotionsCount}</p>
                     </div>
                 </div>
                  <div className="bg-surface p-4 rounded-lg flex items-center space-x-4">
                     <Newspaper size={32} className="text-blue-400" />
                     <div>
                         <p className="text-text-secondary text-sm">Postagens no Feed</p>
-                        <p className="text-xl font-bold">12</p>
+                        <p className="text-xl font-bold">{feedPostsCount}</p>
                     </div>
                 </div>
             </div>

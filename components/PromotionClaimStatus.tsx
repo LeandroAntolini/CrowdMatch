@@ -75,7 +75,7 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
             <div className="flex items-center justify-between">
                 <h3 className="font-bold text-text-primary">{promotion.title}</h3>
                 <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full">
-                    {promotion.promotionType === 'FIRST_N_GOING' ? 'Primeiros a Ir' : 'Primeiros a Checar'}
+                    {promotion.promotionType === 'FIRST_N_GOING' ? 'Para quem VAI' : 'Para quem está AQUI'}
                 </span>
             </div>
             <p className="text-sm text-text-secondary mt-1">{promotion.description}</p>

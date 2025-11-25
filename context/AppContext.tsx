@@ -396,15 +396,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
+        // Remove any previous status to ensure only one is active
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
+        
         const { data, error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
         if (!error && data) {
             setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
             setGoingIntentions(prev => prev.filter(gi => gi.userId !== currentUser.id));
-            
-            // Claim promotions related to Check-in
-            // NOTE: The actual claim logic is now handled by the caller (PlaceDetailsPage) to display the result message.
         }
     };
 
@@ -416,15 +415,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const addGoingIntention = async (placeId: string) => {
         if (!currentUser) return;
+        // Remove any previous status to ensure only one is active
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
+
         const { data, error } = await supabase.from('going_intentions').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
         if (!error && data) {
             setGoingIntentions(prev => [...prev.filter(gi => gi.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
             setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
-            
-            // Claim promotions related to Going Intention
-            // NOTE: The actual claim logic is now handled by the caller (PlaceDetailsPage) to display the result message.
         }
     };
 

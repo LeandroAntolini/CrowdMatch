@@ -23,8 +23,8 @@ const UserLayout: React.FC = () => {
             {showHeader && <Header />}
             <div className="flex-1 overflow-y-auto no-scrollbar">
                 <Routes>
-                    <Route path="/feeds" element={<FeedsPage />} />
-                    <Route path="/" element={<MainPage />} />
+                    <Route path="/" element={<FeedsPage />} />
+                    <Route path="/places" element={<MainPage />} />
                     <Route path="/place/:id" element={<PlaceDetailsPage />} />
                     <Route path="/promotions" element={<PromotionsPage />} />
                     <Route path="/match" element={<MatchPage />} />

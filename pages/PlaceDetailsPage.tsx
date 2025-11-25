@@ -246,7 +246,7 @@ const PlaceDetailsPage: React.FC = () => {
                                         <Users className="mr-2" size={18} />
                                         Estou Aqui
                                     </button>
-                                    {!place.isOpen && !isCheckedInHere && (
+                                    {!place.isOpen && !isCheckedInHere && !isGoingHere && (
                                         <p className="text-xs text-center text-text-secondary mt-2">O check-in fica disponível durante o horário de funcionamento.</p>
                                     )}
                                 </>

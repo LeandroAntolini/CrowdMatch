@@ -1,7 +1,5 @@
 import React from 'react';
-import * as QRCodeModule from 'qrcode.react';
-
-const QRCode = (QRCodeModule as any).default || (QRCodeModule as any).QRCode;
+import { QRCodeSVG } from 'qrcode.react';
 
 interface ConfirmationTicketProps {
     type: 'check-in' | 'going';
@@ -21,10 +19,6 @@ const ConfirmationTicket: React.FC<ConfirmationTicketProps> = ({ type, placeName
     const title = isCheckIn ? 'COMPROVANTE DE CHECK-IN' : 'INTENÇÃO DE IDA';
     const orderLabel = isCheckIn ? 'Você é o nº' : 'Sua ordem é';
 
-    if (!QRCode) {
-        return <div className="text-red-500 p-2">Erro ao carregar QR Code.</div>;
-    }
-
     return (
         <div className="bg-gray-100 text-gray-900 p-3 rounded-lg shadow-md w-full max-w-xs mx-auto font-mono text-sm animate-fade-in-up">
             <div className="text-center border-b-2 border-dashed border-gray-400 pb-2">
@@ -42,11 +36,10 @@ const ConfirmationTicket: React.FC<ConfirmationTicketProps> = ({ type, placeName
                 </div>
             </div>
             <div className="flex justify-center items-center bg-white p-2 rounded-md">
-                 <QRCode 
+                 <QRCodeSVG 
                     value={qrCodeValue} 
                     size={96} 
                     level="H" 
-                    renderAs="svg"
                     bgColor="#FFFFFF"
                     fgColor="#000000"
                 />

@@ -59,7 +59,7 @@ interface AppContextType {
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     promotions: Promotion[];
-    ownerPromotions: (Promotion & { claim_count?: number })[];
+    ownerPromotions: (Promotion & { claim_count?: number; redeemed_count?: number })[];
     promotionClaims: PromotionClaim[];
     allFeedPosts: FeedPost[];
     isLoading: boolean;
@@ -164,7 +164,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [promotions, setPromotions] = useState<Promotion[]>([]);
-    const [ownerPromotions, setOwnerPromotions] = useState<(Promotion & { claim_count?: number })[]>([]);
+    const [ownerPromotions, setOwnerPromotions] = useState<(Promotion & { claim_count?: number; redeemed_count?: number })[]>([]);
     const [promotionClaims, setPromotionClaims] = useState<PromotionClaim[]>([]);
     const [ownerFeedPosts, setOwnerFeedPosts] = useState<FeedPost[]>([]);
     const [allFeedPosts, setAllFeedPosts] = useState<FeedPost[]>([]);
@@ -272,6 +272,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return;
         }
 
+        const refreshOwnerPromotions = async () => {
+            if (!session?.user) return;
+            const { data, error } = await supabase.rpc('get_owner_promotions_with_counts', {
+                user_id_param: session.user.id,
+            });
+            if (error) {
+                console.error("Error fetching owner promotions with counts:", error);
+            } else {
+                const mappedPromos = data.map(p => ({
+                    ...mapPromotion(p),
+                    claim_count: p.claim_count,
+                    redeemed_count: p.redeemed_count,
+                }));
+                setOwnerPromotions(mappedPromos);
+            }
+        };
+
         const fetchData = async () => {
             setIsLoading(true);
             try {
@@ -344,18 +361,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                             });
                         }
                     }
-
-                    const { data: ownerPromosData, error: ownerPromosError } = await supabase
-                        .from('promotions')
-                        .select('*, promotion_claims(count)')
-                        .eq('created_by', session.user.id);
-
-                    if (ownerPromosError) throw ownerPromosError;
-                    const mappedOwnerPromos = ownerPromosData.map(p => ({
-                        ...mapPromotion(p),
-                        claim_count: p.promotion_claims[0]?.count || 0,
-                    }));
-                    setOwnerPromotions(mappedOwnerPromos);
+                    await refreshOwnerPromotions();
                 }
 
                 const { data: allPostsData, error: allPostsError } = await supabase
@@ -444,10 +450,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
             )
             .subscribe();
+        
+        const claimsChannel = supabase
+            .channel('promotion-claims-listener')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'promotion_claims' },
+                (payload) => {
+                    if (currentUser?.role === 'owner') {
+                        refreshOwnerPromotions();
+                    }
+                }
+            )
+            .subscribe();
 
         return () => {
             clearInterval(intervalId);
             supabase.removeChannel(livePostsChannel);
+            supabase.removeChannel(claimsChannel);
         };
     }, [session, refreshActiveLivePosts, fetchPlaces]);
 

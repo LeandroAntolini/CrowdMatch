@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Search, Loader2, PlusCircle } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { Place } from '../../types';
+import { brazilianStates, citiesByState } from '../../data/locations';
 
 interface AddPlaceModalProps {
     isOpen: boolean;
@@ -15,16 +16,43 @@ const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // New state for location selection
+    const [selectedState, setSelectedState] = useState<string>(currentUser?.state || 'ES');
+    const [selectedCity, setSelectedCity] = useState<string>(currentUser?.city || 'Vitória');
+    const [availableCities, setAvailableCities] = useState<string[]>(citiesByState[selectedState] || []);
+
+    // Effect to update cities when state changes
+    useEffect(() => {
+        const newCities = citiesByState[selectedState] || [];
+        setAvailableCities(newCities);
+        if (!newCities.includes(selectedCity)) {
+            setSelectedCity(newCities[0] || '');
+        }
+    }, [selectedState, selectedCity]);
+
+    const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedState(e.target.value);
+    };
+
     const handleSearch = async () => {
-        if (!searchQuery.trim() || !currentUser?.city || !currentUser?.state) {
-            setError("Por favor, digite um termo de busca.");
+        if (!selectedCity || !selectedState) {
+            setError("Por favor, selecione um estado e uma cidade para a busca.");
+            return;
+        }
+        if (!searchQuery.trim()) {
+            setError("Por favor, digite o nome do estabelecimento.");
             return;
         }
         setIsLoading(true);
         setError(null);
-        const results = await fetchPlaces(currentUser.city, currentUser.state, searchQuery);
-        setSearchResults(results);
-        setIsLoading(false);
+        try {
+            const results = await fetchPlaces(selectedCity, selectedState, searchQuery);
+            setSearchResults(results);
+        } catch (err: any) {
+            setError(err.message || "Ocorreu um erro ao buscar. Tente novamente.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleAddPlace = async (place: Place) => {
@@ -49,8 +77,36 @@ const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
                     </button>
                 </div>
                 <p className="text-text-secondary mb-4 text-sm">
-                    Busque pelo nome do seu estabelecimento na sua cidade. Se não encontrar, verifique se o local está cadastrado no Google Maps.
+                    Selecione a localização e busque pelo nome do seu estabelecimento. Se não encontrar, verifique se o local está cadastrado no Google Maps.
                 </p>
+                
+                {/* Location Selectors */}
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label htmlFor="state-select" className="block text-sm font-medium text-text-secondary mb-1">Estado</label>
+                        <select
+                            id="state-select"
+                            value={selectedState}
+                            onChange={handleStateChange}
+                            className="w-full px-3 py-2 text-text-primary bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        >
+                            {brazilianStates.map(s => <option key={s.abbr} value={s.abbr}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label htmlFor="city-select" className="block text-sm font-medium text-text-secondary mb-1">Cidade</label>
+                        <select
+                            id="city-select"
+                            value={selectedCity}
+                            onChange={(e) => setSelectedCity(e.target.value)}
+                            disabled={availableCities.length === 0}
+                            className="w-full px-3 py-2 text-text-primary bg-gray-800 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-900"
+                        >
+                            {availableCities.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                </div>
+
                 <div className="flex gap-2 mb-4">
                     <input
                         type="text"
@@ -88,7 +144,7 @@ const AddPlaceModal: React.FC<AddPlaceModalProps> = ({ isOpen, onClose }) => {
                             </div>
                         ))
                     ) : (
-                        !isLoading && <p className="text-center text-text-secondary mt-8">Nenhum resultado.</p>
+                        !isLoading && <p className="text-center text-text-secondary mt-8">Nenhum resultado. Digite sua busca acima.</p>
                     )}
                 </div>
             </div>

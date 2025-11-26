@@ -28,7 +28,7 @@ const PlaceDetailsPage: React.FC = () => {
         goingIntentions,
         addGoingIntention,
         removeGoingIntention,
-        getCurrentGoingIntention,
+        isUserGoingToPlace,
         isFavorite,
         addFavorite,
         removeFavorite,
@@ -47,12 +47,14 @@ const PlaceDetailsPage: React.FC = () => {
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
-    const currentGoingIntention = getCurrentGoingIntention();
 
+    // --- Lógica Atualizada ---
     const isCheckedInHere = currentCheckIn?.placeId === id;
-    const isGoingHere = currentGoingIntention?.placeId === id;
-    const isBusyElsewhere = (currentCheckIn && !isCheckedInHere) || (currentGoingIntention && !isGoingHere);
-    const busyPlaceId = currentCheckIn?.placeId || currentGoingIntention?.placeId;
+    const isGoingHere = id ? isUserGoingToPlace(id) : false;
+    
+    // Apenas o check-in é exclusivo. Verificamos se o usuário está em check-in em outro lugar.
+    const isCheckedInElsewhere = currentCheckIn && !isCheckedInHere;
+    const busyPlaceId = currentCheckIn?.placeId;
     const busyPlace = busyPlaceId ? getPlaceById(busyPlaceId) : null;
     
     const isCurrentlyFavorite = id ? isFavorite(id) : false;
@@ -71,15 +73,18 @@ const PlaceDetailsPage: React.FC = () => {
                 order: crowdCount
             });
         } else if (isGoingHere) {
+            // Encontra a intenção específica para este local para obter o timestamp
+            const specificIntention = goingIntentions.find(gi => gi.userId === currentUser?.id && gi.placeId === id);
+            
             setConfirmationTicket({
                 type: 'going',
-                timestamp: currentGoingIntention?.timestamp || Date.now(),
+                timestamp: specificIntention?.timestamp || Date.now(),
                 order: goingCount
             });
         } else {
             setConfirmationTicket(null);
         }
-    }, [isCheckedInHere, isGoingHere, currentCheckIn, currentGoingIntention, crowdCount, goingCount]);
+    }, [isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, crowdCount, goingCount, id, currentUser?.id]);
 
     const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
 
@@ -119,11 +124,15 @@ const PlaceDetailsPage: React.FC = () => {
 
     const handleAddGoingIntention = async () => {
         if (!id) return;
-        await addGoingIntention(id);
-        setClaimMessage(null); // Limpa mensagens antigas
-        for (const promo of activeGoingPromotions) {
-            const result = await claimPromotion(promo.id);
-            if (result) setClaimMessage(result); // Mostra o resultado da primeira promo encontrada
+        try {
+            await addGoingIntention(id);
+            setClaimMessage(null); // Limpa mensagens antigas
+            for (const promo of activeGoingPromotions) {
+                const result = await claimPromotion(promo.id);
+                if (result) setClaimMessage(result); // Mostra o resultado da primeira promo encontrada
+            }
+        } catch (e: any) {
+            alert(e.message); // Exibe erro se o limite de 3 for atingido
         }
     };
 
@@ -133,7 +142,8 @@ const PlaceDetailsPage: React.FC = () => {
     };
 
     const handleRemoveGoing = () => {
-        removeGoingIntention();
+        if (!id) return;
+        removeGoingIntention(id); // Passa o placeId
         setConfirmationTicket(null);
     };
 
@@ -142,6 +152,10 @@ const PlaceDetailsPage: React.FC = () => {
     const qrCodeValue = confirmationTicket && currentUser
         ? `${currentUser.id}|${place.id}|${confirmationTicket.timestamp}|${confirmationTicket.type}`
         : 'invalid';
+
+    // UI Logic for buttons
+    const checkInDisabled = !place.isOpen || isCheckedInHere || isCheckedInElsewhere;
+    const goingDisabled = isGoingHere || isCheckedInHere; // Não pode marcar 'Eu Vou' se já estiver em check-in aqui.
 
     return (
         <div className="relative">
@@ -223,33 +237,33 @@ const PlaceDetailsPage: React.FC = () => {
                 <div className="mt-6 p-4 bg-surface rounded-lg">
                     <div className="flex flex-col sm:flex-row gap-4 items-start">
                         <div className="w-full sm:w-1/2 space-y-3">
-                            {isBusyElsewhere ? (
-                                <div className="text-center p-4 bg-gray-800 rounded-lg h-full flex flex-col justify-center">
-                                    <p className="font-semibold text-yellow-400">Você já tem um plano!</p>
-                                    <p className="text-sm text-text-secondary">Seu status está ativo em "{busyPlace?.name}".</p>
+                            {isCheckedInElsewhere && (
+                                <div className="text-center p-4 bg-gray-800 rounded-lg">
+                                    <p className="font-semibold text-yellow-400">Check-in Ativo!</p>
+                                    <p className="text-sm text-text-secondary">Você está em "{busyPlace?.name}". Faça check-out lá para fazer check-in aqui.</p>
                                 </div>
-                            ) : (
-                                <>
-                                    <button 
-                                        onClick={handleAddGoingIntention}
-                                        disabled={isGoingHere || isCheckedInHere}
-                                        className="w-full bg-accent text-white font-bold py-2 px-4 rounded-lg hover:bg-pink-600 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center text-sm"
-                                    >
-                                        <CalendarClock className="mr-2" size={18} />
-                                        Eu Vou
-                                    </button>
-                                    <button 
-                                        onClick={handleCheckIn}
-                                        disabled={!place.isOpen || isCheckedInHere}
-                                        className="w-full bg-primary text-background font-bold py-2 px-4 rounded-lg hover:bg-pink-200 transition-colors disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center text-sm"
-                                    >
-                                        <Users className="mr-2" size={18} />
-                                        Estou Aqui
-                                    </button>
-                                    {!place.isOpen && !isCheckedInHere && !isGoingHere && (
-                                        <p className="text-xs text-center text-text-secondary mt-2">O check-in fica disponível durante o horário de funcionamento.</p>
-                                    )}
-                                </>
+                            )}
+                            
+                            <button 
+                                onClick={handleAddGoingIntention}
+                                disabled={goingDisabled}
+                                className="w-full bg-accent text-white font-bold py-2 px-4 rounded-lg hover:bg-pink-600 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center text-sm"
+                            >
+                                <CalendarClock className="mr-2" size={18} />
+                                {isGoingHere ? 'Já Marcou "Eu Vou"' : 'Eu Vou'}
+                            </button>
+                            
+                            <button 
+                                onClick={handleCheckIn}
+                                disabled={checkInDisabled}
+                                className="w-full bg-primary text-background font-bold py-2 px-4 rounded-lg hover:bg-pink-200 transition-colors disabled:bg-gray-600 disabled:text-gray-400 disabled:cursor-not-allowed flex items-center justify-center text-sm"
+                            >
+                                <Users className="mr-2" size={18} />
+                                {isCheckedInHere ? 'Você está Aqui' : 'Estou Aqui'}
+                            </button>
+                            
+                            {!place.isOpen && !isCheckedInHere && !isGoingHere && (
+                                <p className="text-xs text-center text-text-secondary mt-2">O check-in fica disponível durante o horário de funcionamento.</p>
                             )}
                         </div>
 

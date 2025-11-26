@@ -7,10 +7,10 @@ import CreatePromotionPage from '../pages/owner/CreatePromotionPage';
 import EditPromotionPage from '../pages/owner/EditPromotionPage';
 import OwnerFeedsPage from '../pages/owner/OwnerFeedsPage';
 import CreateFeedPostPage from '../pages/owner/CreateFeedPostPage';
-import CreateMediaPostPage from '../pages/owner/CreateMediaPostForm';
+import CreateMediaPostPage from '../pages/owner/CreateMediaPostPage';
 import CreateLiveRepostPage from '../pages/owner/CreateLiveRepostPage';
 import VerifyQrPage from '../pages/owner/VerifyQrPage';
-import OwnerLivePage from '../pages/owner/OwnerLivePage'; // Importando a nova página
+import OwnerLivePage from '../pages/owner/OwnerLivePage'; 
 import OwnerHeader from '../components/owner/OwnerHeader';
 import OwnerBottomNav from '../components/owner/OwnerBottomNav';
 
@@ -30,7 +30,7 @@ const OwnerLayout: React.FC = () => {
                     <Route path="/owner/promotions/edit/:promotionId" element={<EditPromotionPage />} />
                     <Route path="/owner/profile" element={<OwnerProfilePage />} />
                     <Route path="/owner/verify-qr" element={<VerifyQrPage />} />
-                    <Route path="/owner/live" element={<OwnerLivePage />} /> {/* Nova Rota */}
+                    <Route path="/owner/live" element={<OwnerLivePage />} /> 
                     <Route path="*" element={<Navigate to="/dashboard" />} />
                 </Routes>
             </div>

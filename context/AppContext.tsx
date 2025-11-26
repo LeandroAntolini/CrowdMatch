@@ -110,6 +110,7 @@ interface AppContextType {
     createPromotion: (payload: CreatePromotionPayload) => Promise<void>;
     updatePromotion: (promotionId: string, payload: Partial<CreatePromotionPayload>) => Promise<void>;
     deletePromotion: (promotionId: string) => Promise<void>;
+    deleteAllLivePosts: () => Promise<void>; // NOVA FUNÇÃO
     
     // New interaction functions
     likePost: (postId: string) => Promise<void>;
@@ -581,6 +582,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     };
 
+    const deleteAllLivePosts = async () => {
+        const { error } = await supabase.functions.invoke('delete-all-live-posts', {
+            method: 'POST',
+        });
+        if (error) {
+            const errorData = JSON.parse(error.context?.response?.text || '{}');
+            throw new Error(errorData.error || 'Falha ao excluir todos os posts ao vivo.');
+        }
+        // Limpa o estado local após a exclusão bem-sucedida
+        setLivePostsByPlace({});
+        setActiveLivePosts([]);
+    };
+
     const claimPromotion = useCallback(async (promotionId: string): Promise<ClaimResult | undefined> => {
         if (!currentUser) return;
 
@@ -1050,6 +1064,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createPromotion,
         updatePromotion,
         deletePromotion,
+        deleteAllLivePosts,
         likePost,
         unlikePost,
         addCommentToPost,

@@ -258,10 +258,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, []);
 
     const fetchLivePostsForPlace = useCallback(async (placeId: string) => {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data, error } = await supabase
             .from('live_posts')
             .select('*, profiles(id, name, photos)')
             .eq('place_id', placeId)
+            .gt('created_at', oneHourAgo) // Adicionando filtro de tempo
             .order('created_at', { ascending: false })
             .limit(50);
         

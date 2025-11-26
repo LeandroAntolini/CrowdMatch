@@ -119,14 +119,14 @@ const CreateLiveRepostPage: React.FC = () => {
                 placeId: selectedPlace.id,
                 caption: `A vibe está incrível no ${selectedPlace.name}! Veja o que a galera está comentando ao vivo. #CrowdMatch`,
                 mediaUrl: publicUrl,
-                type: 'image',
+                type: 'image', // Live Repost é sempre uma imagem (PNG)
             });
 
             navigate('/owner/feeds');
 
         } catch (err: any) {
             console.error("Error creating live repost:", err);
-            setError(err.message || "Ocorreu um erro ao criar a postagem.");
+            setError(err.message || "Ocorreu um erro ao postar.");
         } finally {
             setIsLoading(false);
         }

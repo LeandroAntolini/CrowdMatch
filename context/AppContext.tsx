@@ -30,7 +30,7 @@ interface CreatePostPayload {
     placeId: string;
     caption: string;
     mediaUrl: string;
-    type: 'image' | 'video';
+    type: 'image' | 'video' | 'live-highlight'; // Adicionando 'live-highlight' para clareza
 }
 
 interface CreatePromotionPayload {
@@ -762,11 +762,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         const placeDetails = getPlaceById(payload.placeId);
 
-        const { error } = await supabase.from('feed_posts').insert({
+        // Garantindo que placeLogoUrl seja null se não houver foto, para evitar problemas de tipagem/RLS
+        const placeLogoUrl = placeDetails?.photoUrl || null;
+
+        const { data, error } = await supabase.from('feed_posts').insert({
             user_id: currentUser.id,
             place_id: payload.placeId,
             place_name: placeDetails?.name || payload.placeId,
-            place_logo_url: placeDetails?.photoUrl || '',
+            place_logo_url: placeLogoUrl,
             type: payload.type,
             media_url: payload.mediaUrl,
             caption: payload.caption,
@@ -774,7 +777,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         if (error) {
             console.error("Error inserting feed post:", error);
-            throw error;
+            // Propagando o erro de forma mais clara
+            throw new Error(`Falha ao inserir post no feed. Detalhes: ${error.message}. Verifique se o local está associado corretamente.`);
         }
         
         // Re-fetch owner posts to include the new one with interactions

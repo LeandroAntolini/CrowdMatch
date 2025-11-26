@@ -110,7 +110,8 @@ interface AppContextType {
     createPromotion: (payload: CreatePromotionPayload) => Promise<void>;
     updatePromotion: (promotionId: string, payload: Partial<CreatePromotionPayload>) => Promise<void>;
     deletePromotion: (promotionId: string) => Promise<void>;
-    deleteAllLivePosts: () => Promise<void>; // NOVA FUNÇÃO
+    deleteAllLivePosts: () => Promise<void>;
+    deleteAllOwnerFeedPosts: () => Promise<void>; // NOVA FUNÇÃO
     
     // New interaction functions
     likePost: (postId: string) => Promise<void>;
@@ -283,6 +284,66 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, []);
 
+    const fetchOwnerFeedPosts = useCallback(async (userId: string) => {
+        const { data: postsData, error: postsError } = await supabase
+            .from('feed_posts')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+        
+        if (postsError) throw postsError;
+        
+        const postIds = postsData.map(p => p.id);
+
+        // Fetch all likes for these owner posts
+        const { data: likesData, error: likesError } = await supabase
+            .from('post_likes')
+            .select('*')
+            .in('post_id', postIds);
+        if (likesError) throw likesError;
+
+        // Fetch all comments for these owner posts, including profile name
+        const { data: commentsData, error: commentsError } = await supabase
+            .from('post_comments')
+            .select('*, profiles(name)')
+            .in('post_id', postIds)
+            .order('created_at', { ascending: true });
+        if (commentsError) throw commentsError;
+
+        const likesByPostId = likesData.reduce((acc, like) => {
+            acc[like.post_id] = acc[like.post_id] || [];
+            acc[like.post_id].push(like);
+            return acc;
+        }, {} as { [key: string]: any[] });
+
+        const commentsByPostId = commentsData.reduce((acc, comment) => {
+            acc[comment.post_id] = acc[comment.post_id] || [];
+            acc[comment.post_id].push(mapPostComment(comment));
+            return acc;
+        }, {} as { [key: string]: PostComment[] });
+
+        const mappedPosts: FeedPost[] = postsData.map((p: any) => {
+            const postId = p.id;
+            const likes = likesByPostId[postId] || [];
+            const comments = commentsByPostId[postId] || [];
+
+            return {
+                id: postId,
+                placeId: p.place_id,
+                placeName: p.place_name,
+                placeLogoUrl: p.place_logo_url || '',
+                type: p.type,
+                mediaUrl: p.media_url,
+                caption: p.caption,
+                likes: likes.length,
+                comments: comments,
+                timestamp: new Date(p.created_at).toISOString(),
+                isLikedByCurrentUser: likes.some(l => l.user_id === userId),
+            };
+        });
+        setOwnerFeedPosts(mappedPosts);
+    }, []);
+
     useEffect(() => {
         if (!session?.user) {
             setCurrentUser(null);
@@ -332,63 +393,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
                 if (mappedUser.role === 'owner') {
-                    const { data: postsData, error: postsError } = await supabase
-                        .from('feed_posts')
-                        .select('*')
-                        .eq('user_id', session.user.id)
-                        .order('created_at', { ascending: false });
-                    
-                    if (postsError) throw postsError;
-                    
-                    const postIds = postsData.map(p => p.id);
-
-                    // Fetch all likes for these owner posts
-                    const { data: likesData, error: likesError } = await supabase
-                        .from('post_likes')
-                        .select('*')
-                        .in('post_id', postIds);
-                    if (likesError) throw likesError;
-
-                    // Fetch all comments for these owner posts, including profile name
-                    const { data: commentsData, error: commentsError } = await supabase
-                        .from('post_comments')
-                        .select('*, profiles(name)')
-                        .in('post_id', postIds)
-                        .order('created_at', { ascending: true });
-                    if (commentsError) throw commentsError;
-
-                    const likesByPostId = likesData.reduce((acc, like) => {
-                        acc[like.post_id] = acc[like.post_id] || [];
-                        acc[like.post_id].push(like);
-                        return acc;
-                    }, {} as { [key: string]: any[] });
-
-                    const commentsByPostId = commentsData.reduce((acc, comment) => {
-                        acc[comment.post_id] = acc[comment.post_id] || [];
-                        acc[comment.post_id].push(mapPostComment(comment));
-                        return acc;
-                    }, {} as { [key: string]: PostComment[] });
-
-                    const mappedPosts: FeedPost[] = postsData.map((p: any) => {
-                        const postId = p.id;
-                        const likes = likesByPostId[postId] || [];
-                        const comments = commentsByPostId[postId] || [];
-
-                        return {
-                            id: postId,
-                            placeId: p.place_id,
-                            placeName: p.place_name,
-                            placeLogoUrl: p.place_logo_url || '',
-                            type: p.type,
-                            mediaUrl: p.media_url,
-                            caption: p.caption,
-                            likes: likes.length,
-                            comments: comments,
-                            timestamp: new Date(p.created_at).toISOString(),
-                            isLikedByCurrentUser: likes.some(l => l.user_id === session.user.id),
-                        };
-                    });
-                    setOwnerFeedPosts(mappedPosts);
+                    await fetchOwnerFeedPosts(session.user.id);
 
                     const { data: ownedPlacesData, error: ownedPlacesError } = await supabase
                         .from('place_owners')
@@ -559,7 +564,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces]);
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -593,6 +598,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Limpa o estado local após a exclusão bem-sucedida
         setLivePostsByPlace({});
         setActiveLivePosts([]);
+    };
+    
+    const deleteAllOwnerFeedPosts = async () => {
+        if (!currentUser || currentUser.role !== 'owner') {
+            throw new Error("Apenas lojistas podem excluir posts do feed.");
+        }
+        
+        // 1. Excluir todos os posts do feed criados por este usuário
+        // O RLS deve garantir que apenas os posts do próprio usuário sejam excluídos.
+        const { error: deleteError } = await supabase
+            .from('feed_posts')
+            .delete()
+            .eq('user_id', currentUser.id);
+
+        if (deleteError) {
+            console.error('Error deleting owner feed posts:', deleteError);
+            throw new Error(`Falha ao excluir posts: ${deleteError.message}`);
+        }
+        
+        // 2. Limpar o estado local
+        setOwnerFeedPosts([]);
+        
+        // 3. Atualizar o feed global (allFeedPosts)
+        setAllFeedPosts(prev => prev.filter(p => p.placeId !== currentUser.id));
     };
 
     const claimPromotion = useCallback(async (promotionId: string): Promise<ClaimResult | undefined> => {
@@ -1065,6 +1094,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         updatePromotion,
         deletePromotion,
         deleteAllLivePosts,
+        deleteAllOwnerFeedPosts,
         likePost,
         unlikePost,
         addCommentToPost,

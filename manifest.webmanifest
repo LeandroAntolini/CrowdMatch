@@ -1,6 +1,7 @@
 {
   "name": "CrowdMatch",
   "short_name": "CrowdMatch",
+  "id": "/",
   "description": "Sinta a vibe antes de ir. Veja a lotação dos locais e conecte-se com pessoas.",
   "start_url": ".",
   "display": "standalone",

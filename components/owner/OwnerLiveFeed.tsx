@@ -12,8 +12,7 @@ interface OwnerLiveFeedProps {
 
 const OwnerLiveFeed: React.FC<OwnerLiveFeedProps> = ({ place }) => {
     const { 
-        currentUser, 
-        getCurrentCheckIn, 
+        ownedPlaceIds, // Usamos esta lista para verificar a permissão
         fetchLivePostsForPlace, 
         livePostsByPlace, 
         createLivePost 
@@ -21,8 +20,9 @@ const OwnerLiveFeed: React.FC<OwnerLiveFeedProps> = ({ place }) => {
     
     const [isLoading, setIsLoading] = useState(true);
     const posts = livePostsByPlace[place.id] || [];
-    const currentCheckIn = getCurrentCheckIn();
-    const isCheckedInHere = currentCheckIn?.placeId === place.id;
+    
+    // Permissão de postagem para lojista: ele gerencia este local?
+    const canOwnerPost = ownedPlaceIds.includes(place.id);
 
     useEffect(() => {
         setIsLoading(true);
@@ -42,17 +42,17 @@ const OwnerLiveFeed: React.FC<OwnerLiveFeedProps> = ({ place }) => {
                 {place.name}
             </h3>
 
-            {isCheckedInHere ? (
+            {canOwnerPost ? (
                 <div className="mb-4">
                     <div className="flex items-center text-sm text-text-secondary mb-2 p-2 bg-gray-800 rounded-lg">
                         <Clock size={16} className="mr-2 text-accent" />
-                        <span>Você está em check-in. Poste sobre a vibe!</span>
+                        <span>Poste um comentário como representante do estabelecimento.</span>
                     </div>
                     <LivePostForm onSubmit={handlePostSubmit} />
                 </div>
             ) : (
                 <p className="text-sm text-text-secondary mb-4">
-                    Faça check-in no seu local (na aba Locais) para poder postar comentários ao vivo.
+                    Você está visualizando o feed ao vivo de um local que não gerencia.
                 </p>
             )}
 

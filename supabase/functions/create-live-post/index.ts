@@ -44,17 +44,28 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: 'O conteúdo excede 280 caracteres' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // VERIFICAÇÃO DE CHECK-IN: Garante que o usuário só pode postar onde está com check-in ativo.
-    const { data: checkInData, error: checkInError } = await supabaseAdmin
-        .from('check_ins')
+    // 1. VERIFICAÇÃO DE PERMISSÃO: Garante que o usuário é um proprietário do local.
+    const { data: ownerData, error: ownerError } = await supabaseAdmin
+        .from('place_owners')
         .select('id')
         .eq('user_id', user.id)
         .eq('place_id', placeId)
         .single();
 
-    if (checkInError || !checkInData) {
-        return new Response(JSON.stringify({ error: 'Você precisa estar com check-in ativo neste local para postar.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    // Se o usuário não for o proprietário, verifica se ele tem um check-in ativo (para usuários normais)
+    if (ownerError || !ownerData) {
+        const { data: checkInData, error: checkInError } = await supabaseAdmin
+            .from('check_ins')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('place_id', placeId)
+            .single();
+            
+        if (checkInError || !checkInData) {
+            return new Response(JSON.stringify({ error: 'Você precisa ser o proprietário ou estar com check-in ativo neste local para postar.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
     }
+    // Se chegou aqui, o usuário é proprietário OU tem check-in ativo.
 
     // Filtro de profanidade
     const lowerCaseContent = content.toLowerCase();

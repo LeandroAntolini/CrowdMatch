@@ -15,12 +15,19 @@ import Header from '../components/Header';
 
 const UserLayout: React.FC = () => {
     const location = useLocation();
-    const noHeaderRoutes = ['/place', '/chat/'];
-    const showHeader = !noHeaderRoutes.some(path => location.pathname.startsWith(path));
+    // Rotas onde o Header deve ser ocultado (detalhes de local e chat individual)
+    const noHeaderRoutes = ['/place/', '/chat/'];
+    
+    // Oculta o Header se a rota for /place/:id ou /chat/:matchId
+    const showHeader = !noHeaderRoutes.some(path => location.pathname.startsWith(path) && location.pathname.split('/').length > 2);
+    
+    // Exceção: A rota /places (listagem) deve mostrar o header.
+    const isPlacesList = location.pathname === '/places';
+    const shouldShowHeader = showHeader || isPlacesList;
 
     return (
         <div className="h-full w-full max-w-md mx-auto flex flex-col">
-            {showHeader && <Header />}
+            {shouldShowHeader && <Header />}
             <div className="flex-1 overflow-y-auto no-scrollbar">
                 <Routes>
                     <Route path="/" element={<FeedsPage />} />

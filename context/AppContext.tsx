@@ -333,23 +333,58 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         .from('feed_posts')
                         .select('*')
                         .eq('user_id', session.user.id)
-                        .gt('created_at', oneHourAgo)
                         .order('created_at', { ascending: false });
                     
                     if (postsError) throw postsError;
                     
-                    const mappedPosts: FeedPost[] = postsData.map((p: any) => ({
-                        id: p.id,
-                        placeId: p.place_id,
-                        placeName: p.place_name,
-                        placeLogoUrl: p.place_logo_url || '',
-                        type: p.type,
-                        mediaUrl: p.media_url,
-                        caption: p.caption,
-                        likes: 0, // Placeholder, not needed for owner view yet
-                        comments: [], // Placeholder
-                        timestamp: new Date(p.created_at).toISOString(),
-                    }));
+                    const postIds = postsData.map(p => p.id);
+
+                    // Fetch all likes for these owner posts
+                    const { data: likesData, error: likesError } = await supabase
+                        .from('post_likes')
+                        .select('*')
+                        .in('post_id', postIds);
+                    if (likesError) throw likesError;
+
+                    // Fetch all comments for these owner posts, including profile name
+                    const { data: commentsData, error: commentsError } = await supabase
+                        .from('post_comments')
+                        .select('*, profiles(name)')
+                        .in('post_id', postIds)
+                        .order('created_at', { ascending: true });
+                    if (commentsError) throw commentsError;
+
+                    const likesByPostId = likesData.reduce((acc, like) => {
+                        acc[like.post_id] = acc[like.post_id] || [];
+                        acc[like.post_id].push(like);
+                        return acc;
+                    }, {} as { [key: string]: any[] });
+
+                    const commentsByPostId = commentsData.reduce((acc, comment) => {
+                        acc[comment.post_id] = acc[comment.post_id] || [];
+                        acc[comment.post_id].push(mapPostComment(comment));
+                        return acc;
+                    }, {} as { [key: string]: PostComment[] });
+
+                    const mappedPosts: FeedPost[] = postsData.map((p: any) => {
+                        const postId = p.id;
+                        const likes = likesByPostId[postId] || [];
+                        const comments = commentsByPostId[postId] || [];
+
+                        return {
+                            id: postId,
+                            placeId: p.place_id,
+                            placeName: p.place_name,
+                            placeLogoUrl: p.place_logo_url || '',
+                            type: p.type,
+                            mediaUrl: p.media_url,
+                            caption: p.caption,
+                            likes: likes.length,
+                            comments: comments,
+                            timestamp: new Date(p.created_at).toISOString(),
+                            isLikedByCurrentUser: likes.some(l => l.user_id === session.user.id),
+                        };
+                    });
                     setOwnerFeedPosts(mappedPosts);
 
                     const { data: ownedPlacesData, error: ownedPlacesError } = await supabase
@@ -379,7 +414,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     await refreshOwnerPromotions();
                 }
 
-                // --- Fetching All Feed Posts with Interactions ---
+                // --- Fetching All Feed Posts with Interactions (User View) ---
                 const { data: allPostsData, error: allPostsError } = await supabase
                     .from('feed_posts')
                     .select('*')
@@ -437,7 +472,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     };
                 });
                 setAllFeedPosts(mappedAllPosts);
-                // --- End Fetching All Feed Posts with Interactions ---
+                // --- End Fetching All Feed Posts with Interactions (User View) ---
 
 
                 const { data: checkInsData, error: checkInsError } = await supabase.from('check_ins').select('*');
@@ -742,6 +777,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             throw error;
         }
         
+        // Re-fetch owner posts to include the new one with interactions
         const { data: postsData, error: postsError } = await supabase
             .from('feed_posts')
             .select('*')
@@ -749,18 +785,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             .order('created_at', { ascending: false });
         
         if (!postsError && postsData) {
-             const mappedPosts: FeedPost[] = postsData.map((p: any) => ({
-                id: p.id,
-                placeId: p.place_id,
-                placeName: p.place_name,
-                placeLogoUrl: p.place_logo_url || '',
-                type: p.type,
-                mediaUrl: p.media_url,
-                caption: p.caption,
-                likes: 0,
-                comments: [],
-                timestamp: new Date(p.created_at).toISOString(),
-            }));
+            const postIds = postsData.map(p => p.id);
+
+            const { data: likesData } = await supabase.from('post_likes').select('*').in('post_id', postIds);
+            const { data: commentsData } = await supabase.from('post_comments').select('*, profiles(name)').in('post_id', postIds).order('created_at', { ascending: true });
+
+            const likesByPostId = likesData?.reduce((acc, like) => {
+                acc[like.post_id] = acc[like.post_id] || [];
+                acc[like.post_id].push(like);
+                return acc;
+            }, {} as { [key: string]: any[] }) || {};
+
+            const commentsByPostId = commentsData?.reduce((acc, comment) => {
+                acc[comment.post_id] = acc[comment.post_id] || [];
+                acc[comment.post_id].push(mapPostComment(comment));
+                return acc;
+            }, {} as { [key: string]: PostComment[] }) || {};
+
+            const mappedPosts: FeedPost[] = postsData.map((p: any) => {
+                const postId = p.id;
+                const likes = likesByPostId[postId] || [];
+                const comments = commentsByPostId[postId] || [];
+
+                return {
+                    id: postId,
+                    placeId: p.place_id,
+                    placeName: p.place_name,
+                    placeLogoUrl: p.place_logo_url || '',
+                    type: p.type,
+                    mediaUrl: p.media_url,
+                    caption: p.caption,
+                    likes: likes.length,
+                    comments: comments,
+                    timestamp: new Date(p.created_at).toISOString(),
+                    isLikedByCurrentUser: likes.some(l => l.user_id === currentUser.id),
+                };
+            });
             setOwnerFeedPosts(mappedPosts);
         }
     };
@@ -890,16 +950,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!currentUser) return;
         const { error } = await supabase.from('post_likes').insert({ user_id: currentUser.id, post_id: postId });
         if (error) throw error;
-        // Optimistic update
+        // Optimistic update for allFeedPosts
         setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, isLikedByCurrentUser: true } : p));
+        // Optimistic update for ownerFeedPosts
+        setOwnerFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, isLikedByCurrentUser: true } : p));
     };
 
     const unlikePost = async (postId: string) => {
         if (!currentUser) return;
         const { error } = await supabase.from('post_likes').delete().eq('user_id', currentUser.id).eq('post_id', postId);
         if (error) throw error;
-        // Optimistic update
+        // Optimistic update for allFeedPosts
         setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes - 1, isLikedByCurrentUser: false } : p));
+        // Optimistic update for ownerFeedPosts
+        setOwnerFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes - 1, isLikedByCurrentUser: false } : p));
     };
 
     const addCommentToPost = async (postId: string, content: string) => {
@@ -917,7 +981,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             profiles: { name: currentUser.name },
         };
 
+        // Optimistic update for allFeedPosts
         setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p));
+        // Optimistic update for ownerFeedPosts
+        setOwnerFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p));
     };
     // --- End New Interaction Functions ---
 

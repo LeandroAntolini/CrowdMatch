@@ -92,21 +92,26 @@ export interface PromotionClaim {
   promotion?: Promotion; // Para conveniência
 }
 
+export interface PostLike {
+  id: string;
+  userId: string;
+  postId: string;
+  createdAt: string;
+}
+
+export interface PostComment {
+  id: string;
+  userId: string;
+  postId: string;
+  content: string;
+  createdAt: string;
+  profiles: {
+    name: string;
+  };
+}
+
 // Tipos para o Feed
-export interface FeedPostComment {
-  user: string;
-  text: string;
-}
-
-export interface LivePostInFeed {
-    id: string;
-    content: string;
-    profiles: {
-        name: string;
-        photos: string[];
-    };
-}
-
+// LivePostInFeed is now defined in AppContext as LivePost
 export interface FeedPost {
   id: string;
   placeId: string;
@@ -115,8 +120,8 @@ export interface FeedPost {
   type: 'image' | 'video' | 'live-highlight';
   mediaUrl: string;
   caption: string;
-  likes: number;
-  comments: FeedPostComment[];
+  likes: number; // Agora é a contagem total
+  comments: PostComment[]; // Agora é um array de PostComment
   timestamp: string;
-  livePosts?: LivePostInFeed[];
+  isLikedByCurrentUser?: boolean; // Novo campo para estado da UI
 }

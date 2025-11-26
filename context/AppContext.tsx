@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost } from '../types';
+import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, PostLike } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -44,6 +44,15 @@ interface CreatePromotionPayload {
     startDate: string;
     endDate: string;
 }
+
+const mapPostComment = (c: any): PostComment => ({
+    id: c.id,
+    userId: c.user_id,
+    postId: c.post_id,
+    content: c.content,
+    createdAt: c.created_at,
+    profiles: c.profiles,
+});
 
 interface AppContextType {
     isAuthenticated: boolean;
@@ -101,6 +110,11 @@ interface AppContextType {
     createPromotion: (payload: CreatePromotionPayload) => Promise<void>;
     updatePromotion: (promotionId: string, payload: Partial<CreatePromotionPayload>) => Promise<void>;
     deletePromotion: (promotionId: string) => Promise<void>;
+    
+    // New interaction functions
+    likePost: (postId: string) => Promise<void>;
+    unlikePost: (postId: string) => Promise<void>;
+    addCommentToPost: (postId: string, content: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -332,8 +346,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         type: p.type,
                         mediaUrl: p.media_url,
                         caption: p.caption,
-                        likes: 0,
-                        comments: [],
+                        likes: 0, // Placeholder, not needed for owner view yet
+                        comments: [], // Placeholder
                         timestamp: new Date(p.created_at).toISOString(),
                     }));
                     setOwnerFeedPosts(mappedPosts);
@@ -365,6 +379,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     await refreshOwnerPromotions();
                 }
 
+                // --- Fetching All Feed Posts with Interactions ---
                 const { data: allPostsData, error: allPostsError } = await supabase
                     .from('feed_posts')
                     .select('*')
@@ -373,19 +388,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 
                 if (allPostsError) throw allPostsError;
                 
-                const mappedAllPosts: FeedPost[] = allPostsData.map((p: any) => ({
-                    id: p.id,
-                    placeId: p.place_id,
-                    placeName: p.place_name,
-                    placeLogoUrl: p.place_logo_url || '',
-                    type: p.type,
-                    mediaUrl: p.media_url,
-                    caption: p.caption,
-                    likes: 0,
-                    comments: [],
-                    timestamp: new Date(p.created_at).toISOString(),
-                }));
+                const postIds = allPostsData.map(p => p.id);
+
+                // Fetch all likes for these posts
+                const { data: likesData, error: likesError } = await supabase
+                    .from('post_likes')
+                    .select('*')
+                    .in('post_id', postIds);
+                if (likesError) throw likesError;
+
+                // Fetch all comments for these posts, including profile name
+                const { data: commentsData, error: commentsError } = await supabase
+                    .from('post_comments')
+                    .select('*, profiles(name)')
+                    .in('post_id', postIds)
+                    .order('created_at', { ascending: true });
+                if (commentsError) throw commentsError;
+
+                const likesByPostId = likesData.reduce((acc, like) => {
+                    acc[like.post_id] = acc[like.post_id] || [];
+                    acc[like.post_id].push(like);
+                    return acc;
+                }, {} as { [key: string]: any[] });
+
+                const commentsByPostId = commentsData.reduce((acc, comment) => {
+                    acc[comment.post_id] = acc[comment.post_id] || [];
+                    acc[comment.post_id].push(mapPostComment(comment));
+                    return acc;
+                }, {} as { [key: string]: PostComment[] });
+
+                const mappedAllPosts: FeedPost[] = allPostsData.map((p: any) => {
+                    const postId = p.id;
+                    const likes = likesByPostId[postId] || [];
+                    const comments = commentsByPostId[postId] || [];
+                    
+                    return {
+                        id: postId,
+                        placeId: p.place_id,
+                        placeName: p.place_name,
+                        placeLogoUrl: p.place_logo_url || '',
+                        type: p.type,
+                        mediaUrl: p.media_url,
+                        caption: p.caption,
+                        likes: likes.length,
+                        comments: comments,
+                        timestamp: new Date(p.created_at).toISOString(),
+                        isLikedByCurrentUser: likes.some(l => l.user_id === session.user.id),
+                    };
+                });
                 setAllFeedPosts(mappedAllPosts);
+                // --- End Fetching All Feed Posts with Interactions ---
+
 
                 const { data: checkInsData, error: checkInsError } = await supabase.from('check_ins').select('*');
                 if (checkInsError) throw checkInsError;
@@ -831,6 +884,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         setOwnerPromotions(prev => prev.filter(p => p.id !== promotionId));
     };
+    
+    // --- New Interaction Functions ---
+    const likePost = async (postId: string) => {
+        if (!currentUser) return;
+        const { error } = await supabase.from('post_likes').insert({ user_id: currentUser.id, post_id: postId });
+        if (error) throw error;
+        // Optimistic update
+        setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, isLikedByCurrentUser: true } : p));
+    };
+
+    const unlikePost = async (postId: string) => {
+        if (!currentUser) return;
+        const { error } = await supabase.from('post_likes').delete().eq('user_id', currentUser.id).eq('post_id', postId);
+        if (error) throw error;
+        // Optimistic update
+        setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes - 1, isLikedByCurrentUser: false } : p));
+    };
+
+    const addCommentToPost = async (postId: string, content: string) => {
+        if (!currentUser) return;
+        const { data, error } = await supabase.from('post_comments').insert({ user_id: currentUser.id, post_id: postId, content }).select().single();
+        if (error) throw error;
+
+        // Fetch profile name for optimistic update
+        const newComment: PostComment = {
+            id: data.id,
+            userId: currentUser.id,
+            postId: postId,
+            content: data.content,
+            createdAt: data.created_at,
+            profiles: { name: currentUser.name },
+        };
+
+        setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p));
+    };
+    // --- End New Interaction Functions ---
 
     const value = {
         isAuthenticated: !!session?.user,
@@ -888,6 +977,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createPromotion,
         updatePromotion,
         deletePromotion,
+        likePost,
+        unlikePost,
+        addCommentToPost,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

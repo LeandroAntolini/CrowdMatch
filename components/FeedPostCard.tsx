@@ -62,7 +62,7 @@ const CommentInput: React.FC<{ postId: string }> = ({ postId }) => {
 
 const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
     const { likePost, unlikePost } = useAppContext();
-    const [showComments, setShowComments] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     const handleLikeToggle = async () => {
         try {
@@ -89,6 +89,9 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
         }
         return <img src={post.mediaUrl} alt={post.placeName} className="w-full h-full object-cover" />;
     };
+    
+    const commentsToShow = isExpanded ? post.comments : post.comments.slice(0, 2);
+    const hasMoreComments = post.comments.length > 2 && !isExpanded;
 
     return (
         <div className="bg-surface rounded-lg overflow-hidden mb-6">
@@ -117,9 +120,10 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                             className={post.isLikedByCurrentUser ? 'text-accent' : 'text-text-primary hover:text-accent'}
                         />
                     </button>
-                    <button onClick={() => setShowComments(!showComments)} className="text-text-primary hover:text-accent transition-colors flex items-center">
+                    {/* MessageCircle is now just a visual indicator */}
+                    <div className="text-text-primary flex items-center">
                         <MessageCircle size={26} />
-                    </button>
+                    </div>
                 </div>
 
                 {post.likes > 0 && (
@@ -131,21 +135,32 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                     {post.caption}
                 </p>
 
-                {/* Comments Section */}
-                {showComments && (
-                    <div className="mt-4 pt-2 border-t border-gray-700">
-                        <h4 className="font-semibold text-sm text-text-primary mb-2">Comentários ({post.comments.length})</h4>
-                        <div className="space-y-2 max-h-40 overflow-y-auto no-scrollbar">
-                            {post.comments.map((comment: PostComment) => (
-                                <p key={comment.id} className="text-sm text-text-secondary">
-                                    <span className="font-semibold text-text-primary mr-2">{comment.profiles.name}</span>
-                                    {comment.content}
-                                </p>
-                            ))}
-                        </div>
-                        <CommentInput postId={post.id} />
-                    </div>
-                )}
+                {/* Comments Section - Always visible */}
+                <div className="mt-4 pt-2 border-t border-gray-700">
+                    {post.comments.length > 0 && (
+                        <>
+                            <h4 className="font-semibold text-sm text-text-primary mb-2">Comentários ({post.comments.length})</h4>
+                            <div className="space-y-2">
+                                {commentsToShow.map((comment: PostComment) => (
+                                    <p key={comment.id} className="text-sm text-text-secondary">
+                                        <span className="font-semibold text-text-primary mr-2">{comment.profiles.name}</span>
+                                        {comment.content}
+                                    </p>
+                                ))}
+                            </div>
+                            
+                            {hasMoreComments && (
+                                <button 
+                                    onClick={() => setIsExpanded(true)} 
+                                    className="text-accent text-sm mt-2 hover:underline"
+                                >
+                                    Ver mais ({post.comments.length - 2} comentários)
+                                </button>
+                            )}
+                        </>
+                    )}
+                    <CommentInput postId={post.id} />
+                </div>
             </div>
         </div>
     );

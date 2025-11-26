@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { BarChart2, Ticket, Newspaper } from 'lucide-react';
+import { BarChart2, Ticket, Newspaper, Trash2, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const OwnerDashboardPage: React.FC = () => {
-    const { currentUser, ownerPromotions, ownerFeedPosts } = useAppContext();
+    const { currentUser, ownerPromotions, ownerFeedPosts, deleteAllLivePosts } = useAppContext();
     const navigate = useNavigate();
+    const [isDeleting, setIsDeleting] = React.useState(false);
 
     const activePromotionsCount = useMemo(() => {
         if (!ownerPromotions) return 0;
@@ -13,6 +14,21 @@ const OwnerDashboardPage: React.FC = () => {
     }, [ownerPromotions]);
 
     const feedPostsCount = ownerFeedPosts?.length || 0;
+    
+    const handleDeleteAllLivePosts = async () => {
+        if (!window.confirm("ATENÇÃO: Tem certeza que deseja APAGAR TODOS os posts do Feed Ao Vivo? Esta ação é irreversível.")) {
+            return;
+        }
+        setIsDeleting(true);
+        try {
+            await deleteAllLivePosts();
+            alert("Todos os posts ao vivo foram excluídos com sucesso!");
+        } catch (error: any) {
+            alert(`Falha ao excluir posts: ${error.message}`);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     return (
         <div className="p-6 space-y-8">
@@ -67,6 +83,19 @@ const OwnerDashboardPage: React.FC = () => {
                         Verificar QR Code de Cliente
                     </button>
                 </div>
+            </div>
+            
+            {/* Novo Bloco de Administração */}
+            <div className="bg-surface p-6 rounded-lg border border-red-500/50">
+                <h2 className="text-xl font-bold mb-4 text-red-400">Administração</h2>
+                <button 
+                    onClick={handleDeleteAllLivePosts}
+                    disabled={isDeleting}
+                    className="w-full text-left p-3 bg-red-700 hover:bg-red-600 text-white rounded-md transition-colors flex items-center justify-center disabled:bg-gray-600"
+                >
+                    {isDeleting ? <Loader2 size={20} className="animate-spin mr-2" /> : <Trash2 size={20} className="mr-2" />}
+                    {isDeleting ? 'Excluir Posts Ao Vivo' : 'Apagar Todos os Posts Ao Vivo'}
+                </button>
             </div>
         </div>
     );

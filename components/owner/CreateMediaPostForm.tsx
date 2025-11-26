@@ -102,7 +102,17 @@ const CreateMediaPostForm: React.FC = () => {
 
         } catch (err: any) {
             console.error("Error creating post:", err);
-            setError(err.message || "Ocorreu um erro ao criar a postagem.");
+            
+            let errorMessage = err.message || "Ocorreu um erro desconhecido ao postar.";
+            
+            // Adiciona uma dica se for um erro de RLS (o mais comum para lojistas)
+            if (errorMessage.includes('RLS policy violation')) {
+                errorMessage = "Falha de segurança (RLS). Verifique se o local selecionado está corretamente associado ao seu perfil de lojista.";
+            } else if (errorMessage.includes('Falha ao inserir post no feed')) {
+                 errorMessage = "Falha ao inserir post no feed. Verifique se o local selecionado está corretamente associado ao seu perfil de lojista.";
+            }
+            
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }

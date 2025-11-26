@@ -1,11 +1,12 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Ticket, Newspaper, Building } from 'lucide-react';
+import { LayoutDashboard, Ticket, Newspaper, Building, Radio } from 'lucide-react';
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/owner/feeds', icon: Newspaper, label: 'Feeds' },
     { to: '/owner/promotions', icon: Ticket, label: 'Promoções' },
+    { to: '/owner/live', icon: Radio, label: 'Ao Vivo' }, // Novo item
     { to: '/owner/profile', icon: Building, label: 'Perfil' },
 ];
 

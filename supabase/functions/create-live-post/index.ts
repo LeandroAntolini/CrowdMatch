@@ -52,6 +52,11 @@ serve(async (req) => {
         .eq('place_id', placeId)
         .single();
 
+    // Se ownerError existir e não for 'nenhuma linha encontrada' (que é o comportamento esperado para não-proprietários), logamos.
+    if (ownerError && ownerError.code !== 'PGRST116') { // PGRST116 = No rows found
+        console.error('Error checking place ownership:', ownerError);
+    }
+
     // Se o usuário não for o proprietário, verifica se ele tem um check-in ativo (para usuários normais)
     if (ownerError || !ownerData) {
         const { data: checkInData, error: checkInError } = await supabaseAdmin
@@ -83,6 +88,7 @@ serve(async (req) => {
     });
 
     if (insertError) {
+        console.error('Error inserting live post:', insertError);
         throw insertError;
     }
 

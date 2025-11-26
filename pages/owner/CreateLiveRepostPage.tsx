@@ -126,6 +126,7 @@ const CreateLiveRepostPage: React.FC = () => {
 
         } catch (err: any) {
             console.error("Error creating live repost:", err);
+            // Usamos err.message que deve conter a mensagem detalhada do AppContext
             setError(err.message || "Ocorreu um erro ao postar.");
         } finally {
             setIsLoading(false);

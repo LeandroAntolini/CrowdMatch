@@ -221,11 +221,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             });
             if (error) throw error;
             if (Array.isArray(data)) {
-                setPlaces(prevPlaces => {
-                    const existingIds = new Set(prevPlaces.map(p => p.id));
-                    const newPlaces = data.filter(p => !existingIds.has(p.id));
-                    return [...prevPlaces, ...newPlaces];
-                });
+                // CORREÇÃO: Substituir a lista inteira para refletir a nova cidade/busca.
+                setPlaces(data); 
                 return data;
             }
             throw new Error("Dados de locais inválidos.");
@@ -386,8 +383,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (allProfilesError) throw allProfilesError;
                 setUsers(allProfilesData.map(p => mapProfileToUser(p, null)));
 
+                let initialPlaces: Place[] = [];
                 if (profileData?.city && profileData?.state) {
-                    await fetchPlaces(profileData.city, profileData.state);
+                    initialPlaces = await fetchPlaces(profileData.city, profileData.state);
                 }
 
                 const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -413,6 +411,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                             console.error("Error fetching owned place details:", detailsError);
                         } else if (Array.isArray(ownedPlacesDetails)) {
                             setPlaces(prevPlaces => {
+                                // Garante que os locais gerenciados sejam adicionados, mesmo que fetchPlaces tenha limpado a lista.
                                 const existingIds = new Set(prevPlaces.map(p => p.id));
                                 const newPlaces = ownedPlacesDetails.filter(p => !existingIds.has(p.id));
                                 return [...prevPlaces, ...newPlaces];

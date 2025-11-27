@@ -267,32 +267,6 @@ const ProfilePage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="space-y-4 p-4 bg-surface rounded-lg">
-                <h2 className="font-semibold text-text-primary">Quem você quer encontrar?</h2>
-                <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-2">Gênero</label>
-                    <div className="flex flex-wrap gap-2">
-                        {GENDERS.map(gender => (
-                            <label key={gender} className="flex items-center space-x-2">
-                                <input type="checkbox" checked={user.matchPreferences.genders.includes(gender)} onChange={() => handlePreferenceChange('genders', gender)} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-accent focus:ring-accent" />
-                                <span>{gender}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-2">Orientação Sexual</label>
-                    <div className="flex flex-wrap gap-2">
-                        {SEXUAL_ORIENTATIONS.map(orientation => (
-                            <label key={orientation} className="flex items-center space-x-2">
-                                <input type="checkbox" checked={user.matchPreferences.sexualOrientations.includes(orientation)} onChange={() => handlePreferenceChange('sexualOrientations', orientation)} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-accent focus:ring-accent" />
-                                <span>{orientation}</span>
-                            </label>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
             <div className="flex items-center justify-between bg-surface p-3 rounded-lg">
                 <span id="availability-label" className="font-medium">Disponível para Match</span>
                 <button onClick={handleToggleAvailability} disabled={isTogglingAvailability} role="switch" aria-checked={user.isAvailableForMatch} aria-labelledby="availability-label" className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors disabled:opacity-50 ${user.isAvailableForMatch ? 'bg-accent' : 'bg-gray-600'}`}>
@@ -303,6 +277,34 @@ const ProfilePage: React.FC = () => {
                     )}
                 </button>
             </div>
+
+            {user.isAvailableForMatch && (
+                <div className="space-y-4 p-4 bg-surface rounded-lg transition-all duration-500">
+                    <h2 className="font-semibold text-text-primary">Quem você quer encontrar?</h2>
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-2">Gênero</label>
+                        <div className="flex flex-wrap gap-2">
+                            {GENDERS.map(gender => (
+                                <label key={gender} className="flex items-center space-x-2">
+                                    <input type="checkbox" checked={user.matchPreferences.genders.includes(gender)} onChange={() => handlePreferenceChange('genders', gender)} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-accent focus:ring-accent" />
+                                    <span>{gender}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-2">Orientação Sexual</label>
+                        <div className="flex flex-wrap gap-2">
+                            {SEXUAL_ORIENTATIONS.map(orientation => (
+                                <label key={orientation} className="flex items-center space-x-2">
+                                    <input type="checkbox" checked={user.matchPreferences.sexualOrientations.includes(orientation)} onChange={() => handlePreferenceChange('sexualOrientations', orientation)} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-accent focus:ring-accent" />
+                                    <span>{orientation}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
             
             <div className="space-y-2">
                 <button onClick={handleSave} disabled={isSaving} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 flex items-center justify-center disabled:bg-gray-600">

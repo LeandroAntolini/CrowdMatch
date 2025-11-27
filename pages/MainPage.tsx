@@ -147,6 +147,9 @@ const MainPage: React.FC = () => {
                 if (checkedInPlace && place.id === checkedInPlace.id) return false;
                 if (goingToPlaceIds.has(place.id)) return false;
 
+                // CORREÇÃO: Adicionado filtro por cidade
+                if (selectedLocation && place.city !== selectedLocation) return false;
+
                 const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
                 if (!searchMatch) return false;
 
@@ -169,7 +172,7 @@ const MainPage: React.FC = () => {
                 const goingCountA = getGoingCount(a.id);
                 return goingCountB - goingCountA;
             });
-    }, [places, searchQuery, selectedCategory, selectedCrowdLevel, checkIns, goingIntentions, checkedInPlace, goingToPlaceIds]);
+    }, [places, searchQuery, selectedCategory, selectedCrowdLevel, checkIns, goingIntentions, checkedInPlace, goingToPlaceIds, selectedLocation]);
 
     if (isLoading) {
         return <LoadingSpinner message="Buscando locais..." />;

@@ -363,6 +363,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOwnerFeedPosts(mappedPosts);
     }, []);
 
+    const getUserById = useCallback((id: string) => users.find(u => u.id === id), [users]);
+
     useEffect(() => {
         if (!session?.user) {
             setCurrentUser(null);
@@ -466,7 +468,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     id: m.id,
                     userIds: [m.user1_id, m.user2_id],
                     createdAt: m.created_at,
-                    otherUser: m.user1_id === session.user.id ? getUserById(m.user2_id) : getUserById(m.user1_id),
+                    otherUser: getUserById(m.user2_id) || getUserById(m.user1_id), // Usando a função local
                     lastMessage: 'Novo Match!', // Placeholder
                 }));
                 setMatches(mappedMatches);
@@ -574,6 +576,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         
                         // 3. Ativa a notificação do chat
                         setHasNewNotification(true);
+                    } else {
+                        console.warn(`Match formed, but other user profile (${otherUserId}) not found in cache.`);
+                        // Se o perfil não for encontrado, tentamos buscar novamente a lista de usuários
+                        // para garantir que o próximo match funcione.
+                        supabase.from('profiles').select('*').then(({ data: allProfilesData, error: allProfilesError }) => {
+                            if (!allProfilesError && allProfilesData) {
+                                setUsers(allProfilesData.map(p => mapProfileToUser(p, null)));
+                            }
+                        });
                     }
                 }
             }
@@ -586,7 +597,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel); // Limpa o novo listener
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions]);
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions, getUserById]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -724,7 +735,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [currentUser, promotionClaims, refreshOwnerPromotions]);
 
     const getPlaceById = (id: string) => places.find(p => p.id === id);
-    const getUserById = (id: string) => users.find(u => u.id === id);
+    // Removendo a definição local de getUserById para usar a versão memoizada
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
     const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id); 
     const isUserGoingToPlace = (placeId: string) => goingIntentions.some(gi => gi.userId === currentUser?.id && gi.placeId === placeId);

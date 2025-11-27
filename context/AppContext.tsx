@@ -562,12 +562,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const deleteLivePost = async (postId: string, placeId: string) => {
-        const { error } = await supabase.functions.invoke('delete-live-post', {
-            body: { postId },
-        });
-        if (error) {
-            const errorData = JSON.parse(error.context?.response?.text || '{}');
-            throw new Error(errorData.error || 'Falha ao apagar o post.');
+        // Optimistic UI update
+        const originalPosts = livePostsByPlace[placeId] || [];
+        const updatedPosts = originalPosts.filter(p => p.id !== postId);
+        setLivePostsByPlace(prev => ({
+            ...prev,
+            [placeId]: updatedPosts,
+        }));
+    
+        try {
+            const { error } = await supabase.functions.invoke('delete-live-post', {
+                body: { postId },
+            });
+    
+            if (error) {
+                // Revert UI on failure
+                setLivePostsByPlace(prev => ({
+                    ...prev,
+                    [placeId]: originalPosts,
+                }));
+                const errorData = JSON.parse(error.context?.response?.text || '{}');
+                throw new Error(errorData.error || 'Falha ao apagar o post.');
+            }
+        } catch (e) {
+            // Revert UI on failure
+            setLivePostsByPlace(prev => ({
+                ...prev,
+                [placeId]: originalPosts,
+            }));
+            throw e; // Re-throw for the component to handle
         }
     };
 

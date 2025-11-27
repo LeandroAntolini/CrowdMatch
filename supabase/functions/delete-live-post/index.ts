@@ -34,13 +34,20 @@ serve(async (req) => {
     }
 
     // Deleta o post, garantindo que o usuário é o dono
-    const { error: deleteError } = await supabaseAdmin
+    const { error: deleteError, count } = await supabaseAdmin
         .from('live_posts')
         .delete()
         .eq('id', postId)
         .eq('user_id', user.id);
 
     if (deleteError) throw deleteError;
+
+    if (count === 0) {
+        return new Response(JSON.stringify({ error: 'Post não encontrado ou você não tem permissão para apagá-lo.' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+    }
 
     return new Response(JSON.stringify({ message: 'Post apagado com sucesso!' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

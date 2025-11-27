@@ -119,6 +119,9 @@ interface AppContextType {
     addCommentToPost: (postId: string, content: string) => Promise<void>;
 }
 
+// Definindo o contexto com um valor inicial undefined
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
 const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): User => {
     return {
         id: profileData.id,

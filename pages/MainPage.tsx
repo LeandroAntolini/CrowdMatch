@@ -107,10 +107,12 @@ const MainPage: React.FC = () => {
     const getGoingCount = (placeId: string) => (goingIntentions || []).filter(gi => gi.placeId === placeId).length;
 
     const categories = useMemo(() => {
-        if (!places) return ['Todos'];
-        const uniqueCategories = new Set(places.map(place => place.category));
+        // Filtra as categorias apenas dos locais na cidade selecionada
+        const placesInSelectedCity = places.filter(p => p.city === selectedLocation);
+        if (placesInSelectedCity.length === 0) return ['Todos'];
+        const uniqueCategories = new Set(placesInSelectedCity.map(place => place.category));
         return ['Todos', ...Array.from(uniqueCategories).sort()];
-    }, [places]);
+    }, [places, selectedLocation]);
     
     const crowdLevels = ['Todos', 'Tranquilo', 'Moderado', 'Agitado'];
     
@@ -124,11 +126,19 @@ const MainPage: React.FC = () => {
     const handleRemoteSearch = async () => {
         if (!currentUser?.state || !selectedLocation) return;
         
-        // searchPlaces já manipula o isLoading do contexto
-        await searchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
-        setSelectedCategory('Todos');
-        setSelectedCrowdLevel('Todos');
-        setViewMode('all');
+        setIsLocalLoading(true);
+        try {
+            // searchPlaces agora não manipula o isLoading global
+            await searchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
+            setSelectedCategory('Todos');
+            setSelectedCrowdLevel('Todos');
+            setViewMode('all');
+        } catch (e) {
+            // Erro já é tratado no contexto, mas podemos logar aqui
+            console.error("Erro na busca remota:", e);
+        } finally {
+            setIsLocalLoading(false);
+        }
     };
 
     const handleLocationChange = async (newLocation: string) => {
@@ -138,7 +148,7 @@ const MainPage: React.FC = () => {
         setIsLocalLoading(true);
         
         try {
-            // fetchPlaces agora usa cache e não manipula isLoading globalmente
+            // fetchPlaces usa cache. Se for um novo local, ele fará a chamada lenta.
             await fetchPlaces(newLocation, currentUser.state);
         } catch (e) {
             console.error("Erro ao carregar locais por cidade:", e);

@@ -294,16 +294,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const searchPlaces = useCallback(async (city: string, state: string, query: string): Promise<Place[]> => {
         if (!city || !state || !query.trim()) return [];
-        setIsLoading(true); 
+        // REMOVIDO: setIsLoading(true);
         try {
             const results = await fetchPlaces(city, state, query);
             return results;
         } catch (e: any) {
             console.error("Erro ao buscar locais:", e);
             throw new Error(e.message || "Não foi possível realizar a busca.");
-        } finally {
-            setIsLoading(false);
-        }
+        } 
+        // REMOVIDO: finally { setIsLoading(false); }
     }, [fetchPlaces]);
 
     const fetchLivePostsForPlace = useCallback(async (placeId: string) => {

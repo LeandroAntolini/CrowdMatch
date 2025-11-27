@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, PostLike } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
@@ -192,9 +192,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
 
-    // Refatorado para ser uma função simples que acessa o estado 'users'
-    const getUserById = useCallback((id: string) => users.find(u => u.id === id), [users]);
-
     const refreshActiveLivePosts = useCallback(async () => {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data, error } = await supabase
@@ -366,22 +363,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOwnerFeedPosts(mappedPosts);
     }, []);
 
-    // Função auxiliar para mapear matches, usando o estado 'users' atual
-    const mapMatches = useCallback((matchesData: any[], currentUserId: string, allUsers: User[]): Match[] => {
-        const findUserById = (id: string) => allUsers.find(u => u.id === id);
-        return matchesData.map((m: any) => {
-            const otherUserId = m.user1_id === currentUserId ? m.user2_id : m.user1_id;
-            return {
-                id: m.id,
-                userIds: [m.user1_id, m.user2_id],
-                createdAt: m.created_at,
-                otherUser: findUserById(otherUserId),
-                lastMessage: 'Novo Match!',
-            };
-        });
-    }, []);
-
-
     useEffect(() => {
         if (!session?.user) {
             setCurrentUser(null);
@@ -407,11 +388,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     await fetchPlaces(profileData.city, profileData.state);
                 }
 
-                // 1. Fetch ALL profiles first to populate 'users' state
                 const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
                 if (allProfilesError) throw allProfilesError;
-                const allUsers = allProfilesData.map(p => mapProfileToUser(p, null));
-                setUsers(allUsers); // Set users state early
+                setUsers(allProfilesData.map(p => mapProfileToUser(p, null)));
 
                 const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
@@ -481,9 +460,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 });
                 setAllFeedPosts(mappedAllPosts);
                 
-                // Map matches using the fully loaded 'allUsers' list
+                // Map matches
                 if (matchesRes.error) throw matchesRes.error;
-                setMatches(mapMatches(matchesRes.data, session.user.id, allUsers));
+                const mappedMatches: Match[] = matchesRes.data.map((m: any) => ({
+                    id: m.id,
+                    userIds: [m.user1_id, m.user2_id],
+                    createdAt: m.created_at,
+                    otherUser: m.user1_id === session.user.id ? getUserById(m.user2_id) : getUserById(m.user1_id),
+                    lastMessage: 'Novo Match!', // Placeholder
+                }));
+                setMatches(mappedMatches);
 
 
                 const requiredPlaceIds = new Set([
@@ -569,9 +555,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 // Verifica se o match envolve o usuário atual
                 if (currentUserId && (newMatchData.user1_id === currentUserId || newMatchData.user2_id === currentUserId)) {
                     const otherUserId = newMatchData.user1_id === currentUserId ? newMatchData.user2_id : newMatchData.user1_id;
-                    
-                    // Usamos o estado 'users' atual para encontrar o perfil
-                    const otherUser = users.find(u => u.id === otherUserId);
+                    const otherUser = getUserById(otherUserId);
 
                     if (otherUser) {
                         const newMatch: Match = {
@@ -590,10 +574,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         
                         // 3. Ativa a notificação do chat
                         setHasNewNotification(true);
-                    } else {
-                        // Se o perfil não for encontrado, apenas logamos. Não tentamos buscar novamente
-                        // para evitar loops, confiando que o próximo carregamento de dados resolverá.
-                        console.warn(`Match formed, but other user profile (${otherUserId}) not found in cache.`);
                     }
                 }
             }
@@ -606,7 +586,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel); // Limpa o novo listener
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions, mapMatches, users]); // Adicionando 'users' como dependência para o listener usar o estado mais recente
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -744,6 +724,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [currentUser, promotionClaims, refreshOwnerPromotions]);
 
     const getPlaceById = (id: string) => places.find(p => p.id === id);
+    const getUserById = (id: string) => users.find(u => u.id === id);
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
     const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id); 
     const isUserGoingToPlace = (placeId: string) => goingIntentions.some(gi => gi.userId === currentUser?.id && gi.placeId === placeId);

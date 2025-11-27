@@ -48,68 +48,8 @@ serve(async (req) => {
     if (new Date(promotion.end_date) < new Date()) {
         return new Response(JSON.stringify({ error: 'Promoção expirada.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    
-    // 2. Check if user already claimed
-    const { data: existingClaim, error: fetchExistingError } = await supabaseAdmin
-        .from('promotion_claims')
-        .select('id, claimed_at, status')
-        .eq('promotion_id', promotionId)
-        .eq('user_id', userId)
-        .single();
 
-    if (!fetchExistingError && existingClaim) {
-        // User already claimed this promotion. Fetch existing claim data to return
-        
-        // Recalculate order for existing claim
-        const { count: existingCount, error: countError } = await supabaseAdmin
-            .from('promotion_claims')
-            .select('id', { count: 'exact' })
-            .eq('promotion_id', promotionId)
-            .lte('claimed_at', existingClaim.claimed_at);
-            
-        if (countError) throw countError;
-            
-        const existingClaimOrder = existingCount || 0;
-        const isWinner = existingClaimOrder > 0 && existingClaimOrder <= promotion.limit_count;
-
-        return new Response(JSON.stringify({ 
-            success: true, // Retorna sucesso, pois a reivindicação já existe
-            message: isWinner 
-                ? `Você já reivindicou esta promoção e é o ${existingClaimOrder}º vencedor.`
-                : `Você já reivindicou esta promoção. O limite de ${promotion.limit_count} foi atingido antes da sua vez.`,
-            claimed: true,
-            claimId: existingClaim.id,
-            claimOrder: existingClaimOrder,
-            isWinner: isWinner
-        }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-        });
-    }
-    
-    // 3. Check if limit is reached before inserting (for new claims)
-    const { count: currentCount, error: countError } = await supabaseAdmin
-        .from('promotion_claims')
-        .select('id', { count: 'exact' })
-        .eq('promotion_id', promotionId);
-        
-    if (countError) throw countError;
-    
-    if (currentCount >= promotion.limit_count) {
-        return new Response(JSON.stringify({ 
-            success: false, 
-            message: `O limite de ${promotion.limit_count} participantes já foi atingido.`, 
-            claimed: false,
-            isWinner: false,
-            claimOrder: currentCount + 1, // Ordem que ele teria se pudesse entrar
-            limitReached: true
-        }), {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 200,
-        });
-    }
-
-    // 4. Attempt to insert the claim
+    // 2. Attempt to insert the claim
     const { data: insertData, error: insertError } = await supabaseAdmin
         .from('promotion_claims')
         .insert({ promotion_id: promotionId, user_id: userId })
@@ -117,6 +57,41 @@ serve(async (req) => {
         .single();
 
     if (insertError) {
+        if (insertError.code === '23505') {
+            // User already claimed this promotion. Fetch existing claim data to return
+            const { data: existingClaim, error: fetchExistingError } = await supabaseAdmin
+                .from('promotion_claims')
+                .select('id, claimed_at')
+                .eq('promotion_id', promotionId)
+                .eq('user_id', userId)
+                .single();
+
+            if (fetchExistingError || !existingClaim) {
+                 return new Response(JSON.stringify({ error: 'Falha ao buscar reivindicação existente.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+            
+            // Recalculate order for existing claim
+            const { count: existingCount, error: countError } = await supabaseAdmin
+                .from('promotion_claims')
+                .select('id', { count: 'exact' })
+                .eq('promotion_id', promotionId)
+                .lte('claimed_at', existingClaim.claimed_at);
+                
+            const existingClaimOrder = existingCount || 0;
+            const isWinner = existingClaimOrder > 0 && existingClaimOrder <= promotion.limit_count;
+
+            return new Response(JSON.stringify({ 
+                success: false, 
+                message: 'Você já reivindicou esta promoção.', 
+                claimed: true,
+                claimId: existingClaim.id,
+                claimOrder: existingClaimOrder,
+                isWinner: isWinner
+            }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 200,
+            });
+        }
         console.error('Error inserting claim:', insertError);
         return new Response(JSON.stringify({ error: `Falha ao registrar reivindicação: ${insertError.message}` }), {
             status: 500,
@@ -124,8 +99,23 @@ serve(async (req) => {
         });
     }
     
-    // 5. Determine the user's claim order (should be currentCount + 1)
-    const claimOrder = currentCount + 1;
+    // 3. Determine the user's claim order
+    // We query all claims for this promotion that happened BEFORE or AT the user's claimed_at time.
+    const { count, error: countError } = await supabaseAdmin
+        .from('promotion_claims')
+        .select('id', { count: 'exact' })
+        .eq('promotion_id', promotionId)
+        .lte('claimed_at', insertData.claimed_at);
+
+    if (countError) {
+        console.error('Error counting claims:', countError);
+        return new Response(JSON.stringify({ error: 'Falha ao verificar a ordem da reivindicação.' }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+    }
+    
+    const claimOrder = count || 0;
     const isWinner = claimOrder > 0 && claimOrder <= promotion.limit_count;
     
     const responseBody = {

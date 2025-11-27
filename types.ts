@@ -81,7 +81,6 @@ export interface Promotion {
   limitCount: number;
   createdBy?: string;
   createdAt: string;
-  currentClaimCount?: number; // Novo campo para a contagem atual de reivindicações
 }
 
 export interface PromotionClaim {

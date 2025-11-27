@@ -203,6 +203,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setActiveLivePosts(data || []);
         }
     }, []);
+    
+    const refreshOwnerPromotions = useCallback(async (userId: string) => {
+        if (!userId) return;
+        const { data, error } = await supabase.rpc('get_owner_promotions_with_counts', {
+            user_id_param: userId,
+        });
+        if (error) {
+            console.error("Error fetching owner promotions with counts:", error);
+        } else {
+            const mappedPromos = data.map(p => ({
+                ...mapPromotion(p),
+                claim_count: p.claim_count,
+                redeemed_count: p.redeemed_count,
+            }));
+            setOwnerPromotions(mappedPromos);
+        }
+    }, []);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
@@ -351,23 +368,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return;
         }
 
-        const refreshOwnerPromotions = async () => {
-            if (!session?.user) return;
-            const { data, error } = await supabase.rpc('get_owner_promotions_with_counts', {
-                user_id_param: session.user.id,
-            });
-            if (error) {
-                console.error("Error fetching owner promotions with counts:", error);
-            } else {
-                const mappedPromos = data.map(p => ({
-                    ...mapPromotion(p),
-                    claim_count: p.claim_count,
-                    redeemed_count: p.redeemed_count,
-                }));
-                setOwnerPromotions(mappedPromos);
-            }
-        };
-
         const fetchInitialData = async () => {
             setIsLoading(true);
             try {
@@ -475,7 +475,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 if (mappedUser.role === 'owner') {
                     await fetchOwnerFeedPosts(session.user.id);
-                    await refreshOwnerPromotions();
+                    await refreshOwnerPromotions(session.user.id);
                 }
 
                 await refreshActiveLivePosts();
@@ -519,8 +519,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
         }).subscribe();
         
-        const claimsChannel = supabase.channel('promotion-claims-listener').on('postgres_changes', { event: '*', schema: 'public', table: 'promotion_claims' }, () => {
-            if (currentUser?.role === 'owner') refreshOwnerPromotions();
+        const claimsChannel = supabase.channel('promotion-claims-listener').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'promotion_claims' }, () => {
+            if (session?.user?.role === 'owner') {
+                refreshOwnerPromotions(session.user.id);
+            }
         }).subscribe();
 
         return () => {
@@ -528,7 +530,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces]);
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -818,10 +820,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             start_date: payload.startDate, end_date: payload.endDate, created_by: currentUser.id,
         });
         if (error) throw error;
-        const { data: ownerPromosData, error: ownerPromosError } = await supabase.rpc('get_owner_promotions_with_counts', { user_id_param: currentUser.id });
-        if (ownerPromosError) throw ownerPromosError;
-        const mappedOwnerPromos = ownerPromosData.map(p => ({ ...mapPromotion(p), claim_count: p.claim_count, redeemed_count: p.redeemed_count }));
-        setOwnerPromotions(mappedOwnerPromos);
+        await refreshOwnerPromotions(currentUser.id);
     };
 
     const updatePromotion = async (promotionId: string, payload: Partial<CreatePromotionPayload>) => {
@@ -835,10 +834,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const { data, error } = await supabase.from('promotions').update(dbPayload).eq('id', promotionId).eq('created_by', currentUser.id).select().single();
         if (error) throw error;
         if (data) {
-            const { data: updatedPromos, error: rpcError } = await supabase.rpc('get_owner_promotions_with_counts', { user_id_param: currentUser.id });
-            if (rpcError) throw rpcError;
-            const mappedPromos = updatedPromos.map(p => ({ ...mapPromotion(p), claim_count: p.claim_count, redeemed_count: p.redeemed_count }));
-            setOwnerPromotions(mappedPromos);
+            await refreshOwnerPromotions(currentUser.id);
         }
     };
 

@@ -199,21 +199,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const getUserById = useCallback((id: string) => userProfilesCache[id], [userProfilesCache]);
 
-    const fetchProfilesByIds = useCallback(async (userIds: string[]) => {
-        const idsToFetch = userIds.filter(id => !userProfilesCache[id]);
-        if (idsToFetch.length === 0) return;
+    const fetchProfilesByIds = useCallback(async (userIds: string[], currentCache: { [key: string]: User }): Promise<{ [key: string]: User }> => {
+        const idsToFetch = userIds.filter(id => !currentCache[id]);
+        if (idsToFetch.length === 0) return currentCache;
 
         const { data, error } = await supabase.from('profiles').select('*').in('id', idsToFetch);
         if (error) {
             console.error("Error fetching user profiles:", error);
-            return;
+            return currentCache;
         }
         const newProfiles: { [key: string]: User } = {};
         data.forEach(profile => {
             newProfiles[profile.id] = mapProfileToUser(profile, null);
         });
-        setUserProfilesCache(prev => ({ ...prev, ...newProfiles }));
-    }, [userProfilesCache]);
+        
+        const updatedCache = { ...currentCache, ...newProfiles };
+        setUserProfilesCache(updatedCache);
+        return updatedCache;
+    }, []);
 
     const refreshActiveLivePosts = useCallback(async () => {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -263,7 +266,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
     }, []);
 
-    // REMOVIDO: Manipulação de isLoading dentro de fetchPlaces
     const fetchPlaces = useCallback(async (city: string, state: string, query?: string): Promise<Place[]> => {
         if (!city || !state) return [];
         setError(null);
@@ -399,9 +401,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         const fetchInitialData = async () => {
-            // Não definimos isLoading = true aqui, pois AppRoutes já está controlando o spinner
-            // com base em isAuthResolved e isLoading.
-            // Se isAuthResolved é true e isAuthenticated é true, AppRoutes mostra o spinner.
+            setIsLoading(true);
             
             try {
                 const { data: profileData, error: profileError } = await supabase
@@ -413,10 +413,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (profileError) throw profileError;
                 
                 const mappedUser = mapProfileToUser(profileData, session.user);
+                
+                // 1. Inicializa o cache com o usuário atual
+                let currentCache = { [mappedUser.id]: mappedUser };
+                setUserProfilesCache(currentCache);
                 setCurrentUser(mappedUser);
-                setUserProfilesCache(prev => ({ ...prev, [mappedUser.id]: mappedUser }));
 
-                // Chamada de fetchPlaces sem manipular isLoading
                 const localPlaces = await fetchPlaces(mappedUser.city || '', mappedUser.state || '');
                 const localPlaceIds = localPlaces.map(p => p.id);
 
@@ -490,15 +492,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 
                 if (matchesRes.error) throw matchesRes.error;
                 const otherUserIds = matchesRes.data.map(m => m.user1_id === session.user.id ? m.user2_id : m.user1_id);
-                await fetchProfilesByIds(otherUserIds);
                 
+                // 2. Busca perfis de matches e atualiza o cache local
+                currentCache = await fetchProfilesByIds(otherUserIds, currentCache);
+                
+                // 3. Mapeia matches usando o cache local (garantido que está atualizado)
                 const mappedMatches: Match[] = matchesRes.data.map((m: any) => {
                     const otherUserId = m.user1_id === session.user.id ? m.user2_id : m.user1_id;
                     return {
                         id: m.id,
                         userIds: [m.user1_id, m.user2_id],
                         createdAt: m.created_at,
-                        otherUser: getUserById(otherUserId),
+                        otherUser: currentCache[otherUserId], // Usa o cache local
                         lastMessage: 'Novo Match!',
                     };
                 });
@@ -531,7 +536,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } catch (e: any) {
                 setError(e.message);
             } finally {
-                // Define isLoading como false APENAS no final do carregamento de dados
                 setIsLoading(false);
             }
         };
@@ -585,8 +589,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (currentUserId && (newMatchData.user1_id === currentUserId || newMatchData.user2_id === currentUserId)) {
                     const otherUserId = newMatchData.user1_id === currentUserId ? newMatchData.user2_id : newMatchData.user1_id;
                     
-                    await fetchProfilesByIds([otherUserId]);
-                    const otherUser = getUserById(otherUserId);
+                    // Usa o cache atual para buscar perfis ausentes
+                    const updatedCache = await fetchProfilesByIds([otherUserId], userProfilesCache);
+                    const otherUser = updatedCache[otherUserId];
 
                     if (otherUser) {
                         const newMatch: Match = {
@@ -612,7 +617,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions, fetchProfilesByIds, getUserById]);
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions, fetchProfilesByIds, getUserById, userProfilesCache]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -993,7 +998,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...goingData.map(g => g.user_id)
         ]);
         
-        await fetchProfilesByIds(Array.from(userIds));
+        await fetchProfilesByIds(Array.from(userIds), userProfilesCache);
     };
 
     const fetchPotentialMatches = useCallback(async (placeId: string) => {

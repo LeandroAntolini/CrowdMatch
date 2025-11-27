@@ -1,15 +1,15 @@
-import React from 'react';
-import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
+import React, { useState } from 'react';
+import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from '@react-google-maps/api';
 import { Place, CheckIn } from '../types';
 import LoadingSpinner from './LoadingSpinner';
 import { X } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface MapModalProps {
     isOpen: boolean;
     onClose: () => void;
     places: Place[];
     checkIns: CheckIn[];
-    onMarkerClick: (placeId: string) => void;
     highlightedPlaceId?: string;
 }
 
@@ -18,28 +18,26 @@ const containerStyle = {
     height: '100%',
 };
 
-const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns, onMarkerClick, highlightedPlaceId }) => {
+const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns, highlightedPlaceId }) => {
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',
         googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
     });
 
+    const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
+
     const getCrowdCount = (placeId: string) => {
         return (checkIns || []).filter(ci => ci.placeId === placeId).length;
     };
 
-    const highlightedMarkerIcon = React.useMemo(() => {
-        if (!isLoaded) return undefined;
-        return {
-            path: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z',
-            fillColor: '#EC4899', // Accent color
-            fillOpacity: 1,
-            strokeWeight: 0,
-            rotation: 0,
-            scale: 2,
-            anchor: new window.google.maps.Point(12, 24),
-        };
-    }, [isLoaded]);
+    const handleMarkerClick = (placeId: string) => {
+        setActiveMarkerId(placeId);
+    };
+
+    const activePlace = React.useMemo(() => {
+        if (!activeMarkerId) return null;
+        return places.find(p => p.id === activeMarkerId);
+    }, [activeMarkerId, places]);
 
     const center = React.useMemo(() => {
         if (highlightedPlaceId) {
@@ -92,39 +90,38 @@ const MapModal: React.FC<MapModalProps> = ({ isOpen, onClose, places, checkIns, 
                             ],
                         }}
                     >
-                        {places.map(place => {
-                            const isHighlighted = place.id === highlightedPlaceId;
+                        {places.map(place => (
+                            <MarkerF
+                                key={place.id}
+                                position={{ lat: place.lat, lng: place.lng }}
+                                title={place.name}
+                                label={{
+                                    text: `${getCrowdCount(place.id)}`,
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    fontSize: '14px',
+                                }}
+                                onClick={() => handleMarkerClick(place.id)}
+                                zIndex={place.id === highlightedPlaceId ? 2 : 1}
+                            />
+                        ))}
 
-                            if (isHighlighted) {
-                                return (
-                                    <MarkerF
-                                        key={place.id}
-                                        position={{ lat: place.lat, lng: place.lng }}
-                                        title={place.name}
-                                        icon={highlightedMarkerIcon}
-                                        onClick={() => onMarkerClick(place.id)}
-                                        zIndex={2}
-                                    />
-                                );
-                            }
-
-                            // Para todos os outros pinos (ou todos se nenhum estiver destacado)
-                            return (
-                                <MarkerF
-                                    key={place.id}
-                                    position={{ lat: place.lat, lng: place.lng }}
-                                    title={place.name}
-                                    label={{
-                                        text: `${getCrowdCount(place.id)}`,
-                                        color: 'white',
-                                        fontWeight: 'bold',
-                                        fontSize: '14px',
-                                    }}
-                                    onClick={() => onMarkerClick(place.id)}
-                                    zIndex={1}
-                                />
-                            );
-                        })}
+                        {activePlace && (
+                            <InfoWindowF
+                                position={{ lat: activePlace.lat, lng: activePlace.lng }}
+                                onCloseClick={() => setActiveMarkerId(null)}
+                                options={{ pixelOffset: new window.google.maps.Size(0, -40) }}
+                            >
+                                <div className="bg-surface text-text-primary p-2 rounded-lg w-48 text-left">
+                                    <img src={activePlace.photoUrl} alt={activePlace.name} className="w-full h-20 object-cover rounded-md mb-2" />
+                                    <h3 className="font-bold text-sm truncate">{activePlace.name}</h3>
+                                    <p className="text-xs text-text-secondary">{activePlace.category}</p>
+                                    <Link to={`/place/${activePlace.id}`} className="text-accent font-semibold text-xs mt-2 block text-center hover:underline">
+                                        Ver Detalhes
+                                    </Link>
+                                </div>
+                            </InfoWindowF>
+                        )}
                     </GoogleMap>
                 ) : (
                     <LoadingSpinner message="Carregando mapa..." />

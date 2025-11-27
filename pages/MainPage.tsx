@@ -69,7 +69,6 @@ const MainPage: React.FC = () => {
         checkOutUser,
         removeGoingIntention
     } = useAppContext();
-    const navigate = useNavigate();
     
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
@@ -127,11 +126,6 @@ const MainPage: React.FC = () => {
             setSelectedCrowdLevel('Todos');
             setViewMode('all');
         }
-    };
-
-    const handleMarkerClick = (placeId: string) => {
-        setIsMapModalOpen(false);
-        navigate(`/place/${placeId}`);
     };
 
     // --- Lógica de Separação de Locais ---
@@ -357,7 +351,6 @@ const MainPage: React.FC = () => {
                 onClose={() => setIsMapModalOpen(false)}
                 places={places}
                 checkIns={checkIns}
-                onMarkerClick={handleMarkerClick}
             />
         </div>
     );

@@ -88,11 +88,6 @@ const PlaceDetailsPage: React.FC = () => {
 
     const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
 
-    const handleMarkerClick = (placeId: string) => {
-        setIsMapModalOpen(false);
-        navigate(`/place/${placeId}`);
-    };
-
     if (!place) {
         return <LoadingSpinner />;
     }
@@ -310,7 +305,6 @@ const PlaceDetailsPage: React.FC = () => {
                 onClose={() => setIsMapModalOpen(false)}
                 places={places}
                 checkIns={checkIns}
-                onMarkerClick={handleMarkerClick}
                 highlightedPlaceId={id}
             />
         </div>

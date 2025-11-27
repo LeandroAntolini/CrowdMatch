@@ -98,6 +98,8 @@ interface AppContextType {
     clearChatNotifications: () => void;
     fetchLivePostsForPlace: (placeId: string) => Promise<void>;
     createLivePost: (placeId: string, content: string) => Promise<void>;
+    updateLivePost: (postId: string, newContent: string) => Promise<void>;
+    deleteLivePost: (postId: string, placeId: string) => Promise<void>;
     getLivePostCount: (placeId: string) => number;
     getActivePromotionsForPlace: (placeId: string, type?: PromotionType) => Promotion[];
     claimPromotion: (promotionId: string) => Promise<ClaimResult | undefined>;
@@ -111,9 +113,7 @@ interface AppContextType {
     updatePromotion: (promotionId: string, payload: Partial<CreatePromotionPayload>) => Promise<void>;
     deletePromotion: (promotionId: string) => Promise<void>;
     deleteAllLivePosts: () => Promise<void>;
-    deleteAllOwnerFeedPosts: () => Promise<void>; // NOVA FUNÇÃO
-    
-    // New interaction functions
+    deleteAllOwnerFeedPosts: () => Promise<void>;
     likePost: (postId: string) => Promise<void>;
     unlikePost: (postId: string) => Promise<void>;
     addCommentToPost: (postId: string, content: string) => Promise<void>;
@@ -121,7 +121,6 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Helper function to map snake_case from DB to camelCase for the app
 const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): User => {
     return {
         id: profileData.id,
@@ -268,7 +267,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             .from('live_posts')
             .select('*, profiles(id, name, photos, role)')
             .eq('place_id', placeId)
-            .gt('created_at', oneHourAgo) // Adicionando filtro de tempo
+            .gt('created_at', oneHourAgo)
             .order('created_at', { ascending: false })
             .limit(50);
         
@@ -298,14 +297,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         const postIds = postsData.map(p => p.id);
 
-        // Fetch all likes for these owner posts
         const { data: likesData, error: likesError } = await supabase
             .from('post_likes')
             .select('*')
             .in('post_id', postIds);
         if (likesError) throw likesError;
 
-        // Fetch all comments for these owner posts, including profile name
         const { data: commentsData, error: commentsError } = await supabase
             .from('post_comments')
             .select('*, profiles(name)')
@@ -395,7 +392,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-                // Fetch all user-related data
                 const [
                     checkInsRes,
                     goingRes,
@@ -441,7 +437,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (allPostsRes.error) throw allPostsRes.error;
                 const allPostsData = allPostsRes.data;
 
-                // Fetch interactions for all posts
                 const postIds = allPostsData.map(p => p.id);
                 const { data: likesData, error: likesError } = await supabase.from('post_likes').select('*').in('post_id', postIds);
                 if (likesError) throw likesError;
@@ -461,7 +456,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 });
                 setAllFeedPosts(mappedAllPosts);
 
-                // Fetch details for any missing important places
                 const requiredPlaceIds = new Set([
                     ...favoritesRes.data.map(f => f.place_id),
                     ...claimsRes.data.map(c => c.promotion_id ? c.promotions.place_id : null).filter(Boolean),
@@ -496,13 +490,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchInitialData();
 
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
-        const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_posts' }, async (payload) => {
-            const newPost = payload.new as any;
-            await refreshActiveLivePosts();
-            const { data: profileData } = await supabase.from('profiles').select('id, name, photos, role').eq('id', newPost.user_id).single();
-            if (profileData) {
-                newPost.profiles = profileData;
-                setLivePostsByPlace(prev => ({ ...prev, [newPost.place_id]: [newPost, ...(prev[newPost.place_id] || [])] }));
+        const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
+            if (payload.eventType === 'INSERT') {
+                const newPost = payload.new as any;
+                await refreshActiveLivePosts();
+                const { data: profileData } = await supabase.from('profiles').select('id, name, photos, role').eq('id', newPost.user_id).single();
+                if (profileData) {
+                    newPost.profiles = profileData;
+                    setLivePostsByPlace(prev => ({ ...prev, [newPost.place_id]: [newPost, ...(prev[newPost.place_id] || [])] }));
+                }
+            } else if (payload.eventType === 'UPDATE') {
+                const updatedPost = payload.new as any;
+                setLivePostsByPlace(prev => {
+                    const posts = prev[updatedPost.place_id] || [];
+                    const postIndex = posts.findIndex(p => p.id === updatedPost.id);
+                    if (postIndex > -1) {
+                        posts[postIndex].content = updatedPost.content;
+                    }
+                    return { ...prev };
+                });
+            } else if (payload.eventType === 'DELETE') {
+                const deletedPost = payload.old as any;
+                setLivePostsByPlace(prev => {
+                    const posts = prev[deletedPost.place_id] || [];
+                    const filteredPosts = posts.filter(p => p.id !== deletedPost.id);
+                    return { ...prev, [deletedPost.place_id]: filteredPosts };
+                });
             }
         }).subscribe();
         
@@ -535,6 +548,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (error) {
             const errorData = JSON.parse(error.context?.response?.text || '{}');
             throw new Error(errorData.error || 'Falha ao criar o post.');
+        }
+    };
+
+    const updateLivePost = async (postId: string, newContent: string) => {
+        const { error } = await supabase.functions.invoke('update-live-post', {
+            body: { postId, content: newContent },
+        });
+        if (error) {
+            const errorData = JSON.parse(error.context?.response?.text || '{}');
+            throw new Error(errorData.error || 'Falha ao atualizar o post.');
+        }
+    };
+
+    const deleteLivePost = async (postId: string, placeId: string) => {
+        const { error } = await supabase.functions.invoke('delete-live-post', {
+            body: { postId },
+        });
+        if (error) {
+            const errorData = JSON.parse(error.context?.response?.text || '{}');
+            throw new Error(errorData.error || 'Falha ao apagar o post.');
         }
     };
 
@@ -830,7 +863,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         getPlaceById, getUserById, sendMessage, updateUserProfile, updateCurrentUserState, addGoingIntention,
         removeGoingIntention, getCurrentGoingIntention, isUserGoingToPlace, fetchPlaces, searchPlaces,
         newlyFormedMatch, clearNewMatch, addFavorite, removeFavorite, isFavorite, hasNewNotification,
-        clearChatNotifications, fetchLivePostsForPlace, createLivePost, getLivePostCount, getActivePromotionsForPlace,
+        clearChatNotifications, fetchLivePostsForPlace, createLivePost, updateLivePost, deleteLivePost, getLivePostCount, getActivePromotionsForPlace,
         claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost,

@@ -68,7 +68,7 @@ interface AppContextType {
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     promotions: Promotion[];
-    ownerPromotions: (Promotion & { claim_count?: number; redeemed_count?: number })[];
+    ownerPromotions: (Promotion & { claim_count: number; redeemed_count: number })[]; // Tipagem ajustada para garantir que são números
     promotionClaims: PromotionClaim[];
     allFeedPosts: FeedPost[];
     isLoading: boolean;
@@ -118,8 +118,6 @@ interface AppContextType {
     unlikePost: (postId: string) => Promise<void>;
     addCommentToPost: (postId: string, content: string) => Promise<void>;
 }
-
-const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): User => {
     return {
@@ -180,7 +178,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [livePostsByPlace, setLivePostsByPlace] = useState<{ [key: string]: LivePost[] }>({});
     const [activeLivePosts, setActiveLivePosts] = useState<{ place_id: string }[]>([]);
     const [promotions, setPromotions] = useState<Promotion[]>([]);
-    const [ownerPromotions, setOwnerPromotions] = useState<(Promotion & { claim_count?: number; redeemed_count?: number })[]>([]);
+    const [ownerPromotions, setOwnerPromotions] = useState<(Promotion & { claim_count: number; redeemed_count: number })[]>([]);
     const [promotionClaims, setPromotionClaims] = useState<PromotionClaim[]>([]);
     const [ownerFeedPosts, setOwnerFeedPosts] = useState<FeedPost[]>([]);
     const [allFeedPosts, setAllFeedPosts] = useState<FeedPost[]>([]);
@@ -214,8 +212,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } else {
             const mappedPromos = data.map(p => ({
                 ...mapPromotion(p),
-                claim_count: p.claim_count,
-                redeemed_count: p.redeemed_count,
+                claim_count: p.claim_count || 0, // Garantindo que é um número
+                redeemed_count: p.redeemed_count || 0, // Garantindo que é um número
             }));
             setOwnerPromotions(mappedPromos);
         }
@@ -520,7 +518,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }).subscribe();
         
         const claimsChannel = supabase.channel('promotion-claims-listener').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'promotion_claims' }, () => {
-            if (session?.user?.role === 'owner') {
+            if (session?.user?.role === 'owner' && session.user.id) {
                 refreshOwnerPromotions(session.user.id);
             }
         }).subscribe();
@@ -651,6 +649,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
             }
 
+            // Se o usuário for um lojista, atualiza a contagem de promoções imediatamente
+            if (currentUser.role === 'owner') {
+                refreshOwnerPromotions(currentUser.id);
+            }
+
             return {
                 success: data.success, message: data.message, isWinner: data.isWinner,
                 claimOrder: data.claimOrder, claimId: data.claimId,
@@ -660,7 +663,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             console.error("Error claiming promotion:", e);
             return { success: false, message: e.message, isWinner: false };
         }
-    }, [currentUser, promotionClaims]);
+    }, [currentUser, promotionClaims, refreshOwnerPromotions]);
 
     const getPlaceById = (id: string) => places.find(p => p.id === id);
     const getUserById = (id: string) => users.find(u => u.id === id);

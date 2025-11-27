@@ -21,6 +21,7 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
     // Determina se é um vencedor com base na ordem de reivindicação e no limite
     const finalClaimOrder = claimOrder || 0;
     const isWinner = finalClaimOrder > 0 && finalClaimOrder <= promotion.limitCount;
+    const isLimitReached = (promotion.currentClaimCount || 0) >= promotion.limitCount;
     
     // String de validação para o QR Code: claimId|userId|promotionId|claimedAt
     const qrCodeValue = claim 
@@ -29,6 +30,14 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
 
     const getStatusDisplay = () => {
         if (!isClaimed) {
+            if (isLimitReached) {
+                 return (
+                    <div className="flex items-center text-sm text-red-400 font-semibold">
+                        <AlertTriangle size={16} className="mr-2" />
+                        <span>ESGOTADO! Limite de {promotion.limitCount} atingido.</span>
+                    </div>
+                );
+            }
             return (
                 <div className="flex items-center text-sm text-text-secondary">
                     <Clock size={16} className="mr-2 text-yellow-400" />
@@ -79,7 +88,8 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
             <div className="mt-3 pt-3 border-t border-gray-700">
                 {getStatusDisplay()}
                 
-                {isClaimed && (
+                {/* O QR Code só é exibido se a promoção foi reivindicada E não está esgotada para quem não reivindicou */}
+                {isClaimed && (isWinner || claim.status === 'redeemed' || !isLimitReached) && (
                     <div className="mt-3 space-y-2">
                         <p className="text-xs text-text-secondary">Reivindicado em: {formatClaimDate(claim.claimedAt)}</p>
                         {finalClaimOrder > 0 && (
@@ -97,6 +107,11 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
                             <p className="text-xs text-gray-600 mt-2 break-all">ID: {claim.id.substring(0, 8)}...</p>
                         </div>
                     </div>
+                )}
+                
+                {/* Se reivindicado, mas não vencedor, e o limite foi atingido, não mostra o QR Code */}
+                {isClaimed && !isWinner && isLimitReached && (
+                    <p className="text-sm text-red-400 mt-3">O código de validação não está disponível pois o limite foi atingido antes da sua reivindicação.</p>
                 )}
             </div>
         </div>

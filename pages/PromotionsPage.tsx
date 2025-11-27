@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket, Clock, MapPin, Loader2 } from 'lucide-react';
+import { Ticket, Clock, MapPin, Loader2, AlertTriangle } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { Link } from 'react-router-dom';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -17,6 +17,7 @@ const PromotionCard: React.FC<PromotionCardProps> = ({ promotion, userClaim }) =
     const [isLoadingStatus, setIsLoadingStatus] = useState(false);
 
     const isClaimed = !!userClaim;
+    const isLimitReached = (promotion.currentClaimCount || 0) >= promotion.limitCount;
 
     useEffect(() => {
         // Se o usuário reivindicou, mas não temos a ordem detalhada (acontece na lista),
@@ -39,6 +40,26 @@ const PromotionCard: React.FC<PromotionCardProps> = ({ promotion, userClaim }) =
             <div className="flex items-center p-4 mb-4 bg-surface rounded-lg">
                 <Loader2 size={20} className="animate-spin mr-3 text-accent" />
                 <span className="text-text-secondary">Verificando status...</span>
+            </div>
+        );
+    }
+    
+    // Se não foi reivindicado e o limite foi atingido, exibe o aviso de esgotado.
+    if (!isClaimed && isLimitReached) {
+        return (
+            <div className="block mb-4">
+                <div className="bg-gray-800 rounded-lg p-4 shadow-md border-l-4 border-red-500/50">
+                    <div className="flex items-start space-x-4">
+                        <div className="w-16 h-16 rounded-md bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                            <AlertTriangle size={32} className="text-red-400" />
+                        </div>
+                        <div className="flex-grow">
+                            <h3 className="font-bold text-lg text-text-primary">{promotion.title}</h3>
+                            <p className="text-sm text-red-400 mt-1 font-semibold">ESGOTADO!</p>
+                            <p className="text-xs text-text-secondary mt-1">O limite de {promotion.limitCount} participantes já foi atingido.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }

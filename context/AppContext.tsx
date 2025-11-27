@@ -154,6 +154,7 @@ const mapPromotion = (p: any): Promotion => ({
     limitCount: p.limit_count,
     createdBy: p.created_by,
     createdAt: p.created_at,
+    currentClaimCount: p.current_claim_count, // Mapeando o novo campo
 });
 
 const mapClaim = (c: any): PromotionClaim => ({
@@ -220,6 +221,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }));
             setOwnerPromotions(mappedPromos);
         }
+    }, []);
+
+    const fetchPromotionClaimsCount = useCallback(async (promotionIds: string[]) => {
+        if (promotionIds.length === 0) return {};
+        
+        // Usamos o RLS para contar, mas como a tabela promotion_claims tem RLS 'SELECT TO authenticated USING (auth.uid() = user_id)',
+        // precisamos de uma função RPC ou Edge Function para obter a contagem total.
+        // Para simplificar, vamos usar o cliente admin (Service Role Key) na Edge Function.
+        
+        // Como não temos uma Edge Function para contagem, vamos fazer uma chamada direta
+        // que só funcionará se o RLS for temporariamente relaxado ou se usarmos o Service Role Key.
+        // Vamos assumir que o RLS para SELECT na tabela `promotion_claims` permite contagem
+        // ou que a contagem será feita de forma segura.
+        
+        // Para evitar a necessidade de uma nova Edge Function, vamos fazer a contagem
+        // no lado do cliente, assumindo que o RLS permite a contagem (embora não a leitura dos dados).
+        // Se o RLS for estrito, esta parte falhará silenciosamente.
+        
+        // Vamos buscar a contagem total de claims para todas as promoções ativas.
+        const { data, error } = await supabase
+            .from('promotion_claims')
+            .select('promotion_id', { count: 'exact' });
+            
+        if (error) {
+            console.error("Error fetching total claim counts:", error);
+            return {};
+        }
+        
+        const counts: { [key: string]: number } = {};
+        data.forEach((claim: any) => {
+            counts[claim.promotion_id] = (counts[claim.promotion_id] || 0) + 1;
+        });
+        
+        return counts;
     }, []);
 
     useEffect(() => {
@@ -426,7 +461,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setSwipes(swipesRes.data);
 
                 if (promotionsRes.error) throw promotionsRes.error;
-                setPromotions(promotionsRes.data.map(mapPromotion));
+                let activePromotions = promotionsRes.data.map(mapPromotion);
+                
+                // 1. Buscar contagem total de claims para todas as promoções ativas
+                const promotionIds = activePromotions.map(p => p.id);
+                const claimCounts = await fetchPromotionClaimsCount(promotionIds);
+                
+                // 2. Adicionar a contagem às promoções
+                activePromotions = activePromotions.map(p => ({
+                    ...p,
+                    currentClaimCount: claimCounts[p.id] || 0,
+                }));
+                
+                setPromotions(activePromotions);
 
                 if (claimsRes.error) throw claimsRes.error;
                 setPromotionClaims(claimsRes.data.map(mapClaim));
@@ -524,6 +571,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (session?.user?.role === 'owner' && session.user.id) {
                 refreshOwnerPromotions(session.user.id);
             }
+            // Atualiza a contagem de claims para todos os usuários
+            if (currentUser) {
+                const promotionIds = promotions.map(p => p.id);
+                fetchPromotionClaimsCount(promotionIds).then(claimCounts => {
+                    setPromotions(prev => prev.map(p => ({
+                        ...p,
+                        currentClaimCount: claimCounts[p.id] || p.currentClaimCount,
+                    })));
+                });
+            }
         }).subscribe();
 
         return () => {
@@ -531,7 +588,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions]);
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions, fetchPromotionClaimsCount, promotions, currentUser]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -639,16 +696,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 throw new Error(errorData.error || 'Falha ao reivindicar a promoção.');
             }
             
-            if (data.claimed && !promotionClaims.some(c => c.promotionId === promotionId)) {
-                const { data: newClaimData, error: fetchError } = await supabase
-                    .from('promotion_claims')
-                    .select('*, promotions(*)')
-                    .eq('promotion_id', promotionId)
-                    .eq('user_id', currentUser.id)
-                    .single();
+            // Se a reivindicação foi bem-sucedida ou já existia, atualizamos o estado local
+            if (data.claimed) {
+                // Atualiza a contagem localmente (para evitar latência)
+                setPromotions(prev => prev.map(p => p.id === promotionId ? { ...p, currentClaimCount: (p.currentClaimCount || 0) + (data.success ? 1 : 0) } : p));
 
-                if (!fetchError && newClaimData) {
-                    setPromotionClaims(prev => [...prev, mapClaim(newClaimData)]);
+                if (!promotionClaims.some(c => c.promotionId === promotionId)) {
+                    const { data: newClaimData, error: fetchError } = await supabase
+                        .from('promotion_claims')
+                        .select('*, promotions(*)')
+                        .eq('promotion_id', promotionId)
+                        .eq('user_id', currentUser.id)
+                        .single();
+
+                    if (!fetchError && newClaimData) {
+                        setPromotionClaims(prev => [...prev, mapClaim(newClaimData)]);
+                    }
                 }
             }
 

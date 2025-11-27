@@ -58,11 +58,10 @@ const MainPage: React.FC = () => {
         places, 
         checkIns, 
         goingIntentions, 
-        isLoading: isContextLoading, // Renomeado para evitar conflito
+        isLoading, 
         error, 
         currentUser, 
         fetchPlaces, 
-        searchPlaces, // Usaremos este para buscas manuais
         getLivePostCount, 
         getActivePromotionsForPlace,
         getCurrentCheckIn,
@@ -77,7 +76,6 @@ const MainPage: React.FC = () => {
     const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.city || '');
     const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-    const [isLocalLoading, setIsLocalLoading] = useState(false); // Novo estado para carregamento local
 
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isCrowdLevelOpen, setIsCrowdLevelOpen] = useState(false);
@@ -107,12 +105,10 @@ const MainPage: React.FC = () => {
     const getGoingCount = (placeId: string) => (goingIntentions || []).filter(gi => gi.placeId === placeId).length;
 
     const categories = useMemo(() => {
-        // Filtra as categorias apenas dos locais na cidade selecionada
-        const placesInSelectedCity = places.filter(p => p.city === selectedLocation);
-        if (placesInSelectedCity.length === 0) return ['Todos'];
-        const uniqueCategories = new Set(placesInSelectedCity.map(place => place.category));
+        if (!places) return ['Todos'];
+        const uniqueCategories = new Set(places.map(place => place.category));
         return ['Todos', ...Array.from(uniqueCategories).sort()];
-    }, [places, selectedLocation]);
+    }, [places]);
     
     const crowdLevels = ['Todos', 'Tranquilo', 'Moderado', 'Agitado'];
     
@@ -123,37 +119,12 @@ const MainPage: React.FC = () => {
         return currentUser?.city ? [currentUser.city] : [];
     }, [currentUser?.state, currentUser?.city]);
 
-    const handleRemoteSearch = async () => {
-        if (!currentUser?.state || !selectedLocation) return;
-        
-        setIsLocalLoading(true);
-        try {
-            // searchPlaces agora não manipula o isLoading global
-            await searchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
+    const handleRemoteSearch = () => {
+        if (currentUser?.state && selectedLocation) {
+            fetchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
             setSelectedCategory('Todos');
             setSelectedCrowdLevel('Todos');
             setViewMode('all');
-        } catch (e) {
-            // Erro já é tratado no contexto, mas podemos logar aqui
-            console.error("Erro na busca remota:", e);
-        } finally {
-            setIsLocalLoading(false);
-        }
-    };
-
-    const handleLocationChange = async (newLocation: string) => {
-        if (!currentUser?.state) return;
-        
-        setSelectedLocation(newLocation);
-        setIsLocalLoading(true);
-        
-        try {
-            // fetchPlaces usa cache. Se for um novo local, ele fará a chamada lenta.
-            await fetchPlaces(newLocation, currentUser.state);
-        } catch (e) {
-            console.error("Erro ao carregar locais por cidade:", e);
-        } finally {
-            setIsLocalLoading(false);
         }
     };
 
@@ -176,7 +147,7 @@ const MainPage: React.FC = () => {
                 if (checkedInPlace && place.id === checkedInPlace.id) return false;
                 if (goingToPlaceIds.has(place.id)) return false;
 
-                // Filtro principal: Apenas locais na cidade selecionada
+                // CORREÇÃO: Adicionado filtro por cidade
                 if (selectedLocation && place.city !== selectedLocation) return false;
 
                 const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -203,7 +174,7 @@ const MainPage: React.FC = () => {
             });
     }, [places, searchQuery, selectedCategory, selectedCrowdLevel, checkIns, goingIntentions, checkedInPlace, goingToPlaceIds, selectedLocation]);
 
-    if (isContextLoading || isLocalLoading) {
+    if (isLoading) {
         return <LoadingSpinner message="Buscando locais..." />;
     }
 
@@ -337,8 +308,11 @@ const MainPage: React.FC = () => {
                                 <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
                                     {locations.map(loc => (
                                         <li key={loc} onClick={() => { 
-                                            handleLocationChange(loc); 
+                                            setSelectedLocation(loc); 
                                             setIsLocationOpen(false); 
+                                            if (currentUser?.state) {
+                                                fetchPlaces(loc, currentUser.state);
+                                            }
                                         }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
                                             {loc}
                                         </li>

@@ -30,7 +30,7 @@ interface CreatePostPayload {
     placeId: string;
     caption: string;
     mediaUrl: string;
-    type: 'image' | 'video' | 'live-highlight'; // Adicionando 'live-highlight' para clareza
+    type: 'image' | 'video' | 'live-highlight';
 }
 
 interface CreatePromotionPayload {
@@ -59,7 +59,7 @@ interface AppContextType {
     hasOnboarded: boolean;
     currentUser: User | null;
     places: Place[];
-    users: User[];
+    userProfilesCache: { [key: string]: User }; // Alterado de 'users'
     checkIns: CheckIn[];
     matches: Match[];
     favorites: Favorite[];
@@ -68,7 +68,7 @@ interface AppContextType {
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     promotions: Promotion[];
-    ownerPromotions: (Promotion & { claim_count: number; redeemed_count: number })[]; // Tipagem ajustada para garantir que são números
+    ownerPromotions: (Promotion & { claim_count: number; redeemed_count: number })[];
     promotionClaims: PromotionClaim[];
     allFeedPosts: FeedPost[];
     isLoading: boolean;
@@ -118,9 +118,9 @@ interface AppContextType {
     unlikePost: (postId: string) => Promise<void>;
     addCommentToPost: (postId: string, content: string) => Promise<void>;
     getUserOrderForPlace: (placeId: string, type: 'check-in' | 'going') => number;
+    fetchUsersForPlace: (placeId: string) => Promise<void>; // Nova função
 }
 
-// Definindo o contexto com um valor inicial undefined
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): User => {
@@ -170,7 +170,7 @@ const mapClaim = (c: any): PromotionClaim => ({
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [users, setUsers] = useState<User[]>([]);
+    const [userProfilesCache, setUserProfilesCache] = useState<{ [key: string]: User }>({});
     
     const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => localStorage.getItem('onboarded') === 'true');
     const [places, setPlaces] = useState<Place[]>([]);
@@ -191,6 +191,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
+
+    const getUserById = useCallback((id: string) => userProfilesCache[id], [userProfilesCache]);
+
+    const fetchProfilesByIds = useCallback(async (userIds: string[]) => {
+        const idsToFetch = userIds.filter(id => !userProfilesCache[id]);
+        if (idsToFetch.length === 0) return;
+
+        const { data, error } = await supabase.from('profiles').select('*').in('id', idsToFetch);
+        if (error) {
+            console.error("Error fetching user profiles:", error);
+            return;
+        }
+        const newProfiles: { [key: string]: User } = {};
+        data.forEach(profile => {
+            newProfiles[profile.id] = mapProfileToUser(profile, null);
+        });
+        setUserProfilesCache(prev => ({ ...prev, ...newProfiles }));
+    }, [userProfilesCache]);
 
     const refreshActiveLivePosts = useCallback(async () => {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -216,8 +234,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } else {
             const mappedPromos = data.map(p => ({
                 ...mapPromotion(p),
-                claim_count: p.claim_count || 0, // Garantindo que é um número
-                redeemed_count: p.redeemed_count || 0, // Garantindo que é um número
+                claim_count: p.claim_count || 0,
+                redeemed_count: p.redeemed_count || 0,
             }));
             setOwnerPromotions(mappedPromos);
         }
@@ -383,14 +401,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 
                 const mappedUser = mapProfileToUser(profileData, session.user);
                 setCurrentUser(mappedUser);
+                setUserProfilesCache(prev => ({ ...prev, [mappedUser.id]: mappedUser }));
 
-                if (profileData?.city && profileData?.state) {
-                    await fetchPlaces(profileData.city, profileData.state);
-                }
-
-                const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');
-                if (allProfilesError) throw allProfilesError;
-                setUsers(allProfilesData.map(p => mapProfileToUser(p, null)));
+                const localPlaces = await fetchPlaces(mappedUser.city || '', mappedUser.state || '');
+                const localPlaceIds = localPlaces.map(p => p.id);
 
                 const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
@@ -403,10 +417,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     claimsRes,
                     ownedPlacesRes,
                     allPostsRes,
-                    matchesRes // Fetch existing matches
+                    matchesRes
                 ] = await Promise.all([
-                    supabase.from('check_ins').select('*'),
-                    supabase.from('going_intentions').select('*'),
+                    supabase.from('check_ins').select('*').in('place_id', localPlaceIds),
+                    supabase.from('going_intentions').select('*').in('place_id', localPlaceIds),
                     supabase.from('favorites').select('*').eq('user_id', session.user.id),
                     supabase.from('swipes').select('swiped_id').eq('swiper_id', session.user.id),
                     supabase.from('promotions').select('*').gte('end_date', new Date().toISOString()),
@@ -460,17 +474,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 });
                 setAllFeedPosts(mappedAllPosts);
                 
-                // Map matches
                 if (matchesRes.error) throw matchesRes.error;
-                const mappedMatches: Match[] = matchesRes.data.map((m: any) => ({
-                    id: m.id,
-                    userIds: [m.user1_id, m.user2_id],
-                    createdAt: m.created_at,
-                    otherUser: m.user1_id === session.user.id ? getUserById(m.user2_id) : getUserById(m.user1_id),
-                    lastMessage: 'Novo Match!', // Placeholder
-                }));
+                const otherUserIds = matchesRes.data.map(m => m.user1_id === session.user.id ? m.user2_id : m.user1_id);
+                await fetchProfilesByIds(otherUserIds);
+                
+                const mappedMatches: Match[] = matchesRes.data.map((m: any) => {
+                    const otherUserId = m.user1_id === session.user.id ? m.user2_id : m.user1_id;
+                    return {
+                        id: m.id,
+                        userIds: [m.user1_id, m.user2_id],
+                        createdAt: m.created_at,
+                        otherUser: getUserById(otherUserId),
+                        lastMessage: 'Novo Match!',
+                    };
+                });
                 setMatches(mappedMatches);
-
 
                 const requiredPlaceIds = new Set([
                     ...favoritesRes.data.map(f => f.place_id),
@@ -507,7 +525,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
         
-        // Listener para Live Posts
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
             if (payload.eventType === 'INSERT') {
                 const newPost = payload.new as any;
@@ -537,24 +554,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
         }).subscribe();
         
-        // Listener para Claims de Promoção
         const claimsChannel = supabase.channel('promotion-claims-listener').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'promotion_claims' }, () => {
             if (session?.user?.role === 'owner' && session.user.id) {
                 refreshOwnerPromotions(session.user.id);
             }
         }).subscribe();
 
-        // NOVO: Listener para Matches
         const matchesChannel = supabase.channel('matches-listener').on<Match>(
             'postgres_changes',
             { event: 'INSERT', schema: 'public', table: 'matches' },
-            (payload) => {
+            async (payload) => {
                 const newMatchData = payload.new as any;
                 const currentUserId = session?.user?.id;
 
-                // Verifica se o match envolve o usuário atual
                 if (currentUserId && (newMatchData.user1_id === currentUserId || newMatchData.user2_id === currentUserId)) {
                     const otherUserId = newMatchData.user1_id === currentUserId ? newMatchData.user2_id : newMatchData.user1_id;
+                    
+                    await fetchProfilesByIds([otherUserId]);
                     const otherUser = getUserById(otherUserId);
 
                     if (otherUser) {
@@ -566,13 +582,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                             lastMessage: 'Novo Match!',
                         };
                         
-                        // 1. Adiciona à lista de matches
                         setMatches(prev => [...prev, newMatch]);
-                        
-                        // 2. Exibe o modal de notificação
                         setNewlyFormedMatch(newMatch);
-                        
-                        // 3. Ativa a notificação do chat
                         setHasNewNotification(true);
                     }
                 }
@@ -584,9 +595,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             clearInterval(intervalId);
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
-            supabase.removeChannel(matchesChannel); // Limpa o novo listener
+            supabase.removeChannel(matchesChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions]);
+    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions, fetchProfilesByIds, getUserById]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -620,7 +631,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const deleteLivePost = async (postId: string, placeId: string) => {
-        // Optimistic UI update
         const originalPosts = livePostsByPlace[placeId] || [];
         const updatedPosts = originalPosts.filter(p => p.id !== postId);
         setLivePostsByPlace(prev => ({
@@ -634,7 +644,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             });
     
             if (error) {
-                // Revert UI on failure
                 setLivePostsByPlace(prev => ({
                     ...prev,
                     [placeId]: originalPosts,
@@ -643,12 +652,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 throw new Error(errorData.error || 'Falha ao apagar o post.');
             }
         } catch (e) {
-            // Revert UI on failure
             setLivePostsByPlace(prev => ({
                 ...prev,
                 [placeId]: originalPosts,
             }));
-            throw e; // Re-throw for the component to handle
+            throw e;
         }
     };
 
@@ -707,7 +715,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
             }
 
-            // Se o usuário for um lojista, atualiza a contagem de promoções imediatamente
             if (currentUser.role === 'owner') {
                 refreshOwnerPromotions(currentUser.id);
             }
@@ -724,7 +731,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [currentUser, promotionClaims, refreshOwnerPromotions]);
 
     const getPlaceById = (id: string) => places.find(p => p.id === id);
-    const getUserById = (id: string) => users.find(u => u.id === id);
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
     const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id); 
     const isUserGoingToPlace = (placeId: string) => goingIntentions.some(gi => gi.userId === currentUser?.id && gi.placeId === placeId);
@@ -748,13 +754,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         const records = type === 'check-in' ? checkIns : goingIntentions;
         
-        // 1. Encontra o registro do usuário atual para o local
         const userRecord = records.find(r => r.userId === currentUser.id && r.placeId === placeId);
         
         if (!userRecord) return 0;
 
-        // 2. Conta quantos registros (incluindo o do usuário) têm um created_at menor ou igual
-        // Usamos a comparação de string ISO para garantir a ordem cronológica precisa.
         const order = records.filter(r => 
             r.placeId === placeId && 
             r.createdAt <= userRecord.createdAt
@@ -957,8 +960,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOwnerFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p));
     };
 
+    const fetchUsersForPlace = async (placeId: string) => {
+        const { data: checkInsData, error: checkInsError } = await supabase
+            .from('check_ins')
+            .select('user_id')
+            .eq('place_id', placeId);
+        if (checkInsError) throw checkInsError;
+
+        const { data: goingData, error: goingError } = await supabase
+            .from('going_intentions')
+            .select('user_id')
+            .eq('place_id', placeId);
+        if (goingError) throw goingError;
+
+        const userIds = new Set([
+            ...checkInsData.map(c => c.user_id),
+            ...goingData.map(g => g.user_id)
+        ]);
+        
+        await fetchProfilesByIds(Array.from(userIds));
+    };
+
     const value = {
-        isAuthenticated: !!session?.user, hasOnboarded, currentUser, places, users, checkIns, matches, favorites,
+        isAuthenticated: !!session?.user, hasOnboarded, currentUser, places, userProfilesCache, checkIns, matches, favorites,
         goingIntentions, swipes, livePostsByPlace, activeLivePosts, promotions, ownerPromotions, promotionClaims,
         allFeedPosts, isLoading, error, logout, completeOnboarding, checkInUser, checkOutUser, getCurrentCheckIn,
         getPlaceById, getUserById, sendMessage, updateUserProfile, updateCurrentUserState, addGoingIntention,
@@ -967,7 +991,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clearChatNotifications, fetchLivePostsForPlace, createLivePost, updateLivePost, deleteLivePost, getLivePostCount, getActivePromotionsForPlace,
         claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
-        likePost, unlikePost, addCommentToPost, getUserOrderForPlace,
+        likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

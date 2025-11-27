@@ -3,18 +3,20 @@ import { useAppContext } from '../context/AppContext';
 import { Heart, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const MatchPage: React.FC = () => {
     const { 
         currentUser, 
-        users, 
+        userProfilesCache,
         matches,
         swipes,
         getCurrentCheckIn,
         getCurrentGoingIntention,
         getPlaceById, 
         checkIns,
-        goingIntentions
+        goingIntentions,
+        fetchUsersForPlace
     } = useAppContext();
     
     const currentCheckIn = getCurrentCheckIn();
@@ -24,6 +26,14 @@ const MatchPage: React.FC = () => {
     const activePlace = activePlaceId ? getPlaceById(activePlaceId) : null;
     
     const [swipedUserIds, setSwipedUserIds] = useState<Set<string>>(new Set());
+    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+
+    useEffect(() => {
+        if (activePlaceId) {
+            setIsLoadingUsers(true);
+            fetchUsersForPlace(activePlaceId).finally(() => setIsLoadingUsers(false));
+        }
+    }, [activePlaceId, fetchUsersForPlace]);
 
     const potentialMatches = useMemo(() => {
         if (!activePlaceId || !currentUser || !currentUser.matchPreferences) return [];
@@ -39,23 +49,21 @@ const MatchPage: React.FC = () => {
             matches.flatMap(match => match.userIds).filter(id => id !== currentUser.id)
         );
         
-        return users.filter(otherUser => {
+        return Object.values(userProfilesCache).filter(otherUser => {
             if (otherUser.id === currentUser.id) return false;
             if (!otherUser.isAvailableForMatch || !otherUser.matchPreferences) return false;
             if (!userIdsAtPlace.has(otherUser.id)) return false;
-            if (swipedUserIds.has(otherUser.id)) return false; // Swiped in this session
-            if (swipedUserIdsFromDB.has(otherUser.id)) return false; // Swiped in the past
+            if (swipedUserIds.has(otherUser.id)) return false;
+            if (swipedUserIdsFromDB.has(otherUser.id)) return false;
             if (matchedUserIds.has(otherUser.id)) return false;
 
             const currentUserPrefs = currentUser.matchPreferences;
             const otherUserPrefs = otherUser.matchPreferences;
 
-            // Does the other user match my preferences?
             const otherUserMatchesMyPrefs = 
                 currentUserPrefs.genders.includes(otherUser.gender) &&
                 currentUserPrefs.sexualOrientations.includes(otherUser.sexualOrientation);
 
-            // Do I match the other user's preferences?
             const iMatchOtherUserPrefs = 
                 otherUserPrefs.genders.includes(currentUser.gender) &&
                 otherUserPrefs.sexualOrientations.includes(currentUser.sexualOrientation);
@@ -66,7 +74,7 @@ const MatchPage: React.FC = () => {
 
             return true;
         });
-    }, [activePlaceId, currentUser, users, checkIns, goingIntentions, swipedUserIds, matches, swipes]);
+    }, [activePlaceId, currentUser, userProfilesCache, checkIns, goingIntentions, swipedUserIds, matches, swipes]);
 
     const [currentIndex, setCurrentIndex] = useState(0);
     
@@ -86,11 +94,10 @@ const MatchPage: React.FC = () => {
             liked: liked
         });
 
-        if (error && error.code !== '23505') { // Ignore unique constraint violation
+        if (error && error.code !== '23505') {
             console.error('Error saving swipe:', error);
         }
 
-        // Optimistically remove from stack
         setSwipedUserIds(prev => new Set(prev).add(swipedUser.id));
         setCurrentIndex(prev => prev + 1);
     };
@@ -107,6 +114,10 @@ const MatchPage: React.FC = () => {
         );
     }
     
+    if (isLoadingUsers) {
+        return <LoadingSpinner message={`Buscando pessoas em ${activePlace.name}...`} />;
+    }
+
     if (potentialMatches.length === 0 || currentIndex >= potentialMatches.length) {
          return (
             <div className="flex flex-col items-center justify-center h-full text-center p-4">

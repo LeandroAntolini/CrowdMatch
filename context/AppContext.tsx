@@ -71,6 +71,8 @@ interface AppContextType {
     ownerPromotions: (Promotion & { claim_count: number; redeemed_count: number })[];
     promotionClaims: PromotionClaim[];
     allFeedPosts: FeedPost[];
+    ownerFeedPosts: FeedPost[];
+    ownedPlaceIds: string[];
     isLoading: boolean;
     isAuthResolved: boolean;
     error: string | null;
@@ -105,8 +107,6 @@ interface AppContextType {
     getActivePromotionsForPlace: (placeId: string, type?: PromotionType) => Promotion[];
     claimPromotion: (promotionId: string) => Promise<ClaimResult | undefined>;
     createOwnerFeedPost: (payload: CreatePostPayload) => Promise<void>;
-    ownerFeedPosts: FeedPost[];
-    ownedPlaceIds: string[];
     addOwnedPlace: (place: Place) => Promise<void>;
     removeOwnedPlace: (placeId: string) => Promise<void>;
     verifyQrCode: (qrCodeValue: string) => Promise<any>;
@@ -169,6 +169,8 @@ const mapClaim = (c: any): PromotionClaim => ({
     promotion: c.promotions ? mapPromotion(c.promotions) : undefined,
 });
 
+// Cache para resultados de busca de locais
+const placeCache: { [key: string]: Place[] } = {};
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
@@ -263,16 +265,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
     }, []);
 
-    // REMOVIDO: Manipulação de isLoading dentro de fetchPlaces
-    const fetchPlaces = useCallback(async (city: string, state: string, query?: string): Promise<Place[]> => {
+    const fetchPlaces = useCallback(async (city: string, state: string, query: string = ''): Promise<Place[]> => {
         if (!city || !state) return [];
         setError(null);
+        
+        const cacheKey = `${city}-${state}-${query.trim().toLowerCase()}`;
+        if (placeCache[cacheKey]) {
+            mergePlaces(placeCache[cacheKey]);
+            return placeCache[cacheKey];
+        }
+
         try {
             const { data, error } = await supabase.functions.invoke('get-places-by-city', {
                 body: { city, state, query },
             });
             if (error) throw error;
             if (Array.isArray(data)) {
+                placeCache[cacheKey] = data;
                 mergePlaces(data);
                 return data;
             }
@@ -285,28 +294,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const searchPlaces = useCallback(async (city: string, state: string, query: string): Promise<Place[]> => {
         if (!city || !state || !query.trim()) return [];
-        // Mantemos isLoading aqui, pois é uma busca manual do usuário, não parte do carregamento inicial
         setIsLoading(true); 
         try {
-            const { data, error } = await supabase.functions.invoke('get-places-by-city', {
-                body: { city, state, query: query.trim() },
-            });
-
-            if (error) throw error;
-            
-            if (Array.isArray(data)) {
-                mergePlaces(data);
-                return data;
-            }
-            
-            throw new Error("A busca retornou um formato de dados inválido.");
+            const results = await fetchPlaces(city, state, query);
+            return results;
         } catch (e: any) {
             console.error("Erro ao buscar locais:", e);
             throw new Error(e.message || "Não foi possível realizar a busca.");
         } finally {
             setIsLoading(false);
         }
-    }, [mergePlaces]);
+    }, [fetchPlaces]);
 
     const fetchLivePostsForPlace = useCallback(async (placeId: string) => {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -399,10 +397,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         const fetchInitialData = async () => {
-            // Não definimos isLoading = true aqui, pois AppRoutes já está controlando o spinner
-            // com base em isAuthResolved e isLoading.
-            // Se isAuthResolved é true e isAuthenticated é true, AppRoutes mostra o spinner.
-            
+            setIsLoading(true);
             try {
                 const { data: profileData, error: profileError } = await supabase
                     .from('profiles')
@@ -531,7 +526,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } catch (e: any) {
                 setError(e.message);
             } finally {
-                // Define isLoading como false APENAS no final do carregamento de dados
                 setIsLoading(false);
             }
         };
@@ -1026,12 +1020,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const value = {
         isAuthenticated: !!session?.user, hasOnboarded, currentUser, places, userProfilesCache, checkIns, matches, favorites,
         goingIntentions, swipes, livePostsByPlace, activeLivePosts, promotions, ownerPromotions, promotionClaims,
-        allFeedPosts, isLoading, isAuthResolved, error, logout, completeOnboarding, checkInUser, checkOutUser, getCurrentCheckIn,
+        allFeedPosts, ownerFeedPosts, ownedPlaceIds, isLoading, isAuthResolved, error, logout, completeOnboarding, checkInUser, checkOutUser, getCurrentCheckIn,
         getPlaceById, getUserById, sendMessage, updateUserProfile, updateCurrentUserState, addGoingIntention,
         removeGoingIntention, getCurrentGoingIntention, isUserGoingToPlace, fetchPlaces, searchPlaces,
         newlyFormedMatch, clearNewMatch, addFavorite, removeFavorite, isFavorite, hasNewNotification,
         clearChatNotifications, fetchLivePostsForPlace, createLivePost, updateLivePost, deleteLivePost, getLivePostCount, getActivePromotionsForPlace,
-        claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
+        claimPromotion, createOwnerFeedPost, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
         potentialMatches, fetchPotentialMatches,

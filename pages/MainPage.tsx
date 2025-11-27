@@ -58,10 +58,11 @@ const MainPage: React.FC = () => {
         places, 
         checkIns, 
         goingIntentions, 
-        isLoading, 
+        isLoading: isContextLoading, // Renomeado para evitar conflito
         error, 
         currentUser, 
         fetchPlaces, 
+        searchPlaces, // Usaremos este para buscas manuais
         getLivePostCount, 
         getActivePromotionsForPlace,
         getCurrentCheckIn,
@@ -76,6 +77,7 @@ const MainPage: React.FC = () => {
     const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.city || '');
     const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+    const [isLocalLoading, setIsLocalLoading] = useState(false); // Novo estado para carregamento local
 
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isCrowdLevelOpen, setIsCrowdLevelOpen] = useState(false);
@@ -119,12 +121,29 @@ const MainPage: React.FC = () => {
         return currentUser?.city ? [currentUser.city] : [];
     }, [currentUser?.state, currentUser?.city]);
 
-    const handleRemoteSearch = () => {
-        if (currentUser?.state && selectedLocation) {
-            fetchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
-            setSelectedCategory('Todos');
-            setSelectedCrowdLevel('Todos');
-            setViewMode('all');
+    const handleRemoteSearch = async () => {
+        if (!currentUser?.state || !selectedLocation) return;
+        
+        // searchPlaces já manipula o isLoading do contexto
+        await searchPlaces(selectedLocation, currentUser.state, searchQuery.trim());
+        setSelectedCategory('Todos');
+        setSelectedCrowdLevel('Todos');
+        setViewMode('all');
+    };
+
+    const handleLocationChange = async (newLocation: string) => {
+        if (!currentUser?.state) return;
+        
+        setSelectedLocation(newLocation);
+        setIsLocalLoading(true);
+        
+        try {
+            // fetchPlaces agora usa cache e não manipula isLoading globalmente
+            await fetchPlaces(newLocation, currentUser.state);
+        } catch (e) {
+            console.error("Erro ao carregar locais por cidade:", e);
+        } finally {
+            setIsLocalLoading(false);
         }
     };
 
@@ -147,7 +166,7 @@ const MainPage: React.FC = () => {
                 if (checkedInPlace && place.id === checkedInPlace.id) return false;
                 if (goingToPlaceIds.has(place.id)) return false;
 
-                // CORREÇÃO: Adicionado filtro por cidade
+                // Filtro principal: Apenas locais na cidade selecionada
                 if (selectedLocation && place.city !== selectedLocation) return false;
 
                 const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -174,7 +193,7 @@ const MainPage: React.FC = () => {
             });
     }, [places, searchQuery, selectedCategory, selectedCrowdLevel, checkIns, goingIntentions, checkedInPlace, goingToPlaceIds, selectedLocation]);
 
-    if (isLoading) {
+    if (isContextLoading || isLocalLoading) {
         return <LoadingSpinner message="Buscando locais..." />;
     }
 
@@ -308,11 +327,8 @@ const MainPage: React.FC = () => {
                                 <ul className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto no-scrollbar">
                                     {locations.map(loc => (
                                         <li key={loc} onClick={() => { 
-                                            setSelectedLocation(loc); 
+                                            handleLocationChange(loc); 
                                             setIsLocationOpen(false); 
-                                            if (currentUser?.state) {
-                                                fetchPlaces(loc, currentUser.state);
-                                            }
                                         }} className="px-4 py-2 hover:bg-accent hover:text-white cursor-pointer">
                                             {loc}
                                         </li>

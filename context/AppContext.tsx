@@ -72,7 +72,7 @@ interface AppContextType {
     promotionClaims: PromotionClaim[];
     allFeedPosts: FeedPost[];
     isLoading: boolean;
-    isAuthResolved: boolean; // Novo estado
+    isAuthResolved: boolean;
     error: string | null;
     logout: () => void;
     completeOnboarding: () => void;
@@ -195,7 +195,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
-    const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false); // Inicialmente false
+    const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false);
 
     const getUserById = useCallback((id: string) => userProfilesCache[id], [userProfilesCache]);
 
@@ -249,7 +249,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
-            setIsAuthResolved(true); // Marca como resolvido após a primeira tentativa
+            setIsAuthResolved(true);
         });
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
         return () => subscription.unsubscribe();
@@ -263,9 +263,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
     }, []);
 
+    // REMOVIDO: Manipulação de isLoading dentro de fetchPlaces
     const fetchPlaces = useCallback(async (city: string, state: string, query?: string): Promise<Place[]> => {
         if (!city || !state) return [];
-        setIsLoading(true);
         setError(null);
         try {
             const { data, error } = await supabase.functions.invoke('get-places-by-city', {
@@ -280,13 +280,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } catch (e: any) {
             setError("Não foi possível carregar os locais.");
             return [];
-        } finally {
-            setIsLoading(false);
         }
     }, [mergePlaces]);
 
     const searchPlaces = useCallback(async (city: string, state: string, query: string): Promise<Place[]> => {
         if (!city || !state || !query.trim()) return [];
+        // Mantemos isLoading aqui, pois é uma busca manual do usuário, não parte do carregamento inicial
+        setIsLoading(true); 
         try {
             const { data, error } = await supabase.functions.invoke('get-places-by-city', {
                 body: { city, state, query: query.trim() },
@@ -303,6 +303,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } catch (e: any) {
             console.error("Erro ao buscar locais:", e);
             throw new Error(e.message || "Não foi possível realizar a busca.");
+        } finally {
+            setIsLoading(false);
         }
     }, [mergePlaces]);
 
@@ -397,7 +399,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         const fetchInitialData = async () => {
-            setIsLoading(true);
+            // Não definimos isLoading = true aqui, pois AppRoutes já está controlando o spinner
+            // com base em isAuthResolved e isLoading.
+            // Se isAuthResolved é true e isAuthenticated é true, AppRoutes mostra o spinner.
+            
             try {
                 const { data: profileData, error: profileError } = await supabase
                     .from('profiles')
@@ -411,6 +416,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setCurrentUser(mappedUser);
                 setUserProfilesCache(prev => ({ ...prev, [mappedUser.id]: mappedUser }));
 
+                // Chamada de fetchPlaces sem manipular isLoading
                 const localPlaces = await fetchPlaces(mappedUser.city || '', mappedUser.state || '');
                 const localPlaceIds = localPlaces.map(p => p.id);
 
@@ -525,6 +531,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } catch (e: any) {
                 setError(e.message);
             } finally {
+                // Define isLoading como false APENAS no final do carregamento de dados
                 setIsLoading(false);
             }
         };

@@ -17,11 +17,25 @@ const LiveFeedBox: React.FC<LiveFeedBoxProps> = ({ place, showPlaceHeader = true
     const posts = livePostsByPlace[place.id] || [];
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
+    // Efeito para buscar posts e configurar o polling
     React.useEffect(() => {
-        setIsLoading(true);
-        fetchLivePostsForPlace(place.id).finally(() => setIsLoading(false));
+        const loadPosts = async () => {
+            setIsLoading(true);
+            await fetchLivePostsForPlace(place.id);
+            setIsLoading(false);
+        };
+
+        loadPosts();
+
+        // Polling a cada 10 segundos para garantir a atualização
+        const pollingInterval = setInterval(() => {
+            fetchLivePostsForPlace(place.id);
+        }, 10000); // 10 segundos
+
+        return () => clearInterval(pollingInterval);
     }, [place.id, fetchLivePostsForPlace]);
 
+    // Efeito para a rolagem automática
     React.useEffect(() => {
         const container = scrollContainerRef.current;
         if (!container || posts.length < 3) return;

@@ -29,7 +29,7 @@ const LiveFeedBox: React.FC<LiveFeedBoxProps> = ({ place, showPlaceHeader = true
         let scrollInterval: number;
 
         const startScrolling = () => {
-            scrollInterval = setInterval(() => {
+            scrollInterval = window.setInterval(() => {
                 if (container.scrollTop >= container.scrollHeight - container.clientHeight - 1) {
                     container.scrollTo({ top: 0, behavior: 'smooth' });
                 } else {

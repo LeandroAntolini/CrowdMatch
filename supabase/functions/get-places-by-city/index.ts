@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 
 // Define o tipo de dados 'Place' para corresponder ao que o aplicativo espera

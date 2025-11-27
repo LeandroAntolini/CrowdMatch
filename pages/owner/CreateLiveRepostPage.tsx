@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Place, LivePost } from '../../types';
+import { Place } from '../../types';
+import { LivePost } from '../../context/AppContext'; // Importação corrigida
 import { Loader2, Radio } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import { supabase } from '@/integrations/supabase/client';

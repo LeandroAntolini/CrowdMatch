@@ -22,12 +22,22 @@ const App: React.FC = () => {
 };
 
 const AppRoutes: React.FC = () => {
-    const { isAuthenticated, hasOnboarded, currentUser, isLoading } = useAppContext();
+    const { isAuthenticated, hasOnboarded, currentUser, isLoading, isAuthResolved } = useAppContext();
 
-    if (isLoading && hasOnboarded) {
+    // Exibe o spinner de carregamento inicial até que a autenticação seja resolvida
+    if (!isAuthResolved) {
         return (
             <div className="h-screen w-screen bg-background flex items-center justify-center">
                 <LoadingSpinner message="Carregando sua sessão..." />
+            </div>
+        );
+    }
+
+    // Se a autenticação foi resolvida, mas o carregamento de dados do perfil ainda está em andamento
+    if (isAuthenticated && isLoading) {
+        return (
+            <div className="h-screen w-screen bg-background flex items-center justify-center">
+                <LoadingSpinner message="Carregando dados do perfil..." />
             </div>
         );
     }

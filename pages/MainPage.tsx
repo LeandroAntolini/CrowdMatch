@@ -7,6 +7,7 @@ import { Users, CalendarClock, ChevronDown, MapPin, Search, Heart, Map, Radio, T
 import { citiesByState } from '../data/locations';
 import FavoritePlacesList from '../components/FavoritePlacesList';
 import MapModal from '../components/MapModal';
+import PinnedPlaceCard from '../components/PinnedPlaceCard';
 
 const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' => {
     if (count < 2) return 'Tranquilo';
@@ -53,7 +54,21 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
 
 
 const MainPage: React.FC = () => {
-    const { places, checkIns, goingIntentions, isLoading, error, currentUser, fetchPlaces, getLivePostCount, getActivePromotionsForPlace } = useAppContext();
+    const { 
+        places, 
+        checkIns, 
+        goingIntentions, 
+        isLoading, 
+        error, 
+        currentUser, 
+        fetchPlaces, 
+        getLivePostCount, 
+        getActivePromotionsForPlace,
+        getCurrentCheckIn,
+        getPlaceById,
+        checkOutUser,
+        removeGoingIntention
+    } = useAppContext();
     const navigate = useNavigate();
     
     const [searchQuery, setSearchQuery] = useState<string>('');
@@ -119,9 +134,25 @@ const MainPage: React.FC = () => {
         navigate(`/place/${placeId}`);
     };
 
-    const filteredPlaces = useMemo(() => {
+    // --- Lógica de Separação de Locais ---
+    const currentCheckIn = getCurrentCheckIn();
+    const checkedInPlace = currentCheckIn ? getPlaceById(currentCheckIn.placeId) : null;
+
+    const goingToPlaceIds = useMemo(() => 
+        new Set(goingIntentions.filter(gi => gi.userId === currentUser?.id).map(gi => gi.placeId)),
+        [goingIntentions, currentUser]
+    );
+    const goingToPlaces = useMemo(() => 
+        places.filter(p => goingToPlaceIds.has(p.id)),
+        [places, goingToPlaceIds]
+    );
+
+    const otherPlaces = useMemo(() => {
         return places
             .filter(place => {
+                if (checkedInPlace && place.id === checkedInPlace.id) return false;
+                if (goingToPlaceIds.has(place.id)) return false;
+
                 const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
                 if (!searchMatch) return false;
 
@@ -139,16 +170,12 @@ const MainPage: React.FC = () => {
             .sort((a, b) => {
                 const crowdCountB = getCrowdCount(b.id);
                 const crowdCountA = getCrowdCount(a.id);
-
-                if (crowdCountB !== crowdCountA) {
-                    return crowdCountB - crowdCountA;
-                }
-
+                if (crowdCountB !== crowdCountA) return crowdCountB - crowdCountA;
                 const goingCountB = getGoingCount(b.id);
                 const goingCountA = getGoingCount(a.id);
                 return goingCountB - goingCountA;
             });
-    }, [places, searchQuery, selectedCategory, selectedCrowdLevel, checkIns, goingIntentions]);
+    }, [places, searchQuery, selectedCategory, selectedCrowdLevel, checkIns, goingIntentions, checkedInPlace, goingToPlaceIds]);
 
     if (isLoading) {
         return <LoadingSpinner message="Buscando locais..." />;
@@ -212,6 +239,35 @@ const MainPage: React.FC = () => {
 
             {viewMode === 'all' && (
                 <>
+                    {/* --- Seção de Locais Fixados --- */}
+                    {checkedInPlace && (
+                        <div className="mb-6">
+                            <h2 className="text-lg font-bold text-primary mb-2">Check-in Ativo</h2>
+                            <PinnedPlaceCard 
+                                place={checkedInPlace} 
+                                type="check-in" 
+                                onCancel={checkOutUser} 
+                            />
+                        </div>
+                    )}
+                    {goingToPlaces.length > 0 && (
+                        <div className="mb-6">
+                            <h2 className="text-lg font-bold text-accent mb-2">Próximos Rolês</h2>
+                            {goingToPlaces.map(place => (
+                                <PinnedPlaceCard 
+                                    key={place.id}
+                                    place={place} 
+                                    type="going" 
+                                    onCancel={() => removeGoingIntention(place.id)} 
+                                />
+                            ))}
+                        </div>
+                    )}
+                    {(checkedInPlace || goingToPlaces.length > 0) && otherPlaces.length > 0 && (
+                        <hr className="border-gray-700 my-6" />
+                    )}
+
+                    {/* --- Filtros e Lista Principal --- */}
                     <div className="grid grid-cols-3 gap-2 mb-6">
                         <div className="relative" ref={categoryRef}>
                             <button onClick={() => setIsCategoryOpen(!isCategoryOpen)} className="w-full flex items-center justify-between bg-surface px-3 py-2 rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-accent">
@@ -270,8 +326,8 @@ const MainPage: React.FC = () => {
                     </div>
 
                     <div>
-                        {filteredPlaces.length > 0 ? (
-                            filteredPlaces.map(place => {
+                        {otherPlaces.length > 0 ? (
+                            otherPlaces.map(place => {
                                 const hasActivePromotion = getActivePromotionsForPlace(place.id).length > 0;
                                 return (
                                     <PlaceCard 

@@ -402,7 +402,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     promotionsRes,
                     claimsRes,
                     ownedPlacesRes,
-                    allPostsRes
+                    allPostsRes,
+                    matchesRes // Fetch existing matches
                 ] = await Promise.all([
                     supabase.from('check_ins').select('*'),
                     supabase.from('going_intentions').select('*'),
@@ -411,7 +412,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     supabase.from('promotions').select('*').gte('end_date', new Date().toISOString()),
                     supabase.from('promotion_claims').select('*, promotions(*)').eq('user_id', session.user.id),
                     mappedUser.role === 'owner' ? supabase.from('place_owners').select('place_id').eq('user_id', session.user.id) : Promise.resolve({ data: [], error: null }),
-                    supabase.from('feed_posts').select('*').gt('created_at', oneHourAgo).order('created_at', { ascending: false })
+                    supabase.from('feed_posts').select('*').gt('created_at', oneHourAgo).order('created_at', { ascending: false }),
+                    supabase.from('matches').select('*').or(`user1_id.eq.${session.user.id},user2_id.eq.${session.user.id}`)
                 ]);
 
                 if (checkInsRes.error) throw checkInsRes.error;
@@ -457,6 +459,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     };
                 });
                 setAllFeedPosts(mappedAllPosts);
+                
+                // Map matches
+                if (matchesRes.error) throw matchesRes.error;
+                const mappedMatches: Match[] = matchesRes.data.map((m: any) => ({
+                    id: m.id,
+                    userIds: [m.user1_id, m.user2_id],
+                    createdAt: m.created_at,
+                    otherUser: m.user1_id === session.user.id ? getUserById(m.user2_id) : getUserById(m.user1_id),
+                    lastMessage: 'Novo Match!', // Placeholder
+                }));
+                setMatches(mappedMatches);
+
 
                 const requiredPlaceIds = new Set([
                     ...favoritesRes.data.map(f => f.place_id),
@@ -492,6 +506,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchInitialData();
 
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
+        
+        // Listener para Live Posts
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
             if (payload.eventType === 'INSERT') {
                 const newPost = payload.new as any;
@@ -521,16 +537,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
         }).subscribe();
         
+        // Listener para Claims de Promoção
         const claimsChannel = supabase.channel('promotion-claims-listener').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'promotion_claims' }, () => {
             if (session?.user?.role === 'owner' && session.user.id) {
                 refreshOwnerPromotions(session.user.id);
             }
         }).subscribe();
 
+        // NOVO: Listener para Matches
+        const matchesChannel = supabase.channel('matches-listener').on<Match>(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'matches' },
+            (payload) => {
+                const newMatchData = payload.new as any;
+                const currentUserId = session?.user?.id;
+
+                // Verifica se o match envolve o usuário atual
+                if (currentUserId && (newMatchData.user1_id === currentUserId || newMatchData.user2_id === currentUserId)) {
+                    const otherUserId = newMatchData.user1_id === currentUserId ? newMatchData.user2_id : newMatchData.user1_id;
+                    const otherUser = getUserById(otherUserId);
+
+                    if (otherUser) {
+                        const newMatch: Match = {
+                            id: newMatchData.id,
+                            userIds: [newMatchData.user1_id, newMatchData.user2_id],
+                            createdAt: newMatchData.created_at,
+                            otherUser: otherUser,
+                            lastMessage: 'Novo Match!',
+                        };
+                        
+                        // 1. Adiciona à lista de matches
+                        setMatches(prev => [...prev, newMatch]);
+                        
+                        // 2. Exibe o modal de notificação
+                        setNewlyFormedMatch(newMatch);
+                        
+                        // 3. Ativa a notificação do chat
+                        setHasNewNotification(true);
+                    }
+                }
+            }
+        ).subscribe();
+
+
         return () => {
             clearInterval(intervalId);
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
+            supabase.removeChannel(matchesChannel); // Limpa o novo listener
         };
     }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions]);
 

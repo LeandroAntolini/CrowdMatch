@@ -155,8 +155,13 @@ const PlaceDetailsPage: React.FC = () => {
 
     const livePostCount = getLivePostCount(place.id);
     
-    const qrCodeValue = confirmationTicket && currentUser
-        ? `${currentUser.id}|${place.id}|${confirmationTicket.timestamp}|${confirmationTicket.type}`
+    // O QR Code deve usar o created_at do banco de dados para garantir unicidade e precisão
+    const userRecord = isCheckedInHere 
+        ? checkIns.find(ci => ci.userId === currentUser?.id && ci.placeId === id)
+        : goingIntentions.find(gi => gi.userId === currentUser?.id && gi.placeId === id);
+        
+    const qrCodeValue = confirmationTicket && currentUser && userRecord
+        ? `${currentUser.id}|${place.id}|${userRecord.createdAt}|${confirmationTicket.type}`
         : 'invalid';
 
     // UI Logic for buttons

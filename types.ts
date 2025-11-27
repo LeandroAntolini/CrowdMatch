@@ -42,12 +42,14 @@ export interface CheckIn {
   userId: string;
   placeId: string;
   timestamp: number;
+  createdAt: string; // Adicionado para ordenação precisa
 }
 
 export interface GoingIntention {
   userId: string;
   placeId: string;
   timestamp: number;
+  createdAt: string; // Adicionado para ordenação precisa
 }
 
 export interface Match {

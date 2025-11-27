@@ -417,10 +417,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 ]);
 
                 if (checkInsRes.error) throw checkInsRes.error;
-                setCheckIns(checkInsRes.data.map(c => ({ userId: c.user_id, placeId: c.place_id, timestamp: new Date(c.created_at).getTime() })));
+                setCheckIns(checkInsRes.data.map(c => ({ userId: c.user_id, placeId: c.place_id, timestamp: new Date(c.created_at).getTime(), createdAt: c.created_at })));
 
                 if (goingRes.error) throw goingRes.error;
-                setGoingIntentions(goingRes.data.map(g => ({ userId: g.user_id, placeId: g.place_id, timestamp: new Date(g.created_at).getTime() })));
+                setGoingIntentions(goingRes.data.map(g => ({ userId: g.user_id, placeId: g.place_id, timestamp: new Date(g.created_at).getTime(), createdAt: g.created_at })));
 
                 if (favoritesRes.error) throw favoritesRes.error;
                 setFavorites(favoritesRes.data.map(f => ({ id: f.id, userId: f.user_id, placeId: f.place_id })));
@@ -753,10 +753,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         if (!userRecord) return 0;
 
-        // 2. Conta quantos registros (incluindo o do usuário) têm um timestamp menor ou igual
+        // 2. Conta quantos registros (incluindo o do usuário) têm um created_at menor ou igual
+        // Usamos a comparação de string ISO para garantir a ordem cronológica precisa.
         const order = records.filter(r => 
             r.placeId === placeId && 
-            r.timestamp <= userRecord.timestamp
+            r.createdAt <= userRecord.createdAt
         ).length;
 
         return order;
@@ -768,7 +769,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         const { data, error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
         if (!error && data) {
-            setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
+            setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
         }
     };
 
@@ -791,7 +792,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             throw new Error(`Falha ao adicionar intenção: ${error.message}`);
         }
         if (data) {
-            setGoingIntentions(prev => [...prev, { userId: data.user_id, placeId: data.place_id, timestamp: Date.now() }]);
+            setGoingIntentions(prev => [...prev, { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
         }
     };
 

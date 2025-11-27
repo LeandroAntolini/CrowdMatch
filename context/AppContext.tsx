@@ -72,6 +72,7 @@ interface AppContextType {
     promotionClaims: PromotionClaim[];
     allFeedPosts: FeedPost[];
     isLoading: boolean;
+    isAuthResolved: boolean; // Novo estado
     error: string | null;
     logout: () => void;
     completeOnboarding: () => void;
@@ -194,6 +195,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
+    const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false); // Inicialmente false
 
     const getUserById = useCallback((id: string) => userProfilesCache[id], [userProfilesCache]);
 
@@ -245,7 +247,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, []);
 
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setIsAuthResolved(true); // Marca como resolvido após a primeira tentativa
+        });
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
         return () => subscription.unsubscribe();
     }, []);
@@ -1014,7 +1019,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const value = {
         isAuthenticated: !!session?.user, hasOnboarded, currentUser, places, userProfilesCache, checkIns, matches, favorites,
         goingIntentions, swipes, livePostsByPlace, activeLivePosts, promotions, ownerPromotions, promotionClaims,
-        allFeedPosts, isLoading, error, logout, completeOnboarding, checkInUser, checkOutUser, getCurrentCheckIn,
+        allFeedPosts, isLoading, isAuthResolved, error, logout, completeOnboarding, checkInUser, checkOutUser, getCurrentCheckIn,
         getPlaceById, getUserById, sendMessage, updateUserProfile, updateCurrentUserState, addGoingIntention,
         removeGoingIntention, getCurrentGoingIntention, isUserGoingToPlace, fetchPlaces, searchPlaces,
         newlyFormedMatch, clearNewMatch, addFavorite, removeFavorite, isFavorite, hasNewNotification,

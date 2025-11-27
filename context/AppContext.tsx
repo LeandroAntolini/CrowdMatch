@@ -117,6 +117,7 @@ interface AppContextType {
     likePost: (postId: string) => Promise<void>;
     unlikePost: (postId: string) => Promise<void>;
     addCommentToPost: (postId: string, content: string) => Promise<void>;
+    getUserOrderForPlace: (placeId: string, type: 'check-in' | 'going') => number;
 }
 
 // Definindo o contexto com um valor inicial undefined
@@ -687,6 +688,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             (!type || p.promotionType === type)
         );
     };
+    
+    const getUserOrderForPlace = useCallback((placeId: string, type: 'check-in' | 'going'): number => {
+        if (!currentUser) return 0;
+
+        const records = type === 'check-in' ? checkIns : goingIntentions;
+        
+        // 1. Encontra o registro do usuário atual para o local
+        const userRecord = records.find(r => r.userId === currentUser.id && r.placeId === placeId);
+        
+        if (!userRecord) return 0;
+
+        // 2. Conta quantos registros (incluindo o do usuário) têm um timestamp menor ou igual
+        const order = records.filter(r => 
+            r.placeId === placeId && 
+            r.timestamp <= userRecord.timestamp
+        ).length;
+
+        return order;
+    }, [currentUser, checkIns, goingIntentions]);
+
 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
@@ -891,7 +912,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clearChatNotifications, fetchLivePostsForPlace, createLivePost, updateLivePost, deleteLivePost, getLivePostCount, getActivePromotionsForPlace,
         claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
-        likePost, unlikePost, addCommentToPost,
+        likePost, unlikePost, addCommentToPost, getUserOrderForPlace,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

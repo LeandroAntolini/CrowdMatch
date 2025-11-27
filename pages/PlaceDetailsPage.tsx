@@ -38,7 +38,8 @@ const PlaceDetailsPage: React.FC = () => {
         getActivePromotionsForPlace,
         promotionClaims,
         claimPromotion,
-        currentUser
+        currentUser,
+        getUserOrderForPlace // Importando a nova função
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
@@ -66,25 +67,28 @@ const PlaceDetailsPage: React.FC = () => {
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place?.id).length;
 
     useEffect(() => {
+        if (!id || !currentUser) return;
+
         if (isCheckedInHere) {
+            const order = getUserOrderForPlace(id, 'check-in');
             setConfirmationTicket({
                 type: 'check-in',
                 timestamp: currentCheckIn?.timestamp || Date.now(),
-                order: crowdCount
+                order: order
             });
         } else if (isGoingHere) {
-            // Encontra a intenção específica para este local para obter o timestamp
-            const specificIntention = goingIntentions.find(gi => gi.userId === currentUser?.id && gi.placeId === id);
+            const specificIntention = goingIntentions.find(gi => gi.userId === currentUser.id && gi.placeId === id);
+            const order = getUserOrderForPlace(id, 'going');
             
             setConfirmationTicket({
                 type: 'going',
                 timestamp: specificIntention?.timestamp || Date.now(),
-                order: goingCount
+                order: order
             });
         } else {
             setConfirmationTicket(null);
         }
-    }, [isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, crowdCount, goingCount, id, currentUser?.id]);
+    }, [isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, id, currentUser, getUserOrderForPlace]);
 
     const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
 

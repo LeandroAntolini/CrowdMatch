@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '../types';
-import { LivePost } from '../context/AppContext';
+import { LivePost, useAppContext } from '../context/AppContext';
 
 // Função para formatar o tempo relativo
 const timeAgo = (date: Date): string => {
@@ -23,18 +23,26 @@ interface LivePostCardProps {
 }
 
 const LivePostCard: React.FC<LivePostCardProps> = ({ post }) => {
+    const { getPlaceById } = useAppContext();
     const userProfile = post.profiles;
+    const place = getPlaceById(post.place_id);
+
+    const isOwnerPost = userProfile?.role === 'owner';
+    
+    const displayName = isOwnerPost ? place?.name : userProfile?.name;
+    const displayPhoto = isOwnerPost ? place?.photoUrl : userProfile?.photos?.[0];
+    const nameSuffix = isOwnerPost ? ' (Estabelecimento)' : '';
 
     return (
         <div className="bg-surface p-4 rounded-lg flex space-x-4">
             <img 
-                src={userProfile?.photos?.[0] || 'https://i.pravatar.cc/150'} 
-                alt={userProfile?.name} 
+                src={displayPhoto || 'https://i.pravatar.cc/150'} 
+                alt={displayName || 'Usuário'} 
                 className="w-12 h-12 rounded-full object-cover flex-shrink-0"
             />
             <div className="flex-grow">
                 <div className="flex items-baseline space-x-2">
-                    <p className="font-bold text-text-primary">{userProfile?.name || 'Usuário'}</p>
+                    <p className="font-bold text-text-primary">{displayName || 'Usuário'}{nameSuffix}</p>
                     <p className="text-xs text-text-secondary">{timeAgo(new Date(post.created_at))} atrás</p>
                 </div>
                 <p className="text-text-primary whitespace-pre-wrap">{post.content}</p>

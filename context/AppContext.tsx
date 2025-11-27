@@ -15,7 +15,7 @@ export interface LivePost {
     place_id: string;
     content: string;
     created_at: string;
-    profiles: Pick<User, 'id' | 'name' | 'photos'>;
+    profiles: Pick<User, 'id' | 'name' | 'photos'> & { role?: string };
 }
 
 interface ClaimResult {
@@ -266,7 +266,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         const { data, error } = await supabase
             .from('live_posts')
-            .select('*, profiles(id, name, photos)')
+            .select('*, profiles(id, name, photos, role)')
             .eq('place_id', placeId)
             .gt('created_at', oneHourAgo) // Adicionando filtro de tempo
             .order('created_at', { ascending: false })
@@ -499,7 +499,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_posts' }, async (payload) => {
             const newPost = payload.new as any;
             await refreshActiveLivePosts();
-            const { data: profileData } = await supabase.from('profiles').select('id, name, photos').eq('id', newPost.user_id).single();
+            const { data: profileData } = await supabase.from('profiles').select('id, name, photos, role').eq('id', newPost.user_id).single();
             if (profileData) {
                 newPost.profiles = profileData;
                 setLivePostsByPlace(prev => ({ ...prev, [newPost.place_id]: [newPost, ...(prev[newPost.place_id] || [])] }));

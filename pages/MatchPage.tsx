@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Heart, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -8,15 +8,11 @@ import LoadingSpinner from '../components/LoadingSpinner';
 const MatchPage: React.FC = () => {
     const { 
         currentUser, 
-        userProfilesCache,
-        matches,
-        swipes,
         getCurrentCheckIn,
         getCurrentGoingIntention,
         getPlaceById, 
-        checkIns,
-        goingIntentions,
-        fetchUsersForPlace
+        potentialMatches,
+        fetchPotentialMatches
     } = useAppContext();
     
     const currentCheckIn = getCurrentCheckIn();
@@ -25,68 +21,24 @@ const MatchPage: React.FC = () => {
     const activePlaceId = currentCheckIn?.placeId || currentGoingIntention?.placeId;
     const activePlace = activePlaceId ? getPlaceById(activePlaceId) : null;
     
-    const [swipedUserIds, setSwipedUserIds] = useState<Set<string>>(new Set());
-    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
         if (activePlaceId) {
-            setIsLoadingUsers(true);
-            fetchUsersForPlace(activePlaceId).finally(() => setIsLoadingUsers(false));
+            setIsLoading(true);
+            setCurrentIndex(0);
+            fetchPotentialMatches(activePlaceId).finally(() => setIsLoading(false));
         }
-    }, [activePlaceId, fetchUsersForPlace]);
-
-    const potentialMatches = useMemo(() => {
-        if (!activePlaceId || !currentUser || !currentUser.matchPreferences) return [];
-
-        const swipedUserIdsFromDB = new Set(swipes.map(s => s.swiped_id));
-
-        const userIdsAtPlace = new Set([
-            ...checkIns.filter(c => c.placeId === activePlaceId).map(c => c.userId),
-            ...goingIntentions.filter(g => g.placeId === activePlaceId).map(g => g.userId)
-        ]);
-
-        const matchedUserIds = new Set(
-            matches.flatMap(match => match.userIds).filter(id => id !== currentUser.id)
-        );
-        
-        return Object.values(userProfilesCache).filter(otherUser => {
-            if (otherUser.id === currentUser.id) return false;
-            if (!otherUser.isAvailableForMatch || !otherUser.matchPreferences) return false;
-            if (!userIdsAtPlace.has(otherUser.id)) return false;
-            if (swipedUserIds.has(otherUser.id)) return false;
-            if (swipedUserIdsFromDB.has(otherUser.id)) return false;
-            if (matchedUserIds.has(otherUser.id)) return false;
-
-            const currentUserPrefs = currentUser.matchPreferences;
-            const otherUserPrefs = otherUser.matchPreferences;
-
-            const otherUserMatchesMyPrefs = 
-                currentUserPrefs.genders.includes(otherUser.gender) &&
-                currentUserPrefs.sexualOrientations.includes(otherUser.sexualOrientation);
-
-            const iMatchOtherUserPrefs = 
-                otherUserPrefs.genders.includes(currentUser.gender) &&
-                otherUserPrefs.sexualOrientations.includes(currentUser.sexualOrientation);
-
-            if (!otherUserMatchesMyPrefs || !iMatchOtherUserPrefs) {
-                return false;
-            }
-
-            return true;
-        });
-    }, [activePlaceId, currentUser, userProfilesCache, checkIns, goingIntentions, swipedUserIds, matches, swipes]);
-
-    const [currentIndex, setCurrentIndex] = useState(0);
-    
-    useEffect(() => {
-        setCurrentIndex(0);
-    }, [activePlaceId]);
-
+    }, [activePlaceId, fetchPotentialMatches]);
 
     const handleSwipe = async (liked: boolean) => {
         if (!currentUser || !potentialMatches[currentIndex]) return;
 
         const swipedUser = potentialMatches[currentIndex];
+        
+        // Atualização otimista da UI
+        setCurrentIndex(prev => prev + 1);
         
         const { error } = await supabase.from('swipes').insert({
             swiper_id: currentUser.id,
@@ -94,12 +46,11 @@ const MatchPage: React.FC = () => {
             liked: liked
         });
 
-        if (error && error.code !== '23505') {
+        if (error && error.code !== '23505') { // Ignora erro de duplicata
             console.error('Error saving swipe:', error);
+            // Opcional: reverter a UI em caso de erro
+            setCurrentIndex(prev => prev - 1);
         }
-
-        setSwipedUserIds(prev => new Set(prev).add(swipedUser.id));
-        setCurrentIndex(prev => prev + 1);
     };
 
     if (!activePlace) {
@@ -114,7 +65,7 @@ const MatchPage: React.FC = () => {
         );
     }
     
-    if (isLoadingUsers) {
+    if (isLoading) {
         return <LoadingSpinner message={`Buscando pessoas em ${activePlace.name}...`} />;
     }
 

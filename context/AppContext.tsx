@@ -59,7 +59,7 @@ interface AppContextType {
     hasOnboarded: boolean;
     currentUser: User | null;
     places: Place[];
-    userProfilesCache: { [key: string]: User }; // Alterado de 'users'
+    userProfilesCache: { [key: string]: User };
     checkIns: CheckIn[];
     matches: Match[];
     favorites: Favorite[];
@@ -118,7 +118,9 @@ interface AppContextType {
     unlikePost: (postId: string) => Promise<void>;
     addCommentToPost: (postId: string, content: string) => Promise<void>;
     getUserOrderForPlace: (placeId: string, type: 'check-in' | 'going') => number;
-    fetchUsersForPlace: (placeId: string) => Promise<void>; // Nova função
+    fetchUsersForPlace: (placeId: string) => Promise<void>;
+    potentialMatches: User[];
+    fetchPotentialMatches: (placeId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -191,6 +193,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
+    const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
 
     const getUserById = useCallback((id: string) => userProfilesCache[id], [userProfilesCache]);
 
@@ -981,6 +984,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await fetchProfilesByIds(Array.from(userIds));
     };
 
+    const fetchPotentialMatches = useCallback(async (placeId: string) => {
+        if (!session?.user) return;
+        try {
+            const { data, error } = await supabase.functions.invoke('get-potential-matches', {
+                body: { placeId },
+            });
+
+            if (error) {
+                throw new Error(error.message);
+            }
+
+            if (Array.isArray(data)) {
+                const mappedUsers: User[] = data.map(profile => mapProfileToUser(profile, null));
+                setPotentialMatches(mappedUsers);
+                
+                const newProfiles: { [key: string]: User } = {};
+                mappedUsers.forEach(user => {
+                    newProfiles[user.id] = user;
+                });
+                setUserProfilesCache(prev => ({ ...prev, ...newProfiles }));
+            }
+        } catch (e: any) {
+            console.error("Error fetching potential matches:", e);
+            setError("Não foi possível carregar os perfis para match.");
+        }
+    }, [session]);
+
     const value = {
         isAuthenticated: !!session?.user, hasOnboarded, currentUser, places, userProfilesCache, checkIns, matches, favorites,
         goingIntentions, swipes, livePostsByPlace, activeLivePosts, promotions, ownerPromotions, promotionClaims,
@@ -992,6 +1022,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
+        potentialMatches, fetchPotentialMatches,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FeedPost, PostComment } from '../types';
 import { Heart, MessageCircle, Send } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
+import { Link } from 'react-router-dom';
 
 const timeAgo = (dateString: string): string => {
     const date = new Date(dateString);
@@ -96,13 +97,13 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
     return (
         <div className="bg-surface rounded-lg overflow-hidden mb-6">
             {/* Header */}
-            <div className="flex items-center p-3">
+            <Link to={`/place/${post.placeId}`} className="flex items-center p-3 hover:bg-gray-700/50 transition-colors">
                 <img src={post.placeLogoUrl || 'https://i.pravatar.cc/150?u=default'} alt={`${post.placeName} logo`} className="w-10 h-10 rounded-full object-cover mr-3" />
                 <div>
                     <span className="font-bold text-text-primary">{post.placeName}</span>
                     <p className="text-xs text-text-secondary">{timeAgo(post.timestamp)}</p>
                 </div>
-            </div>
+            </Link>
 
             {/* Media */}
             <div className="w-full aspect-square bg-gray-800">

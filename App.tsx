@@ -3,8 +3,8 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useAppContext } from './src/context/AppContext';
 import OnboardingPage from './src/pages/OnboardingPage';
 import AuthPage from './src/pages/AuthPage';
-import UserLayout from './src/layouts/UserLayout'; // Caminho corrigido
-import OwnerLayout from './src/layouts/OwnerLayout'; // Caminho corrigido
+import UserLayout from './src/layouts/UserLayout';
+import OwnerLayout from './src/layouts/OwnerLayout';
 import LoadingSpinner from './src/components/LoadingSpinner';
 
 const App: React.FC = () => {

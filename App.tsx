@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AppProvider, useAppContext } from './src/context/AppContext';
-import OnboardingPage from './src/pages/OnboardingPage';
-import AuthPage from './src/pages/AuthPage';
-import UserLayout from './src/layouts/UserLayout';
-import OwnerLayout from './src/layouts/OwnerLayout';
-import LoadingSpinner from './src/components/LoadingSpinner';
+import { AppProvider, useAppContext } from './context/AppContext';
+import OnboardingPage from './pages/OnboardingPage';
+import AuthPage from './pages/AuthPage';
+import UserLayout from './layouts/UserLayout';
+import OwnerLayout from './layouts/OwnerLayout';
+import LoadingSpinner from './components/LoadingSpinner';
 
 const App: React.FC = () => {
     useEffect(() => {

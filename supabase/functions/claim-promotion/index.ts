@@ -1,27 +1,13 @@
+// @ts-nocheck
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
-
-interface Promotion {
-  id: string;
-  title: string;
-  limit_count: number;
-  end_date: string;
-}
-
-interface PromotionClaim {
-  id: string;
-  promotion_id: string;
-  user_id: string;
-  claimed_at: string;
-  status: string;
-}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req: Request) => {
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -54,7 +40,7 @@ serve(async (req: Request) => {
         .from('promotions')
         .select('id, title, limit_count, end_date')
         .eq('id', promotionId)
-        .single<Promotion>();
+        .single();
 
     if (promoError || !promotion) {
         return new Response(JSON.stringify({ error: 'Promoção não encontrada ou inválida.' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -69,7 +55,7 @@ serve(async (req: Request) => {
         .from('promotion_claims')
         .insert({ promotion_id: promotionId, user_id: userId })
         .select('id, claimed_at')
-        .single<Pick<PromotionClaim, 'id' | 'claimed_at'>>();
+        .single();
 
     if (insertError) {
         if (insertError.code === '23505') {
@@ -79,7 +65,7 @@ serve(async (req: Request) => {
                 .select('id, claimed_at')
                 .eq('promotion_id', promotionId)
                 .eq('user_id', userId)
-                .single<Pick<PromotionClaim, 'id' | 'claimed_at'>>();
+                .single();
 
             if (fetchExistingError || !existingClaim) {
                  return new Response(JSON.stringify({ error: 'Falha ao buscar reivindicação existente.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -151,7 +137,7 @@ serve(async (req: Request) => {
       status: 200,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Edge Function Error:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -226,35 +226,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const fetchPromotionClaimsCount = useCallback(async (promotionIds: string[]) => {
         if (promotionIds.length === 0) return {};
         
-        // Usamos o RLS para contar, mas como a tabela promotion_claims tem RLS 'SELECT TO authenticated USING (auth.uid() = user_id)',
-        // precisamos de uma função RPC ou Edge Function para obter a contagem total.
-        // Para simplificar, vamos usar o cliente admin (Service Role Key) na Edge Function.
-        
-        // Como não temos uma Edge Function para contagem, vamos fazer uma chamada direta
-        // que só funcionará se o RLS for temporariamente relaxado ou se usarmos o Service Role Key.
-        // Vamos assumir que o RLS para SELECT na tabela `promotion_claims` permite contagem
-        // ou que a contagem será feita de forma segura.
-        
-        // Para evitar a necessidade de uma nova Edge Function, vamos fazer a contagem
-        // no lado do cliente, assumindo que o RLS permite a contagem (embora não a leitura dos dados).
-        // Se o RLS for estrito, esta parte falhará silenciosamente.
-        
-        // Vamos buscar a contagem total de claims para todas as promoções ativas.
-        const { data, error } = await supabase
-            .from('promotion_claims')
-            .select('promotion_id', { count: 'exact' });
+        try {
+            const { data, error } = await supabase.functions.invoke('get-promotion-claim-counts', {
+                method: 'POST',
+                body: { promotionIds },
+            });
+
+            if (error) throw error;
             
-        if (error) {
-            console.error("Error fetching total claim counts:", error);
+            // A Edge Function retorna um objeto { promotionId: count }
+            return data as { [key: string]: number };
+
+        } catch (e: any) {
+            console.error("Error fetching total claim counts:", e);
+            // Retorna um objeto vazio em caso de falha para evitar quebrar o fluxo
             return {};
         }
-        
-        const counts: { [key: string]: number } = {};
-        data.forEach((claim: any) => {
-            counts[claim.promotion_id] = (counts[claim.promotion_id] || 0) + 1;
-        });
-        
-        return counts;
     }, []);
 
     useEffect(() => {

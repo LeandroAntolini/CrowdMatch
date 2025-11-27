@@ -111,10 +111,13 @@ const PlaceDetailsPage: React.FC = () => {
         if (!id || !place.isOpen) return;
         await checkInUser(id);
         setClaimResult(null); // Limpa mensagens antigas
+        
+        let lastClaimResult: ClaimResultState | null = null;
         for (const promo of activeCheckinPromotions) {
             const result = await claimPromotion(promo.id);
-            if (result) setClaimResult(result); // Mostra o resultado da primeira promo encontrada
+            if (result) lastClaimResult = result;
         }
+        if (lastClaimResult) setClaimResult(lastClaimResult);
     };
 
     const handleAddGoingIntention = async () => {
@@ -122,10 +125,14 @@ const PlaceDetailsPage: React.FC = () => {
         try {
             await addGoingIntention(id);
             setClaimResult(null); // Limpa mensagens antigas
+            
+            let lastClaimResult: ClaimResultState | null = null;
             for (const promo of activeGoingPromotions) {
                 const result = await claimPromotion(promo.id);
-                if (result) setClaimResult(result); // Mostra o resultado da primeira promo encontrada
+                if (result) lastClaimResult = result;
             }
+            if (lastClaimResult) setClaimResult(lastClaimResult);
+
         } catch (e: any) {
             alert(e.message); // Exibe erro se o limite de 3 for atingido
         }

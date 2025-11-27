@@ -46,6 +46,7 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
             );
         }
         
+        // Se foi reivindicado e não resgatado, verificamos se é um vencedor ou não.
         if (isWinner) {
             return (
                 <div className="flex items-center text-sm text-green-400 font-semibold">

@@ -17,7 +17,10 @@ const formatClaimDate = (dateString: string) => {
 
 const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, claim, claimOrder }) => {
     const isClaimed = !!claim;
-    const isWinner = claimOrder !== undefined && claimOrder > 0 && claimOrder <= promotion.limitCount;
+    
+    // Determina se é um vencedor com base na ordem de reivindicação e no limite
+    const finalClaimOrder = claimOrder || 0;
+    const isWinner = finalClaimOrder > 0 && finalClaimOrder <= promotion.limitCount;
     
     // String de validação para o QR Code: claimId|userId|promotionId|claimedAt
     const qrCodeValue = claim 
@@ -47,7 +50,7 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
             return (
                 <div className="flex items-center text-sm text-green-400 font-semibold">
                     <Ticket size={16} className="mr-2" />
-                    <span>Parabéns! Você foi o {claimOrder}º a reivindicar.</span>
+                    <span>Parabéns! Você foi o {finalClaimOrder}º a reivindicar.</span>
                 </div>
             );
         }
@@ -78,8 +81,8 @@ const PromotionClaimStatus: React.FC<PromotionClaimStatusProps> = ({ promotion, 
                 {isClaimed && (
                     <div className="mt-3 space-y-2">
                         <p className="text-xs text-text-secondary">Reivindicado em: {formatClaimDate(claim.claimedAt)}</p>
-                        {claimOrder !== undefined && (
-                            <p className="text-xs text-text-secondary font-bold">Sua Ordem: {claimOrder}</p>
+                        {finalClaimOrder > 0 && (
+                            <p className="text-xs text-text-secondary font-bold">Sua Ordem: {finalClaimOrder}</p>
                         )}
                         
                         {/* QR Code para validação do estabelecimento */}

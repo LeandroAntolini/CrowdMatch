@@ -42,7 +42,7 @@ const PlaceDetailsPage: React.FC = () => {
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-    const [claimMessage, setClaimMessage] = useState<ClaimResultState | null>(null);
+    const [claimResult, setClaimResult] = useState<ClaimResultState | null>(null); // Renomeado para evitar confusão
     const [confirmationTicket, setConfirmationTicket] = useState<{ type: 'check-in' | 'going'; timestamp: number; order: number } | null>(null);
     
     const place = id ? getPlaceById(id) : undefined;
@@ -110,10 +110,10 @@ const PlaceDetailsPage: React.FC = () => {
     const handleCheckIn = async () => {
         if (!id || !place.isOpen) return;
         await checkInUser(id);
-        setClaimMessage(null); // Limpa mensagens antigas
+        setClaimResult(null); // Limpa mensagens antigas
         for (const promo of activeCheckinPromotions) {
             const result = await claimPromotion(promo.id);
-            if (result) setClaimMessage(result); // Mostra o resultado da primeira promo encontrada
+            if (result) setClaimResult(result); // Mostra o resultado da primeira promo encontrada
         }
     };
 
@@ -121,10 +121,10 @@ const PlaceDetailsPage: React.FC = () => {
         if (!id) return;
         try {
             await addGoingIntention(id);
-            setClaimMessage(null); // Limpa mensagens antigas
+            setClaimResult(null); // Limpa mensagens antigas
             for (const promo of activeGoingPromotions) {
                 const result = await claimPromotion(promo.id);
-                if (result) setClaimMessage(result); // Mostra o resultado da primeira promo encontrada
+                if (result) setClaimResult(result); // Mostra o resultado da primeira promo encontrada
             }
         } catch (e: any) {
             alert(e.message); // Exibe erro se o limite de 3 for atingido
@@ -209,7 +209,7 @@ const PlaceDetailsPage: React.FC = () => {
                                 key={promo.id} 
                                 promotion={promo} 
                                 claim={getUserClaim(promo.id)}
-                                claimOrder={claimMessage?.claimOrder}
+                                claimOrder={claimResult?.claimOrder}
                             />
                         ))}
                         {activeCheckinPromotions.map(promo => (
@@ -217,15 +217,15 @@ const PlaceDetailsPage: React.FC = () => {
                                 key={promo.id} 
                                 promotion={promo} 
                                 claim={getUserClaim(promo.id)}
-                                claimOrder={claimMessage?.claimOrder}
+                                claimOrder={claimResult?.claimOrder}
                             />
                         ))}
                     </div>
                 )}
 
-                {claimMessage && (
-                    <div className={`p-4 rounded-lg mb-4 ${claimMessage.isWinner ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                        <p className="font-semibold">{claimMessage.message}</p>
+                {claimResult && (
+                    <div className={`p-4 rounded-lg mb-4 ${claimResult.isWinner ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                        <p className="font-semibold">{claimResult.message}</p>
                     </div>
                 )}
 

@@ -116,8 +116,7 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                     <button onClick={handleLikeToggle} className="transition-colors flex items-center">
                         <Beer 
                             size={26} 
-                            fill={post.isLikedByCurrentUser ? '#FBBF24' : 'none'} 
-                            stroke={post.isLikedByCurrentUser ? '#FBBF24' : 'currentColor'} 
+                            fill="none"
                             className={post.isLikedByCurrentUser ? 'text-yellow-400' : 'text-text-primary hover:text-yellow-400'}
                         />
                     </button>

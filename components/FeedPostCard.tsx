@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FeedPost, PostComment } from '../types';
-import { Heart, MessageCircle, Send } from 'lucide-react';
+import { Beer, MessageCircle, Send } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { Link } from 'react-router-dom';
 
@@ -114,11 +114,11 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
             <div className="p-4">
                 <div className="flex items-center space-x-4 mb-3">
                     <button onClick={handleLikeToggle} className="transition-colors flex items-center">
-                        <Heart 
+                        <Beer 
                             size={26} 
-                            fill={post.isLikedByCurrentUser ? '#EC4899' : 'none'} 
-                            stroke={post.isLikedByCurrentUser ? '#EC4899' : 'currentColor'} 
-                            className={post.isLikedByCurrentUser ? 'text-accent' : 'text-text-primary hover:text-accent'}
+                            fill={post.isLikedByCurrentUser ? '#FBBF24' : 'none'} 
+                            stroke={post.isLikedByCurrentUser ? '#FBBF24' : 'currentColor'} 
+                            className={post.isLikedByCurrentUser ? 'text-yellow-400' : 'text-text-primary hover:text-yellow-400'}
                         />
                     </button>
                     {/* MessageCircle is now just a visual indicator */}
@@ -128,7 +128,7 @@ const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
                 </div>
 
                 {post.likes > 0 && (
-                    <p className="font-bold text-text-primary text-sm">{post.likes.toLocaleString('pt-BR')} curtidas</p>
+                    <p className="font-bold text-text-primary text-sm">{post.likes.toLocaleString('pt-BR')} brindes</p>
                 )}
 
                 <p className={`text-text-primary ${post.likes > 0 ? 'mt-2' : ''}`}>

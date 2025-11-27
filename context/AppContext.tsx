@@ -260,7 +260,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const fetchPlaces = useCallback(async (city: string, state: string, query?: string): Promise<Place[]> => {
         if (!city || !state) return [];
-        setIsLoading(true);
         setError(null);
         try {
             const { data, error } = await supabase.functions.invoke('get-places-by-city', {
@@ -275,9 +274,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } catch (e: any) {
             setError("Não foi possível carregar os locais.");
             return [];
-        } finally {
-            setIsLoading(false);
-        }
+        } 
     }, [mergePlaces]);
 
     const searchPlaces = useCallback(async (city: string, state: string, query: string): Promise<Place[]> => {
@@ -406,7 +403,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setCurrentUser(mappedUser);
 
                 if (profileData?.city && profileData?.state) {
-                    await fetchPlaces(profileData.city, profileData.state);
+                    // Chamada sem await para não bloquear o carregamento principal, mas garantindo que os dados sejam buscados
+                    fetchPlaces(profileData.city, profileData.state);
                 }
 
                 const { data: allProfilesData, error: allProfilesError } = await supabase.from('profiles').select('*');

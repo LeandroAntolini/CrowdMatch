@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { Plus, Minus, FileText, Loader2 } from 'lucide-react';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import html2canvas from 'html2canvas';
 
 const TableQRManager: React.FC = () => {
@@ -28,25 +28,27 @@ const TableQRManager: React.FC = () => {
             for (let i = 0; i < elements.length; i++) {
                 const element = elements[i] as HTMLElement;
                 const canvas = await html2canvas(element, {
-                    scale: 2,
+                    scale: 3, // Aumenta a escala para alta resolução no PDF
                     useCORS: true,
                     logging: false,
                     backgroundColor: '#ffffff'
                 });
                 
                 const imgData = canvas.toDataURL('image/png');
-                const imgProps = pdf.getImageProperties(imgData);
                 const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
                 
                 if (i > 0) pdf.addPage();
                 
-                // Centraliza o card no PDF
+                // Centraliza o card verticalmente no PDF
                 const yPos = (pdf.internal.pageSize.getHeight() - pdfHeight) / 2;
                 pdf.addImage(imgData, 'PNG', 0, yPos, pdfWidth, pdfHeight);
             }
             
             pdf.save(`QRCodes_${place.name.replace(/\s+/g, '_')}.pdf`);
+        } catch (error) {
+            console.error("Erro ao gerar PDF:", error);
+            alert("Erro ao gerar o arquivo. Tente novamente.");
         } finally {
             setIsGenerating(false);
         }
@@ -57,7 +59,7 @@ const TableQRManager: React.FC = () => {
             <h1 className="text-2xl font-bold mb-6">QR Codes das Mesas</h1>
             
             <div className="bg-surface p-4 rounded-xl mb-8 space-y-4">
-                <p className="text-sm text-text-secondary">Defina a quantidade de mesas e gere um PDF com todos os QR Codes para impressão posterior.</p>
+                <p className="text-sm text-text-secondary">Defina a quantidade de mesas e gere um PDF com todos os QR Codes para impressão.</p>
                 
                 <div className="space-y-2">
                     <label className="text-xs font-bold text-text-secondary uppercase">Estabelecimento</label>
@@ -93,7 +95,7 @@ const TableQRManager: React.FC = () => {
                     {isGenerating ? (
                         <>
                             <Loader2 className="mr-2 animate-spin" />
-                            Gerando PDF...
+                            Processando...
                         </>
                     ) : (
                         <>
@@ -104,29 +106,31 @@ const TableQRManager: React.FC = () => {
                 </button>
             </div>
 
-            {/* Container Invisível na Interface, mas usado para capturar o PDF */}
-            <div className="space-y-8" ref={qrContainerRef}>
+            <h2 className="text-sm font-bold text-text-secondary uppercase mb-4">Pré-visualização</h2>
+            
+            {/* Grade de Cards menores na interface */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" ref={qrContainerRef}>
                 {Array.from({ length: tableCount }, (_, i) => i + 1).map(num => (
-                    <div key={num} className="bg-white p-12 rounded-none flex flex-col items-center border border-gray-100 w-[210mm] mx-auto overflow-hidden">
-                        <div className="text-black text-center mb-10 w-full">
-                            <h2 className="text-5xl font-black mb-2 tracking-tight">{place?.name}</h2>
-                            <div className="h-1 w-32 bg-accent mx-auto mb-4"></div>
-                            <p className="text-2xl font-bold text-gray-800 uppercase tracking-widest">Cardápio Digital</p>
+                    <div key={num} className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[320px] mx-auto overflow-hidden">
+                        <div className="text-center mb-6 w-full">
+                            <h2 className="text-2xl font-black mb-1 truncate px-2">{place?.name}</h2>
+                            <div className="h-0.5 w-16 bg-accent mx-auto mb-2"></div>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Cardápio Digital</p>
                         </div>
                         
-                        <div className="p-8 bg-white border-[6px] border-black rounded-3xl shadow-sm">
-                            <QRCodeSVG value={`${baseUrl}/${num}`} size={300} level="H" />
+                        <div className="p-4 bg-white border-2 border-black rounded-2xl">
+                            <QRCodeSVG value={`${baseUrl}/${num}`} size={160} level="H" />
                         </div>
 
-                        <div className="mt-12 text-black text-center w-full">
-                            <p className="text-lg font-medium text-gray-600 mb-4">Escaneie com a câmera do seu celular para pedir</p>
-                            <div className="bg-black text-white px-12 py-4 rounded-2xl inline-block font-black text-5xl shadow-xl">
+                        <div className="mt-6 text-center w-full">
+                            <p className="text-[10px] font-medium text-gray-400 mb-2">Escaneie para pedir</p>
+                            <div className="bg-black text-white px-6 py-2 rounded-lg inline-block font-black text-2xl">
                                 MESA {num}
                             </div>
                         </div>
                         
-                        <div className="mt-12 pt-8 border-t border-gray-100 w-full text-center">
-                            <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">Powered by CrowdMatch</p>
+                        <div className="mt-6 pt-4 border-t border-gray-50 w-full text-center">
+                            <p className="text-gray-300 text-[8px] font-bold uppercase tracking-widest">Powered by CrowdMatch</p>
                         </div>
                     </div>
                 ))}

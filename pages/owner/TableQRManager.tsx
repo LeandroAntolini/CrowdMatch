@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { Plus, Minus, FileText, Loader2 } from 'lucide-react';
-import jsPDF from 'jspdf';
+import jsPDF from 'jsPDF';
 import html2canvas from 'html2canvas';
 
 const TableQRManager: React.FC = () => {
@@ -133,9 +133,8 @@ const TableQRManager: React.FC = () => {
                         style={{ backgroundColor: '#ffffff', color: '#000000' }}
                     >
                         <div className="text-center mb-4 w-full px-2">
-                            {/* Nome com cor fixa e sem truncate para garantir captura no PDF */}
                             <h2 
-                                className="text-3xl font-black mb-1 leading-tight break-words"
+                                className="text-xl font-black mb-1 leading-tight break-words"
                                 style={{ color: '#000000', wordBreak: 'break-word' }}
                             >
                                 {place?.name}

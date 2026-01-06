@@ -25,28 +25,36 @@ const TableQRManager: React.FC = () => {
             const pdf = new jsPDF('p', 'mm', 'a4');
             const elements = qrContainerRef.current.children;
             
-            // Definimos um tamanho padrão de 100mm (10cm) para o card no PDF
+            // Tamanho padrão de 100mm (10cm)
             const targetWidth = 100; 
 
             for (let i = 0; i < elements.length; i++) {
                 const element = elements[i] as HTMLElement;
+                
+                // Opções otimizadas para html2canvas
                 const canvas = await html2canvas(element, {
-                    scale: 4, // Alta densidade de pixels para impressão nítida
+                    scale: 3, 
                     useCORS: true,
+                    allowTaint: true,
                     logging: false,
-                    backgroundColor: '#ffffff'
+                    backgroundColor: '#ffffff',
+                    onclone: (clonedDoc) => {
+                        // Força visibilidade e cores no clone usado para a captura
+                        const clonedElement = clonedDoc.querySelector(`[data-qr-card="${i+1}"]`) as HTMLElement;
+                        if (clonedElement) {
+                            clonedElement.style.visibility = 'visible';
+                        }
+                    }
                 });
                 
                 const imgData = canvas.toDataURL('image/png');
                 const pdfPageWidth = pdf.internal.pageSize.getWidth();
                 const pdfPageHeight = pdf.internal.pageSize.getHeight();
                 
-                // Calcula a altura proporcional ao targetWidth (100mm)
                 const targetHeight = (canvas.height * targetWidth) / canvas.width;
                 
                 if (i > 0) pdf.addPage();
                 
-                // Centraliza o card de 10cm na página A4
                 const xPos = (pdfPageWidth - targetWidth) / 2;
                 const yPos = (pdfPageHeight - targetHeight) / 2;
                 
@@ -118,10 +126,21 @@ const TableQRManager: React.FC = () => {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" ref={qrContainerRef}>
                 {Array.from({ length: tableCount }, (_, i) => i + 1).map(num => (
-                    <div key={num} className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[280px] mx-auto overflow-hidden">
+                    <div 
+                        key={num} 
+                        data-qr-card={num}
+                        className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[280px] mx-auto overflow-hidden"
+                        style={{ backgroundColor: '#ffffff', color: '#000000' }}
+                    >
                         <div className="text-center mb-4 w-full px-2">
-                            <h2 className="text-3xl font-black mb-1 truncate leading-tight">{place?.name}</h2>
-                            <div className="h-0.5 w-16 bg-accent mx-auto mb-2"></div>
+                            {/* Nome com cor fixa e sem truncate para garantir captura no PDF */}
+                            <h2 
+                                className="text-3xl font-black mb-1 leading-tight break-words"
+                                style={{ color: '#000000', wordBreak: 'break-word' }}
+                            >
+                                {place?.name}
+                            </h2>
+                            <div className="h-0.5 w-16 mx-auto mb-2" style={{ backgroundColor: '#EC4899' }}></div>
                             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Cardápio Digital</p>
                         </div>
                         
@@ -131,7 +150,7 @@ const TableQRManager: React.FC = () => {
 
                         <div className="mt-4 text-center w-full">
                             <p className="text-[9px] font-medium text-gray-400 mb-2">Escaneie para pedir</p>
-                            <div className="bg-black text-white px-5 py-1.5 rounded-lg inline-block font-black text-xl">
+                            <div className="bg-black text-white px-5 py-1.5 rounded-lg inline-block font-black text-xl" style={{ backgroundColor: '#000000', color: '#ffffff' }}>
                                 MESA {num}
                             </div>
                         </div>

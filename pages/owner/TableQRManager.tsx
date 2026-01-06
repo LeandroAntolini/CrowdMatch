@@ -119,9 +119,9 @@ const TableQRManager: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" ref={qrContainerRef}>
                 {Array.from({ length: tableCount }, (_, i) => i + 1).map(num => (
                     <div key={num} className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[280px] mx-auto overflow-hidden">
-                        <div className="text-center mb-4 w-full">
-                            <h2 className="text-xl font-black mb-1 truncate px-2">{place?.name}</h2>
-                            <div className="h-0.5 w-12 bg-accent mx-auto mb-2"></div>
+                        <div className="text-center mb-4 w-full px-2">
+                            <h2 className="text-3xl font-black mb-1 truncate leading-tight">{place?.name}</h2>
+                            <div className="h-0.5 w-16 bg-accent mx-auto mb-2"></div>
                             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Cardápio Digital</p>
                         </div>
                         

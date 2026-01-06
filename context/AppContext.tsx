@@ -499,7 +499,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Efeitos secundários estáveis
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!session?.user) return;
         
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
         
@@ -572,7 +572,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
         };
-    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds]);
+    }, [session?.user, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');

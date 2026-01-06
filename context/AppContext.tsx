@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, PostLike } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
@@ -52,6 +52,50 @@ const mapPostComment = (c: any): PostComment => ({
     content: c.content,
     createdAt: c.created_at,
     profiles: c.profiles,
+});
+
+const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): User => {
+    return {
+        id: profileData.id,
+        email: sessionUser?.email || '',
+        name: profileData.name,
+        age: profileData.age,
+        bio: profileData.bio,
+        interests: profileData.interests,
+        photos: profileData.photos,
+        gender: profileData.gender,
+        sexualOrientation: profileData.sexual_orientation,
+        match_preferences: profileData.match_preferences, // Mantendo compatibilidade com o banco
+        matchPreferences: profileData.match_preferences,
+        city: profileData.city,
+        state: profileData.state,
+        isAvailableForMatch: profileData.is_available_for_match,
+        role: profileData.role,
+    };
+};
+
+const mapPromotion = (p: any): Promotion => ({
+    id: p.id,
+    placeId: p.place_id,
+    placeName: p.place_name,
+    placePhotoUrl: p.place_photo_url,
+    title: p.title,
+    description: p.description,
+    startDate: p.start_date,
+    endDate: p.end_date,
+    promotionType: p.promotion_type,
+    limitCount: p.limit_count,
+    createdBy: p.created_by,
+    createdAt: p.created_at,
+});
+
+const mapClaim = (c: any): PromotionClaim => ({
+    id: c.id,
+    promotionId: c.promotion_id,
+    userId: c.user_id,
+    claimedAt: c.claimed_at,
+    status: c.status,
+    promotion: c.promotions ? mapPromotion(c.promotions) : undefined,
 });
 
 interface AppContextType {
@@ -126,54 +170,11 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): User => {
-    return {
-        id: profileData.id,
-        email: sessionUser?.email || '',
-        name: profileData.name,
-        age: profileData.age,
-        bio: profileData.bio,
-        interests: profileData.interests,
-        photos: profileData.photos,
-        gender: profileData.gender,
-        sexualOrientation: profileData.sexual_orientation,
-        matchPreferences: profileData.match_preferences,
-        city: profileData.city,
-        state: profileData.state,
-        isAvailableForMatch: profileData.is_available_for_match,
-        role: profileData.role,
-    };
-};
-
-const mapPromotion = (p: any): Promotion => ({
-    id: p.id,
-    placeId: p.place_id,
-    placeName: p.place_name,
-    placePhotoUrl: p.place_photo_url,
-    title: p.title,
-    description: p.description,
-    startDate: p.start_date,
-    endDate: p.end_date,
-    promotionType: p.promotion_type,
-    limitCount: p.limit_count,
-    createdBy: p.created_by,
-    createdAt: p.created_at,
-});
-
-const mapClaim = (c: any): PromotionClaim => ({
-    id: c.id,
-    promotionId: c.promotion_id,
-    userId: c.user_id,
-    claimedAt: c.claimed_at,
-    status: c.status,
-    promotion: c.promotions ? mapPromotion(c.promotions) : undefined,
-});
-
-
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [session, setSession] = useState<Session | null>(null);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [userProfilesCache, setUserProfilesCache] = useState<{ [key: string]: User }>({});
+    const cacheRef = useRef<{ [key: string]: User }>({});
     
     const [hasOnboarded, setHasOnboarded] = useState<boolean>(() => localStorage.getItem('onboarded') === 'true');
     const [places, setPlaces] = useState<Place[]>([]);
@@ -197,10 +198,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
     const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false);
 
-    const getUserById = useCallback((id: string) => userProfilesCache[id], [userProfilesCache]);
+    // Sincroniza o ref com o estado do cache para acesso estável em callbacks
+    useEffect(() => {
+        cacheRef.current = userProfilesCache;
+    }, [userProfilesCache]);
+
+    const getUserById = useCallback((id: string) => cacheRef.current[id], []);
 
     const fetchProfilesByIds = useCallback(async (userIds: string[]) => {
-        const idsToFetch = userIds.filter(id => !userProfilesCache[id]);
+        const idsToFetch = userIds.filter(id => !cacheRef.current[id]);
         if (idsToFetch.length === 0) return;
 
         const { data, error } = await supabase.from('profiles').select('*').in('id', idsToFetch);
@@ -213,7 +219,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             newProfiles[profile.id] = mapProfileToUser(profile, null);
         });
         setUserProfilesCache(prev => ({ ...prev, ...newProfiles }));
-    }, [userProfilesCache]);
+    }, []);
 
     const refreshActiveLivePosts = useCallback(async () => {
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -237,22 +243,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (error) {
             console.error("Error fetching owner promotions with counts:", error);
         } else {
-            const mappedPromos = data.map(p => ({
+            const mappedPromos = data.map((p: any) => ({
                 ...mapPromotion(p),
                 claim_count: p.claim_count || 0,
                 redeemed_count: p.redeemed_count || 0,
             }));
             setOwnerPromotions(mappedPromos);
         }
-    }, []);
-
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setIsAuthResolved(true);
-        });
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
-        return () => subscription.unsubscribe();
     }, []);
 
     const mergePlaces = useCallback((newPlaces: Place[]) => {
@@ -263,7 +260,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
     }, []);
 
-    // REMOVIDO: Manipulação de isLoading dentro de fetchPlaces
     const fetchPlaces = useCallback(async (city: string, state: string, query?: string): Promise<Place[]> => {
         if (!city || !state) return [];
         setError(null);
@@ -283,56 +279,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, [mergePlaces]);
 
-    const searchPlaces = useCallback(async (city: string, state: string, query: string): Promise<Place[]> => {
-        if (!city || !state || !query.trim()) return [];
-        // Mantemos isLoading aqui, pois é uma busca manual do usuário, não parte do carregamento inicial
-        setIsLoading(true); 
-        try {
-            const { data, error } = await supabase.functions.invoke('get-places-by-city', {
-                body: { city, state, query: query.trim() },
-            });
-
-            if (error) throw error;
-            
-            if (Array.isArray(data)) {
-                mergePlaces(data);
-                return data;
-            }
-            
-            throw new Error("A busca retornou um formato de dados inválido.");
-        } catch (e: any) {
-            console.error("Erro ao buscar locais:", e);
-            throw new Error(e.message || "Não foi possível realizar a busca.");
-        } finally {
-            setIsLoading(false);
-        }
-    }, [mergePlaces]);
-
-    const fetchLivePostsForPlace = useCallback(async (placeId: string) => {
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-        const { data, error } = await supabase
-            .from('live_posts')
-            .select('*, profiles(id, name, photos, role)')
-            .eq('place_id', placeId)
-            .gt('created_at', oneHourAgo)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        
-        if (error) {
-            console.error(`Error fetching live posts for ${placeId}:`, error);
-        } else {
-            const mappedData: LivePost[] = (data || []).map((item: any) => ({
-                id: item.id,
-                user_id: item.user_id,
-                place_id: item.place_id,
-                content: item.content,
-                created_at: item.created_at,
-                profiles: item.profiles,
-            }));
-            setLivePostsByPlace(prev => ({ ...prev, [placeId]: mappedData }));
-        }
-    }, []);
-
     const fetchOwnerFeedPosts = useCallback(async (userId: string) => {
         const { data: postsData, error: postsError } = await supabase
             .from('feed_posts')
@@ -341,7 +287,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             .order('created_at', { ascending: false });
         
         if (postsError) throw postsError;
-        
+        if (postsData.length === 0) {
+            setOwnerFeedPosts([]);
+            return;
+        }
+
         const postIds = postsData.map(p => p.id);
 
         const { data: likesData, error: likesError } = await supabase
@@ -391,6 +341,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setOwnerFeedPosts(mappedPosts);
     }, []);
 
+    // Monitoramento da sessão
+    useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setIsAuthResolved(true);
+        });
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+        return () => subscription.unsubscribe();
+    }, []);
+
+    // Carregamento inicial de dados - Depende apenas da sessão
     useEffect(() => {
         if (!session?.user) {
             setCurrentUser(null);
@@ -399,10 +360,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
 
         const fetchInitialData = async () => {
-            // Não definimos isLoading = true aqui, pois AppRoutes já está controlando o spinner
-            // com base em isAuthResolved e isLoading.
-            // Se isAuthResolved é true e isAuthenticated é true, AppRoutes mostra o spinner.
-            
             try {
                 const { data: profileData, error: profileError } = await supabase
                     .from('profiles')
@@ -416,7 +373,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 setCurrentUser(mappedUser);
                 setUserProfilesCache(prev => ({ ...prev, [mappedUser.id]: mappedUser }));
 
-                // Chamada de fetchPlaces sem manipular isLoading
                 const localPlaces = await fetchPlaces(mappedUser.city || '', mappedUser.state || '');
                 const localPlaceIds = localPlaces.map(p => p.id);
 
@@ -469,24 +425,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (allPostsRes.error) throw allPostsRes.error;
                 const allPostsData = allPostsRes.data;
 
-                const postIds = allPostsData.map(p => p.id);
-                const { data: likesData, error: likesError } = await supabase.from('post_likes').select('*').in('post_id', postIds);
-                if (likesError) throw likesError;
-                const { data: commentsData, error: commentsError } = await supabase.from('post_comments').select('*, profiles(name)').in('post_id', postIds).order('created_at', { ascending: true });
-                if (commentsError) throw commentsError;
+                if (allPostsData.length > 0) {
+                    const postIds = allPostsData.map(p => p.id);
+                    const { data: likesData } = await supabase.from('post_likes').select('*').in('post_id', postIds);
+                    const { data: commentsData } = await supabase.from('post_comments').select('*, profiles(name)').in('post_id', postIds).order('created_at', { ascending: true });
 
-                const likesByPostId = likesData.reduce((acc, like) => { (acc[like.post_id] = acc[like.post_id] || []).push(like); return acc; }, {} as { [key: string]: any[] });
-                const commentsByPostId = commentsData.reduce((acc, comment) => { (acc[comment.post_id] = acc[comment.post_id] || []).push(mapPostComment(comment)); return acc; }, {} as { [key: string]: PostComment[] });
+                    const likesByPostId = (likesData || []).reduce((acc, like) => { (acc[like.post_id] = acc[like.post_id] || []).push(like); return acc; }, {} as { [key: string]: any[] });
+                    const commentsByPostId = (commentsData || []).reduce((acc, comment) => { (acc[comment.post_id] = acc[comment.post_id] || []).push(mapPostComment(comment)); return acc; }, {} as { [key: string]: PostComment[] });
 
-                const mappedAllPosts: FeedPost[] = allPostsData.map((p: any) => {
-                    const likes = likesByPostId[p.id] || [];
-                    return {
-                        id: p.id, placeId: p.place_id, placeName: p.place_name, placeLogoUrl: p.place_logo_url || '', type: p.type,
-                        mediaUrl: p.media_url, caption: p.caption, likes: likes.length, comments: commentsByPostId[p.id] || [],
-                        timestamp: new Date(p.created_at).toISOString(), isLikedByCurrentUser: likes.some(l => l.user_id === session.user.id),
-                    };
-                });
-                setAllFeedPosts(mappedAllPosts);
+                    const mappedAllPosts: FeedPost[] = allPostsData.map((p: any) => {
+                        const likes = likesByPostId[p.id] || [];
+                        return {
+                            id: p.id, placeId: p.place_id, placeName: p.place_name, placeLogoUrl: p.place_logo_url || '', type: p.type,
+                            mediaUrl: p.media_url, caption: p.caption, likes: likes.length, comments: commentsByPostId[p.id] || [],
+                            timestamp: new Date(p.created_at).toISOString(), isLikedByCurrentUser: likes.some(l => l.user_id === session.user.id),
+                        };
+                    });
+                    setAllFeedPosts(mappedAllPosts);
+                } else {
+                    setAllFeedPosts([]);
+                }
                 
                 if (matchesRes.error) throw matchesRes.error;
                 const otherUserIds = matchesRes.data.map(m => m.user1_id === session.user.id ? m.user2_id : m.user1_id);
@@ -498,7 +456,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         id: m.id,
                         userIds: [m.user1_id, m.user2_id],
                         createdAt: m.created_at,
-                        otherUser: getUserById(otherUserId),
+                        otherUser: cacheRef.current[otherUserId],
                         lastMessage: 'Novo Match!',
                     };
                 });
@@ -510,15 +468,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     ...ownerIds
                 ]);
                 
-                const cachedPlaceIds = new Set(places.map(p => p.id));
-                const missingPlaceIds = [...requiredPlaceIds].filter(id => !cachedPlaceIds.has(id));
+                const currentPlacesIds = new Set(localPlaces.map(p => p.id));
+                const missingPlaceIds = [...requiredPlaceIds].filter(id => id && !currentPlacesIds.has(id as string));
 
                 if (missingPlaceIds.length > 0) {
-                    const { data: missingPlacesData, error: missingPlacesError } = await supabase.functions.invoke('get-places-by-ids', {
+                    const { data: missingPlacesData } = await supabase.functions.invoke('get-places-by-ids', {
                         body: { placeIds: missingPlaceIds },
                     });
-                    if (missingPlacesError) console.error("Error fetching missing place details:", missingPlacesError);
-                    else if (Array.isArray(missingPlacesData)) mergePlaces(missingPlacesData);
+                    if (Array.isArray(missingPlacesData)) mergePlaces(missingPlacesData);
                 }
 
                 if (mappedUser.role === 'owner') {
@@ -529,15 +486,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 await refreshActiveLivePosts();
 
             } catch (e: any) {
+                console.error("Initial data fetch error:", e);
                 setError(e.message);
             } finally {
-                // Define isLoading como false APENAS no final do carregamento de dados
                 setIsLoading(false);
             }
         };
 
         fetchInitialData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session?.user?.id]); // Apenas re-carrega se o ID do usuário mudar
 
+    // Efeitos secundários estáveis
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
         
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
@@ -570,8 +533,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }).subscribe();
         
         const claimsChannel = supabase.channel('promotion-claims-listener').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'promotion_claims' }, () => {
-            if (session?.user?.role === 'owner' && session.user.id) {
-                refreshOwnerPromotions(session.user.id);
+            if (currentUser?.role === 'owner' && currentUser.id) {
+                refreshOwnerPromotions(currentUser.id);
             }
         }).subscribe();
 
@@ -580,27 +543,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             { event: 'INSERT', schema: 'public', table: 'matches' },
             async (payload) => {
                 const newMatchData = payload.new as any;
-                const currentUserId = session?.user?.id;
+                const currentUserId = currentUser?.id;
 
                 if (currentUserId && (newMatchData.user1_id === currentUserId || newMatchData.user2_id === currentUserId)) {
                     const otherUserId = newMatchData.user1_id === currentUserId ? newMatchData.user2_id : newMatchData.user1_id;
                     
                     await fetchProfilesByIds([otherUserId]);
-                    const otherUser = getUserById(otherUserId);
-
-                    if (otherUser) {
-                        const newMatch: Match = {
-                            id: newMatchData.id,
-                            userIds: [newMatchData.user1_id, newMatchData.user2_id],
-                            createdAt: newMatchData.created_at,
-                            otherUser: otherUser,
-                            lastMessage: 'Novo Match!',
-                        };
-                        
-                        setMatches(prev => [...prev, newMatch]);
-                        setNewlyFormedMatch(newMatch);
-                        setHasNewNotification(true);
-                    }
+                    
+                    const newMatch: Match = {
+                        id: newMatchData.id,
+                        userIds: [newMatchData.user1_id, newMatchData.user2_id],
+                        createdAt: newMatchData.created_at,
+                        otherUser: cacheRef.current[otherUserId],
+                        lastMessage: 'Novo Match!',
+                    };
+                    
+                    setMatches(prev => [...prev, newMatch]);
+                    setNewlyFormedMatch(newMatch);
+                    setHasNewNotification(true);
                 }
             }
         ).subscribe();
@@ -612,7 +572,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
         };
-    }, [session, refreshActiveLivePosts, fetchPlaces, fetchOwnerFeedPosts, mergePlaces, refreshOwnerPromotions, fetchProfilesByIds, getUserById]);
+    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -625,6 +585,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setSession(null);
     };
     
+    const fetchLivePostsForPlace = useCallback(async (placeId: string) => {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+            .from('live_posts')
+            .select('*, profiles(id, name, photos, role)')
+            .eq('place_id', placeId)
+            .gt('created_at', oneHourAgo)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        
+        if (error) {
+            console.error(`Error fetching live posts for ${placeId}:`, error);
+        } else {
+            const mappedData: LivePost[] = (data || []).map((item: any) => ({
+                id: item.id,
+                user_id: item.user_id,
+                place_id: item.place_id,
+                content: item.content,
+                created_at: item.created_at,
+                profiles: item.profiles,
+            }));
+            setLivePostsByPlace(prev => ({ ...prev, [placeId]: mappedData }));
+        }
+    }, []);
+
     const createLivePost = async (placeId: string, content: string) => {
         const { error } = await supabase.functions.invoke('create-live-post', {
             body: { placeId, content },
@@ -648,37 +633,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deleteLivePost = async (postId: string, placeId: string) => {
         const originalPosts = livePostsByPlace[placeId] || [];
         const updatedPosts = originalPosts.filter(p => p.id !== postId);
-        setLivePostsByPlace(prev => ({
-            ...prev,
-            [placeId]: updatedPosts,
-        }));
+        setLivePostsByPlace(prev => ({ ...prev, [placeId]: updatedPosts }));
     
         try {
-            const { error } = await supabase.functions.invoke('delete-live-post', {
-                body: { postId },
-            });
-    
+            const { error } = await supabase.functions.invoke('delete-live-post', { body: { postId } });
             if (error) {
-                setLivePostsByPlace(prev => ({
-                    ...prev,
-                    [placeId]: originalPosts,
-                }));
+                setLivePostsByPlace(prev => ({ ...prev, [placeId]: originalPosts }));
                 const errorData = JSON.parse(error.context?.response?.text || '{}');
                 throw new Error(errorData.error || 'Falha ao apagar o post.');
             }
         } catch (e) {
-            setLivePostsByPlace(prev => ({
-                ...prev,
-                [placeId]: originalPosts,
-            }));
+            setLivePostsByPlace(prev => ({ ...prev, [placeId]: originalPosts }));
             throw e;
         }
     };
 
     const deleteAllLivePosts = async () => {
-        const { error } = await supabase.functions.invoke('delete-all-live-posts', {
-            method: 'POST',
-        });
+        const { error } = await supabase.functions.invoke('delete-all-live-posts', { method: 'POST' });
         if (error) {
             const errorData = JSON.parse(error.context?.response?.text || '{}');
             throw new Error(errorData.error || 'Falha ao excluir todos os posts ao vivo.');
@@ -688,59 +659,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     
     const deleteAllOwnerFeedPosts = async () => {
-        if (!currentUser || currentUser.role !== 'owner') {
-            throw new Error("Apenas lojistas podem excluir posts do feed.");
-        }
-        const { error: deleteError } = await supabase
-            .from('feed_posts')
-            .delete()
-            .eq('user_id', currentUser.id);
-
-        if (deleteError) {
-            console.error('Error deleting owner feed posts:', deleteError);
-            throw new Error(`Falha ao excluir posts: ${deleteError.message}`);
-        }
+        if (!currentUser || currentUser.role !== 'owner') throw new Error("Apenas lojistas podem excluir posts.");
+        const { error: deleteError } = await supabase.from('feed_posts').delete().eq('user_id', currentUser.id);
+        if (deleteError) throw new Error(`Falha ao excluir posts: ${deleteError.message}`);
         setOwnerFeedPosts([]);
-        setAllFeedPosts(prev => prev.filter(p => p.placeId !== currentUser.id));
     };
 
     const claimPromotion = useCallback(async (promotionId: string): Promise<ClaimResult | undefined> => {
         if (!currentUser) return;
         try {
-            const { data, error } = await supabase.functions.invoke('claim-promotion', {
-                method: 'POST',
-                body: { promotionId },
-            });
-
+            const { data, error } = await supabase.functions.invoke('claim-promotion', { method: 'POST', body: { promotionId } });
             if (error) {
                 const errorData = JSON.parse(error.context?.response?.text || '{}');
                 throw new Error(errorData.error || 'Falha ao reivindicar a promoção.');
             }
-            
             if (data.claimed && !promotionClaims.some(c => c.promotionId === promotionId)) {
-                const { data: newClaimData, error: fetchError } = await supabase
-                    .from('promotion_claims')
-                    .select('*, promotions(*)')
-                    .eq('promotion_id', promotionId)
-                    .eq('user_id', currentUser.id)
-                    .single();
-
-                if (!fetchError && newClaimData) {
-                    setPromotionClaims(prev => [...prev, mapClaim(newClaimData)]);
-                }
+                const { data: newClaimData } = await supabase.from('promotion_claims').select('*, promotions(*)').eq('promotion_id', promotionId).eq('user_id', currentUser.id).single();
+                if (newClaimData) setPromotionClaims(prev => [...prev, mapClaim(newClaimData)]);
             }
-
-            if (currentUser.role === 'owner') {
-                refreshOwnerPromotions(currentUser.id);
-            }
-
-            return {
-                success: data.success, message: data.message, isWinner: data.isWinner,
-                claimOrder: data.claimOrder, claimId: data.claimId,
-            };
-
+            if (currentUser.role === 'owner') refreshOwnerPromotions(currentUser.id);
+            return { success: data.success, message: data.message, isWinner: data.isWinner, claimOrder: data.claimOrder, claimId: data.claimId };
         } catch (e: any) {
-            console.error("Error claiming promotion:", e);
             return { success: false, message: e.message, isWinner: false };
         }
     }, [currentUser, promotionClaims, refreshOwnerPromotions]);
@@ -766,60 +705,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     const getUserOrderForPlace = useCallback((placeId: string, type: 'check-in' | 'going'): number => {
         if (!currentUser) return 0;
-
         const records = type === 'check-in' ? checkIns : goingIntentions;
-        
         const userRecord = records.find(r => r.userId === currentUser.id && r.placeId === placeId);
-        
         if (!userRecord) return 0;
-
-        const order = records.filter(r => 
-            r.placeId === placeId && 
-            r.createdAt <= userRecord.createdAt
-        ).length;
-
-        return order;
+        return records.filter(r => r.placeId === placeId && r.createdAt <= userRecord.createdAt).length;
     }, [currentUser, checkIns, goingIntentions]);
 
 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
+        setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: currentUser.id, placeId, timestamp: Date.now(), createdAt: new Date().toISOString() }]);
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         const { data, error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
-        if (!error && data) {
+        if (error) {
+            // Reverter em caso de erro
+            const { data: currentData } = await supabase.from('check_ins').select('*').in('place_id', places.map(p => p.id));
+            if (currentData) setCheckIns(currentData.map(c => ({ userId: c.user_id, placeId: c.place_id, timestamp: new Date(c.created_at).getTime(), createdAt: c.created_at })));
+            throw error;
+        }
+        if (data) {
             setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
         }
     };
 
     const checkOutUser = async () => {
         if (!currentUser) return;
-        await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
+        await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
     };
 
     const addGoingIntention = async (placeId: string) => {
         if (!currentUser) return;
         const currentIntentions = goingIntentions.filter(gi => gi.userId === currentUser.id);
-        if (currentIntentions.length >= 3) {
-            throw new Error("Você já pode marcar 'Eu Vou' em no máximo 3 locais.");
-        }
+        if (currentIntentions.length >= 3) throw new Error("Máximo de 3 locais.");
         if (currentIntentions.some(gi => gi.placeId === placeId)) return;
+        
+        setGoingIntentions(prev => [...prev, { userId: currentUser.id, placeId, timestamp: Date.now(), createdAt: new Date().toISOString() }]);
+        
         const { data, error } = await supabase.from('going_intentions').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
         if (error) {
-            console.error("Error adding going intention:", error);
-            throw new Error(`Falha ao adicionar intenção: ${error.message}`);
+            setGoingIntentions(prev => prev.filter(gi => !(gi.userId === currentUser.id && gi.placeId === placeId)));
+            throw error;
         }
         if (data) {
-            setGoingIntentions(prev => [...prev, { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
+            setGoingIntentions(prev => [...prev.filter(gi => !(gi.userId === currentUser.id && gi.placeId === placeId)), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
         }
     };
 
     const removeGoingIntention = async (placeId: string) => {
         if (!currentUser) return;
-        const { error } = await supabase.from('going_intentions').delete().eq('user_id', currentUser.id).eq('place_id', placeId);
-        if (!error) {
-            setGoingIntentions(prev => prev.filter(gi => !(gi.userId === currentUser.id && gi.placeId === placeId)));
-        }
+        setGoingIntentions(prev => prev.filter(gi => !(gi.userId === currentUser.id && gi.placeId === placeId)));
+        await supabase.from('going_intentions').delete().eq('user_id', currentUser.id).eq('place_id', placeId);
     };
 
     const sendMessage = async (matchId: string, content: string) => {
@@ -843,25 +779,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (updatedUser.isAvailableForMatch !== undefined) dbPayload.is_available_for_match = updatedUser.isAvailableForMatch;
 
         const { data, error } = await supabase.from('profiles').update(dbPayload).eq('id', currentUser.id).select().single();
-        if (error) {
-            console.error("Error updating profile:", error);
-            throw new Error(`Falha ao atualizar o perfil: ${error.message}`);
-        }
+        if (error) throw new Error(`Falha ao atualizar o perfil: ${error.message}`);
         if (data) setCurrentUser(mapProfileToUser(data, session.user));
     };
 
     const updateCurrentUserState = (updatedFields: Partial<User>) => {
-        if (currentUser) {
-            setCurrentUser(prevUser => prevUser ? { ...prevUser, ...updatedFields } : null);
-        }
+        if (currentUser) setCurrentUser(prevUser => prevUser ? { ...prevUser, ...updatedFields } : null);
     };
 
     const addFavorite = async (placeId: string) => {
         if (!currentUser || isFavorite(placeId)) return;
         const { data, error } = await supabase.from('favorites').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
-        if (!error && data) {
-            setFavorites(prev => [...prev, { id: data.id, userId: data.user_id, placeId: data.place_id }]);
-        }
+        if (!error && data) setFavorites(prev => [...prev, { id: data.id, userId: data.user_id, placeId: data.place_id }]);
     };
 
     const removeFavorite = async (placeId: string) => {
@@ -869,25 +798,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const favorite = favorites.find(f => f.placeId === placeId);
         if (!favorite) return;
         const { error } = await supabase.from('favorites').delete().eq('id', favorite.id);
-        if (!error) {
-            setFavorites(prev => prev.filter(f => f.placeId !== placeId));
-        }
+        if (!error) setFavorites(prev => prev.filter(f => f.placeId !== placeId));
     };
 
     const createOwnerFeedPost = async (payload: CreatePostPayload) => {
-        if (!currentUser || currentUser.role !== 'owner') {
-            throw new Error("Apenas lojistas podem criar postagens.");
-        }
+        if (!currentUser || currentUser.role !== 'owner') throw new Error("Apenas lojistas podem postar.");
         const placeDetails = getPlaceById(payload.placeId);
-        const placeLogoUrl = placeDetails?.photoUrl || null;
         const { error } = await supabase.from('feed_posts').insert({
             user_id: currentUser.id, place_id: payload.placeId, place_name: placeDetails?.name || payload.placeId,
-            place_logo_url: placeLogoUrl, type: payload.type, media_url: payload.mediaUrl, caption: payload.caption,
-        }).select();
-        if (error) {
-            console.error("Error inserting feed post:", error);
-            throw new Error(`Falha ao inserir post no feed. Detalhes: ${error.message}. Verifique se o local está associado corretamente.`);
-        }
+            place_logo_url: placeDetails?.photoUrl || null, type: payload.type, media_url: payload.mediaUrl, caption: payload.caption,
+        });
+        if (error) throw error;
         await fetchOwnerFeedPosts(currentUser.id);
     };
 
@@ -930,20 +851,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (payload.description !== undefined) dbPayload.description = payload.description;
         if (payload.limitCount !== undefined) dbPayload.limit_count = payload.limitCount;
         if (payload.endDate !== undefined) dbPayload.end_date = new Date(payload.endDate).toISOString();
-
-        const { data, error } = await supabase.from('promotions').update(dbPayload).eq('id', promotionId).eq('created_by', currentUser.id).select().single();
+        const { error } = await supabase.from('promotions').update(dbPayload).eq('id', promotionId).eq('created_by', currentUser.id);
         if (error) throw error;
-        if (data) {
-            await refreshOwnerPromotions(currentUser.id);
-        }
+        await refreshOwnerPromotions(currentUser.id);
     };
 
     const deletePromotion = async (promotionId: string) => {
         if (!currentUser) throw new Error("Usuário não autenticado.");
-        const { error: claimsError } = await supabase.from('promotion_claims').delete().eq('promotion_id', promotionId);
-        if (claimsError) throw new Error(`Falha ao remover reivindicações: ${claimsError.message}`);
+        await supabase.from('promotion_claims').delete().eq('promotion_id', promotionId);
         const { error } = await supabase.from('promotions').delete().eq('id', promotionId).eq('created_by', currentUser.id);
-        if (error) throw new Error(`Falha ao excluir promoção: ${error.message}`);
+        if (error) throw error;
         setOwnerPromotions(prev => prev.filter(p => p.id !== promotionId));
     };
     
@@ -951,75 +868,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!currentUser) return;
         const { error } = await supabase.from('post_likes').insert({ user_id: currentUser.id, post_id: postId });
         if (error) throw error;
-        setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, isLikedByCurrentUser: true } : p));
-        setOwnerFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, isLikedByCurrentUser: true } : p));
+        const updater = (p: FeedPost) => p.id === postId ? { ...p, likes: p.likes + 1, isLikedByCurrentUser: true } : p;
+        setAllFeedPosts(prev => prev.map(updater));
+        setOwnerFeedPosts(prev => prev.map(updater));
     };
 
     const unlikePost = async (postId: string) => {
         if (!currentUser) return;
         const { error } = await supabase.from('post_likes').delete().eq('user_id', currentUser.id).eq('post_id', postId);
         if (error) throw error;
-        setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes - 1, isLikedByCurrentUser: false } : p));
-        setOwnerFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes - 1, isLikedByCurrentUser: false } : p));
+        const updater = (p: FeedPost) => p.id === postId ? { ...p, likes: p.likes - 1, isLikedByCurrentUser: false } : p;
+        setAllFeedPosts(prev => prev.map(updater));
+        setOwnerFeedPosts(prev => prev.map(updater));
     };
 
     const addCommentToPost = async (postId: string, content: string) => {
         if (!currentUser) return;
         const { data, error } = await supabase.from('post_comments').insert({ user_id: currentUser.id, post_id: postId, content }).select().single();
         if (error) throw error;
-        const newComment: PostComment = {
-            id: data.id, userId: currentUser.id, postId: postId, content: data.content, createdAt: data.created_at,
-            profiles: { name: currentUser.name },
-        };
-        setAllFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p));
-        setOwnerFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p));
+        const newComment: PostComment = { id: data.id, userId: currentUser.id, postId, content: data.content, createdAt: data.created_at, profiles: { name: currentUser.name } };
+        const updater = (p: FeedPost) => p.id === postId ? { ...p, comments: [...p.comments, newComment] } : p;
+        setAllFeedPosts(prev => prev.map(updater));
+        setOwnerFeedPosts(prev => prev.map(updater));
     };
 
     const fetchUsersForPlace = async (placeId: string) => {
-        const { data: checkInsData, error: checkInsError } = await supabase
-            .from('check_ins')
-            .select('user_id')
-            .eq('place_id', placeId);
-        if (checkInsError) throw checkInsError;
-
-        const { data: goingData, error: goingError } = await supabase
-            .from('going_intentions')
-            .select('user_id')
-            .eq('place_id', placeId);
-        if (goingError) throw goingError;
-
-        const userIds = new Set([
-            ...checkInsData.map(c => c.user_id),
-            ...goingData.map(g => g.user_id)
-        ]);
-        
+        const { data: checkInsData } = await supabase.from('check_ins').select('user_id').eq('place_id', placeId);
+        const { data: goingData } = await supabase.from('going_intentions').select('user_id').eq('place_id', placeId);
+        const userIds = new Set([...(checkInsData || []).map(c => c.user_id), ...(goingData || []).map(g => g.user_id)]);
         await fetchProfilesByIds(Array.from(userIds));
     };
 
     const fetchPotentialMatches = useCallback(async (placeId: string) => {
         if (!session?.user) return;
         try {
-            const { data, error } = await supabase.functions.invoke('get-potential-matches', {
-                body: { placeId },
-            });
-
-            if (error) {
-                throw new Error(error.message);
-            }
-
+            const { data, error } = await supabase.functions.invoke('get-potential-matches', { body: { placeId } });
+            if (error) throw error;
             if (Array.isArray(data)) {
-                const mappedUsers: User[] = data.map(profile => mapProfileToUser(profile, null));
+                const mappedUsers = data.map(profile => mapProfileToUser(profile, null));
                 setPotentialMatches(mappedUsers);
-                
                 const newProfiles: { [key: string]: User } = {};
-                mappedUsers.forEach(user => {
-                    newProfiles[user.id] = user;
-                });
+                mappedUsers.forEach(user => { newProfiles[user.id] = user; });
                 setUserProfilesCache(prev => ({ ...prev, ...newProfiles }));
             }
         } catch (e: any) {
-            console.error("Error fetching potential matches:", e);
-            setError("Não foi possível carregar os perfis para match.");
+            console.error("Potential matches fetch error:", e);
         }
     }, [session]);
 
@@ -1042,8 +935,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 export const useAppContext = () => {
     const context = useContext(AppContext);
-    if (context === undefined) {
-        throw new Error('useAppContext must be used within an AppProvider');
-    }
+    if (context === undefined) throw new Error('useAppContext must be used within an AppProvider');
     return context;
 };

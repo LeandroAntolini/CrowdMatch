@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { MenuItem } from '../types';
-import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode, AlertCircle } from 'lucide-react';
+import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode, AlertCircle, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '@/integrations/supabase/client';
 import QuickSignUpForm from '../components/QuickSignUpForm';
@@ -154,10 +154,10 @@ const MenuPage: React.FC = () => {
                     <button onClick={() => navigate(-1)} className="mr-4 text-text-secondary">
                         <ChevronLeft size={28} />
                     </button>
-                    <div>
+                    <div className="flex-grow">
                         <h1 className="text-xl font-bold truncate">{place?.name}</h1>
-                        <p className="text-xs text-accent">
-                            {tableNumber ? `Mesa ${tableNumber} • ${isPlaceOpen ? 'Comanda Aberta' : 'Apenas Visualização'}` : 'Visualizando Cardápio'}
+                        <p className="text-xs text-accent font-semibold uppercase tracking-wider">
+                            {tableNumber ? `Mesa ${tableNumber}` : 'Visualizando Cardápio'}
                         </p>
                     </div>
                 </div>
@@ -171,6 +171,27 @@ const MenuPage: React.FC = () => {
             )}
 
             <div className="flex-grow overflow-y-auto p-4 space-y-8 pb-32">
+                {/* Indicador Proeminente de Mesa e Check-in */}
+                {tableNumber && (
+                    <div className={`p-4 rounded-xl border flex items-center justify-between ${isCheckedIn ? 'bg-green-500/10 border-green-500/30' : 'bg-surface border-gray-700'}`}>
+                        <div>
+                            <div className="flex items-center text-sm font-bold text-text-primary mb-1">
+                                <QrCode size={16} className="mr-2 text-accent" />
+                                VOCÊ ESTÁ NA MESA {tableNumber}
+                            </div>
+                            <p className="text-xs text-text-secondary">
+                                {isCheckedIn ? 'Check-in automático realizado!' : 'Acesse o local para pedir.'}
+                            </p>
+                        </div>
+                        {isCheckedIn && (
+                            <div className="flex flex-col items-center text-green-400">
+                                <CheckCircle size={24} />
+                                <span className="text-[10px] font-bold mt-1 uppercase">Ativo</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {categories.map(category => (
                     <section key={category}>
                         <h2 className="text-lg font-bold text-primary mb-4 border-l-4 border-primary pl-3">

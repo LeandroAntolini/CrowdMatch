@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
-import { MenuItem, OrderItem } from '../types';
-import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode } from 'lucide-react';
+import { MenuItem } from '../types';
+import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode, AlertCircle } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '@/integrations/supabase/client';
 import QuickSignUpForm from '../components/QuickSignUpForm';
@@ -26,6 +26,7 @@ const MenuPage: React.FC = () => {
 
     const place = placeId ? getPlaceById(placeId) : null;
     const isCheckedIn = getCurrentCheckIn()?.placeId === placeId;
+    const isPlaceOpen = place?.isOpen ?? true;
 
     useEffect(() => {
         if (!placeId) return;
@@ -43,24 +44,31 @@ const MenuPage: React.FC = () => {
 
         fetchMenu();
 
-        // Se o usuário chegar via QR Code e estiver logado, faz check-in automático
-        if (isAuthenticated && tableNumber && !isCheckedIn) {
+        // Check-in automático: Apenas se autenticado, houver número de mesa, 
+        // ainda não estiver com check-in e o estabelecimento estiver ABERTO.
+        if (isAuthenticated && tableNumber && !isCheckedIn && isPlaceOpen) {
             checkInUser(placeId);
         }
-    }, [placeId, tableNumber, isAuthenticated, isCheckedIn, checkInUser]);
+    }, [placeId, tableNumber, isAuthenticated, isCheckedIn, checkInUser, isPlaceOpen]);
 
     const categories = useMemo(() => {
         const cats = new Set(menuItems.map(item => item.category));
         return Array.from(cats);
     }, [menuItems]);
 
-    const addToCart = (id: string) => setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
-    const removeFromCart = (id: string) => setCart(prev => {
-        const newCart = { ...prev };
-        if (newCart[id] > 1) newCart[id]--;
-        else delete newCart[id];
-        return newCart;
-    });
+    const addToCart = (id: string) => {
+        if (!isPlaceOpen) return;
+        setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+    };
+
+    const removeFromCart = (id: string) => {
+        setCart(prev => {
+            const newCart = { ...prev };
+            if (newCart[id] > 1) newCart[id]--;
+            else delete newCart[id];
+            return newCart;
+        });
+    };
 
     const cartTotal = useMemo(() => {
         return Object.entries(cart).reduce((total, [id, qty]) => {
@@ -70,11 +78,10 @@ const MenuPage: React.FC = () => {
     }, [cart, menuItems]);
 
     const handlePlaceOrder = async () => {
-        if (!isAuthenticated || !tableNumber || !placeId) return;
+        if (!isAuthenticated || !tableNumber || !placeId || !isPlaceOpen) return;
         setOrdering(true);
 
         try {
-            // 1. Criar o pedido
             const { data: order, error: orderError } = await supabase
                 .from('orders')
                 .insert({
@@ -89,7 +96,6 @@ const MenuPage: React.FC = () => {
 
             if (orderError) throw orderError;
 
-            // 2. Criar os itens do pedido
             const orderItems = Object.entries(cart).map(([id, qty]) => {
                 const item = menuItems.find(i => i.id === id);
                 return {
@@ -118,7 +124,7 @@ const MenuPage: React.FC = () => {
         return (
             <div className="p-6 flex flex-col items-center justify-center min-h-full">
                 <QrCode size={64} className="text-accent mb-4" />
-                <QuickSignUpForm onSuccess={() => checkInUser(placeId!)} />
+                <QuickSignUpForm onSuccess={() => isPlaceOpen && checkInUser(placeId!)} />
             </div>
         );
     }
@@ -151,11 +157,18 @@ const MenuPage: React.FC = () => {
                     <div>
                         <h1 className="text-xl font-bold truncate">{place?.name}</h1>
                         <p className="text-xs text-accent">
-                            {tableNumber ? `Mesa ${tableNumber} • Comanda Aberta` : 'Visualizando Cardápio'}
+                            {tableNumber ? `Mesa ${tableNumber} • ${isPlaceOpen ? 'Comanda Aberta' : 'Apenas Visualização'}` : 'Visualizando Cardápio'}
                         </p>
                     </div>
                 </div>
             </header>
+
+            {!isPlaceOpen && (
+                <div className="bg-red-500/20 text-red-400 p-3 flex items-center justify-center text-sm font-semibold border-b border-red-500/30">
+                    <AlertCircle size={18} className="mr-2" />
+                    Estabelecimento fechado no momento. Pedidos desabilitados.
+                </div>
+            )}
 
             <div className="flex-grow overflow-y-auto p-4 space-y-8 pb-32">
                 {categories.map(category => (
@@ -173,7 +186,7 @@ const MenuPage: React.FC = () => {
                                         <div className="flex items-center justify-between">
                                             <span className="font-bold text-accent">R$ {item.price.toFixed(2)}</span>
                                             
-                                            {tableNumber ? (
+                                            {tableNumber && isPlaceOpen ? (
                                                 <div className="flex items-center bg-gray-800 rounded-full px-2">
                                                     {cart[item.id] ? (
                                                         <>
@@ -197,7 +210,7 @@ const MenuPage: React.FC = () => {
                 ))}
             </div>
 
-            {cartTotal > 0 && tableNumber && (
+            {cartTotal > 0 && tableNumber && isPlaceOpen && (
                 <div className="fixed bottom-20 left-4 right-4 bg-accent p-4 rounded-xl shadow-2xl animate-fade-in-up">
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center">

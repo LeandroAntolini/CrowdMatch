@@ -11,6 +11,9 @@ import CreateMediaPostPage from '../pages/owner/CreateMediaPostPage';
 import CreateLiveRepostPage from '../pages/owner/CreateLiveRepostPage';
 import VerifyQrPage from '../pages/owner/VerifyQrPage';
 import OwnerLivePage from '../pages/owner/OwnerLivePage'; 
+import MenuManagementPage from '../pages/owner/MenuManagementPage';
+import OrderBoardPage from '../pages/owner/OrderBoardPage';
+import TableQRManager from '../pages/owner/TableQRManager';
 import OwnerHeader from '../components/owner/OwnerHeader';
 import OwnerBottomNav from '../components/owner/OwnerBottomNav';
 
@@ -21,6 +24,9 @@ const OwnerLayout: React.FC = () => {
             <div className="flex-1 overflow-y-auto no-scrollbar">
                 <Routes>
                     <Route path="/dashboard" element={<OwnerDashboardPage />} />
+                    <Route path="/owner/orders" element={<OrderBoardPage />} />
+                    <Route path="/owner/menu" element={<MenuManagementPage />} />
+                    <Route path="/owner/qrs" element={<TableQRManager />} />
                     <Route path="/owner/feeds" element={<OwnerFeedsPage />} />
                     <Route path="/owner/create-post" element={<CreateFeedPostPage />} />
                     <Route path="/owner/create-media-post" element={<CreateMediaPostPage />} />

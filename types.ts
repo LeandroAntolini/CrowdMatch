@@ -15,12 +15,14 @@ export interface User {
   photos: string[];
   isAvailableForMatch: boolean;
   email: string;
+  phone?: string;
   gender: string;
   sexualOrientation: string;
   matchPreferences: MatchPreferences;
   city?: string;
   state?: string;
   role?: string;
+  isSimplified?: boolean;
 }
 
 export interface Place {
@@ -42,22 +44,22 @@ export interface CheckIn {
   userId: string;
   placeId: string;
   timestamp: number;
-  createdAt: string; // Adicionado para ordenação precisa
+  createdAt: string;
 }
 
 export interface GoingIntention {
   userId: string;
   placeId: string;
   timestamp: number;
-  createdAt: string; // Adicionado para ordenação precisa
+  createdAt: string;
 }
 
 export interface Match {
   id: string;
   userIds: string[];
   createdAt: string;
-  otherUser?: User; // Adicionado para conveniência da UI
-  lastMessage?: string; // Temporariamente mantido para UI
+  otherUser?: User;
+  lastMessage?: string;
 }
 
 export interface Message {
@@ -91,7 +93,7 @@ export interface PromotionClaim {
   userId: string;
   claimedAt: string;
   status: 'claimed' | 'redeemed' | 'expired';
-  promotion?: Promotion; // Para conveniência
+  promotion?: Promotion;
 }
 
 export interface PostLike {
@@ -112,8 +114,6 @@ export interface PostComment {
   };
 }
 
-// Tipos para o Feed
-// LivePostInFeed is now defined in AppContext as LivePost
 export interface FeedPost {
   id: string;
   placeId: string;
@@ -122,8 +122,46 @@ export interface FeedPost {
   type: 'image' | 'video' | 'live-highlight';
   mediaUrl: string;
   caption: string;
-  likes: number; // Agora é a contagem total
-  comments: PostComment[]; // Agora é um array de PostComment
+  likes: number;
+  comments: PostComment[];
   timestamp: string;
-  isLikedByCurrentUser?: boolean; // Novo campo para estado da UI
+  isLikedByCurrentUser?: boolean;
+}
+
+// Novos Tipos: Cardápio e Pedidos
+export interface MenuItem {
+  id: string;
+  place_id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  image_url: string;
+  is_available: boolean;
+}
+
+export type OrderStatus = 'pending' | 'preparing' | 'delivered' | 'paid' | 'cancelled';
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  menu_item_id: string;
+  quantity: number;
+  unit_price: number;
+  menu_item?: MenuItem;
+}
+
+export interface Order {
+  id: string;
+  place_id: string;
+  user_id: string;
+  table_number: number;
+  status: OrderStatus;
+  total_price: number;
+  created_at: string;
+  order_items?: OrderItem[];
+  profiles?: {
+    name: string;
+    phone: string;
+  };
 }

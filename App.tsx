@@ -6,6 +6,7 @@ import AuthPage from './pages/AuthPage';
 import UserLayout from './layouts/UserLayout';
 import OwnerLayout from './layouts/OwnerLayout';
 import LoadingSpinner from './components/LoadingSpinner';
+import MenuPage from './pages/MenuPage';
 
 const App: React.FC = () => {
     useEffect(() => {
@@ -24,7 +25,6 @@ const App: React.FC = () => {
 const AppRoutes: React.FC = () => {
     const { isAuthenticated, hasOnboarded, currentUser, isLoading, isAuthResolved } = useAppContext();
 
-    // Exibe o spinner de carregamento inicial até que a autenticação seja resolvida
     if (!isAuthResolved) {
         return (
             <div className="h-screen w-screen bg-background flex items-center justify-center">
@@ -33,7 +33,6 @@ const AppRoutes: React.FC = () => {
         );
     }
 
-    // Se a autenticação foi resolvida, mas o carregamento de dados do perfil ainda está em andamento
     if (isAuthenticated && isLoading) {
         return (
             <div className="h-screen w-screen bg-background flex items-center justify-center">
@@ -46,6 +45,10 @@ const AppRoutes: React.FC = () => {
         <div className="h-screen w-screen bg-background text-text-primary font-sans overflow-hidden">
             <main className="h-full w-full">
                 <Routes>
+                    {/* Rota pública de cardápio (acessível via QR mesmo deslogado) */}
+                    <Route path="/menu/:placeId" element={<MenuPage />} />
+                    <Route path="/menu/:placeId/:tableNumber" element={<MenuPage />} />
+
                     {!hasOnboarded ? (
                         <>
                             <Route path="/" element={<OnboardingPage />} />

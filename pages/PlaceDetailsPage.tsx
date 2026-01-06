@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, XCircle, Heart, Radio, Clock, Ticket } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, XCircle, Heart, Radio, Clock, Ticket, Utensils } from 'lucide-react';
 import MapModal from '../components/MapModal';
 import LivePostForm from '../components/LivePostForm';
 import LiveFeedBox from '../components/LiveFeedBox';
@@ -39,25 +39,21 @@ const PlaceDetailsPage: React.FC = () => {
         promotionClaims,
         claimPromotion,
         currentUser,
-        getUserOrderForPlace // Importando a nova função
+        getUserOrderForPlace
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
-    const [claimResult, setClaimResult] = useState<ClaimResultState | null>(null); // Renomeado para evitar confusão
+    const [claimResult, setClaimResult] = useState<ClaimResultState | null>(null);
     const [confirmationTicket, setConfirmationTicket] = useState<{ type: 'check-in' | 'going'; timestamp: number; order: number } | null>(null);
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
 
-    // --- Lógica Atualizada ---
     const isCheckedInHere = currentCheckIn?.placeId === id;
     const isGoingHere = id ? isUserGoingToPlace(id) : false;
-    
-    // Apenas o check-in é exclusivo. Verificamos se o usuário está em check-in em outro lugar.
     const isCheckedInElsewhere = currentCheckIn && !isCheckedInHere;
     const busyPlaceId = currentCheckIn?.placeId;
     const busyPlace = busyPlaceId ? getPlaceById(busyPlaceId) : null;
-    
     const isCurrentlyFavorite = id ? isFavorite(id) : false;
 
     const activeGoingPromotions = id ? getActivePromotionsForPlace(id, 'FIRST_N_GOING') : [];
@@ -114,7 +110,7 @@ const PlaceDetailsPage: React.FC = () => {
     const handleCheckIn = async () => {
         if (!id || !place.isOpen) return;
         await checkInUser(id);
-        setClaimResult(null); // Limpa mensagens antigas
+        setClaimResult(null);
         
         let lastClaimResult: ClaimResultState | null = null;
         for (const promo of activeCheckinPromotions) {
@@ -128,7 +124,7 @@ const PlaceDetailsPage: React.FC = () => {
         if (!id) return;
         try {
             await addGoingIntention(id);
-            setClaimResult(null); // Limpa mensagens antigas
+            setClaimResult(null);
             
             let lastClaimResult: ClaimResultState | null = null;
             for (const promo of activeGoingPromotions) {
@@ -138,7 +134,7 @@ const PlaceDetailsPage: React.FC = () => {
             if (lastClaimResult) setClaimResult(lastClaimResult);
 
         } catch (e: any) {
-            alert(e.message); // Exibe erro se o limite de 3 for atingido
+            alert(e.message);
         }
     };
 
@@ -149,13 +145,12 @@ const PlaceDetailsPage: React.FC = () => {
 
     const handleRemoveGoing = () => {
         if (!id) return;
-        removeGoingIntention(id); // Passa o placeId
+        removeGoingIntention(id);
         setConfirmationTicket(null);
     };
 
     const livePostCount = getLivePostCount(place.id);
     
-    // O QR Code deve usar o created_at do banco de dados para garantir unicidade e precisão
     const userRecord = isCheckedInHere 
         ? checkIns.find(ci => ci.userId === currentUser?.id && ci.placeId === id)
         : goingIntentions.find(gi => gi.userId === currentUser?.id && gi.placeId === id);
@@ -164,9 +159,8 @@ const PlaceDetailsPage: React.FC = () => {
         ? `${currentUser.id}|${place.id}|${userRecord.createdAt}|${confirmationTicket.type}`
         : 'invalid';
 
-    // UI Logic for buttons
     const checkInDisabled = !place.isOpen || isCheckedInHere || isCheckedInElsewhere;
-    const goingDisabled = isGoingHere || isCheckedInHere; // Não pode marcar 'Eu Vou' se já estiver em check-in aqui.
+    const goingDisabled = isGoingHere || isCheckedInHere;
 
     return (
         <div className="relative">
@@ -205,8 +199,19 @@ const PlaceDetailsPage: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className={`px-2 py-0.5 text-xs font-semibold rounded-full inline-block mb-4 ${place.isOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {place.isOpen ? "Aberto Agora" : "Fechado"}
+                <div className="flex items-center space-x-3 mb-4">
+                    <div className={`px-2 py-0.5 text-xs font-semibold rounded-full inline-block ${place.isOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {place.isOpen ? "Aberto Agora" : "Fechado"}
+                    </div>
+                    
+                    {/* Botão para o Cardápio */}
+                    <Link 
+                        to={`/menu/${place.id}`} 
+                        className="bg-accent/20 text-accent text-xs font-bold px-3 py-1 rounded-full flex items-center"
+                    >
+                        <Utensils size={14} className="mr-1" />
+                        Ver Cardápio
+                    </Link>
                 </div>
 
                 <button onClick={() => setIsMapModalOpen(true)} className="flex items-start text-left text-text-secondary mb-6 w-full hover:bg-surface p-2 rounded-lg transition-colors">

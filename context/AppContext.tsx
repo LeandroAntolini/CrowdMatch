@@ -198,6 +198,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
     const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false);
 
+    // Derived state for better scoping
+    const isAuthenticated = !!session?.user;
+
     // Sincroniza o ref com o estado do cache para acesso estável em callbacks
     useEffect(() => {
         cacheRef.current = userProfilesCache;
@@ -278,6 +281,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return [];
         }
     }, [mergePlaces]);
+
+    const searchPlaces = useCallback(async (city: string, state: string, query: string): Promise<Place[]> => {
+        return fetchPlaces(city, state, query);
+    }, [fetchPlaces]);
 
     const fetchOwnerFeedPosts = useCallback(async (userId: string) => {
         const { data: postsData, error: postsError } = await supabase
@@ -499,7 +506,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Efeitos secundários estáveis
     useEffect(() => {
-        if (!session?.user) return;
+        if (!isAuthenticated) return;
         
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
         
@@ -572,7 +579,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
         };
-    }, [session?.user, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds]);
+    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -917,7 +924,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [session]);
 
     const value = {
-        isAuthenticated: !!session?.user, hasOnboarded, currentUser, places, userProfilesCache, checkIns, matches, favorites,
+        isAuthenticated, hasOnboarded, currentUser, places, userProfilesCache, checkIns, matches, favorites,
         goingIntentions, swipes, livePostsByPlace, activeLivePosts, promotions, ownerPromotions, promotionClaims,
         allFeedPosts, isLoading, isAuthResolved, error, logout, completeOnboarding, checkInUser, checkOutUser, getCurrentCheckIn,
         getPlaceById, getUserById, sendMessage, updateUserProfile, updateCurrentUserState, addGoingIntention,

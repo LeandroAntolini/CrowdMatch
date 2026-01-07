@@ -34,14 +34,18 @@ const MenuPage: React.FC = () => {
     const isPlaceOpen = place?.isOpen ?? true;
 
     const fetchOrders = async () => {
-        if (!placeId || !currentUser?.id) return;
+        // Busca o ID do usuário diretamente da sessão para evitar delays do Context
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || currentUser?.id;
+
+        if (!placeId || !userId) return;
         
         try {
             const { data, error } = await supabase
                 .from('orders')
                 .select('*, order_items(*, menu_items(*))')
                 .eq('place_id', placeId)
-                .eq('user_id', currentUser.id)
+                .eq('user_id', userId)
                 .order('created_at', { ascending: false });
             
             if (error) throw error;
@@ -67,8 +71,20 @@ const MenuPage: React.FC = () => {
 
         fetchMenu();
         
-        if (isAuthenticated && currentUser?.id) {
+        if (isAuthenticated) {
             fetchOrders();
+
+            // Inscrição em tempo real para atualizações na comanda (status de pedidos)
+            const channel = supabase.channel(`user-orders-${placeId}`)
+                .on('postgres_changes', { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'orders',
+                    filter: `user_id=eq.${currentUser?.id}`
+                }, () => fetchOrders())
+                .subscribe();
+
+            return () => { supabase.removeChannel(channel); };
         }
 
         if (isAuthenticated && tableNumber && !isCheckedIn && isPlaceOpen) {
@@ -103,13 +119,19 @@ const MenuPage: React.FC = () => {
     }, [cart, menuItems]);
 
     const handlePlaceOrder = async () => {
-        if (!isAuthenticated || !tableNumber || !placeId || !isPlaceOpen || !currentUser) {
-            toast.error("Você precisa estar identificado para pedir.");
+        // Garantia extra de ID de usuário
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+
+        if (!userId || !tableNumber || !placeId || !isPlaceOpen) {
+            toast.error("Erro de identificação. Tente recarregar a página.");
             return;
         }
         
-        const orderId = crypto.randomUUID();
+        if (Object.keys(cart).length === 0) return;
+
         setOrdering(true);
+        const orderId = crypto.randomUUID();
 
         try {
             // 1. Criar o cabeçalho do pedido
@@ -118,7 +140,7 @@ const MenuPage: React.FC = () => {
                 .insert({
                     id: orderId,
                     place_id: placeId,
-                    user_id: currentUser.id,
+                    user_id: userId,
                     table_number: parseInt(tableNumber),
                     total_price: cartTotal,
                     status: 'pending'
@@ -138,15 +160,19 @@ const MenuPage: React.FC = () => {
             });
 
             const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-            if (itemsError) throw itemsError;
+            
+            if (itemsError) {
+                // Se falhou ao inserir itens, tentamos remover o cabeçalho órfão (limpeza básica)
+                await supabase.from('orders').delete().eq('id', orderId);
+                throw itemsError;
+            }
 
-            toast.success("Pedido enviado para a cozinha!", { duration: 4000 });
+            toast.success("Pedido enviado com sucesso!", { icon: '🚀' });
             setCart({});
-            // Aguarda um pequeno delay para o banco processar antes de atualizar a lista
-            setTimeout(() => fetchOrders(), 500);
+            await fetchOrders(); // Atualiza a comanda imediatamente
         } catch (error: any) {
             console.error("Erro no pedido:", error);
-            toast.error("Erro ao enviar pedido: " + (error.message || "Tente novamente."));
+            toast.error("Erro ao processar: " + (error.message || "Conexão instável."));
         } finally {
             setOrdering(false);
         }

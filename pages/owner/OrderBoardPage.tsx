@@ -40,6 +40,7 @@ const OrderBoardPage: React.FC = () => {
         }
 
         try {
+            // Busca simplificada sem joins complexos primeiro para garantir visibilidade RLS
             const { data, error: fetchError } = await supabase
                 .from('orders')
                 .select(`
@@ -76,27 +77,30 @@ const OrderBoardPage: React.FC = () => {
         fetchOrders();
         audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
+        // Canal de escuta em tempo real mais abrangente
         const channel = supabase.channel(`orders-updates-${selectedPlaceId}`)
             .on('postgres_changes', { 
-                event: 'INSERT', 
+                event: '*', 
                 schema: 'public', 
                 table: 'orders',
                 filter: `place_id=eq.${selectedPlaceId}`
             }, (payload) => {
-                const newOrder = payload.new as any;
-                toast.success(`Novo pedido na Mesa ${newOrder.table_number}!`, {
-                    icon: '🔔',
-                    duration: 5000,
-                });
-                audioRef.current?.play().catch(e => console.log("Audio play blocked"));
+                if (payload.eventType === 'INSERT') {
+                    const newOrder = payload.new as any;
+                    toast.success(`Novo pedido na Mesa ${newOrder.table_number}!`, {
+                        icon: '🔔',
+                        duration: 5000,
+                    });
+                    audioRef.current?.play().catch(() => {});
+                }
+                // Recarrega em qualquer mudança (insert, update, delete)
                 fetchOrders();
             })
-            .on('postgres_changes', { 
-                event: 'UPDATE', 
-                schema: 'public', 
-                table: 'orders',
-                filter: `place_id=eq.${selectedPlaceId}`
-            }, () => fetchOrders())
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'order_items'
+            }, () => fetchOrders()) // Recarrega se os itens mudarem
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
@@ -104,8 +108,8 @@ const OrderBoardPage: React.FC = () => {
 
     const updateStatus = async (orderId: string, status: OrderStatus) => {
         const { error: updateError } = await supabase.from('orders').update({ status }).eq('id', orderId);
-        if (updateError) alert("Erro ao atualizar: " + updateError.message);
-        else fetchOrders();
+        if (updateError) toast.error("Erro ao atualizar: " + updateError.message);
+        // O tempo real cuidará do refresh
     };
 
     const groupedOrders = useMemo(() => {
@@ -117,7 +121,7 @@ const OrderBoardPage: React.FC = () => {
             if (!groups[table]) groups[table] = {};
             if (!groups[table][uid]) {
                 groups[table][uid] = {
-                    userName: order.profiles?.name || 'Cliente Anon',
+                    userName: order.profiles?.name || 'Cliente',
                     userPhone: order.profiles?.phone || '',
                     orders: [],
                     total: 0
@@ -132,9 +136,9 @@ const OrderBoardPage: React.FC = () => {
 
     const getStatusColor = (status: OrderStatus) => {
         switch(status) {
-            case 'pending': return 'border-yellow-500';
-            case 'preparing': return 'border-blue-500';
-            case 'delivered': return 'border-green-500';
+            case 'pending': return 'border-yellow-500 bg-yellow-500/10';
+            case 'preparing': return 'border-blue-500 bg-blue-500/10';
+            case 'delivered': return 'border-green-500 bg-green-500/10';
             default: return 'border-gray-500';
         }
     };
@@ -163,7 +167,7 @@ const OrderBoardPage: React.FC = () => {
                         className="w-full p-3 bg-surface border border-gray-700 rounded-xl appearance-none focus:ring-2 focus:ring-accent outline-none font-bold text-text-primary text-sm"
                     >
                         {ownedPlaceIds.map(id => (
-                            <option key={id} value={id}>{getPlaceById(id)?.name || "Local Desconhecido"}</option>
+                            <option key={id} value={id}>{getPlaceById(id)?.name || "Local"}</option>
                         ))}
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" size={18} />
@@ -208,7 +212,7 @@ const OrderBoardPage: React.FC = () => {
                                                     
                                                     <div className="p-3 space-y-3">
                                                         {userData.orders.map(order => (
-                                                            <div key={order.id} className={`p-3 rounded-lg border-l-4 bg-gray-900/30 ${getStatusColor(order.status)}`}>
+                                                            <div key={order.id} className={`p-3 rounded-lg border-l-4 ${getStatusColor(order.status)}`}>
                                                                 <div className="flex justify-between items-start mb-2">
                                                                     <span className="text-[10px] font-bold text-gray-500 uppercase flex items-center">
                                                                         <Clock size={10} className="mr-1" />

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { BarChart2, Ticket, Newspaper, Trash2, Loader2, Utensils, QrCode, ClipboardList, TrendingUp } from 'lucide-react';
+import { BarChart2, Ticket, Newspaper, Trash2, Loader2, Utensils, QrCode, ClipboardList, TrendingUp, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const OwnerDashboardPage: React.FC = () => {

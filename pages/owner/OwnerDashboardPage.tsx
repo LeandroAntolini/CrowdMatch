@@ -41,37 +41,42 @@ const OwnerDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Grade ajustada: grid-cols-2 no mobile, grid-cols-4 em telas grandes (Desktop/Tablet) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div onClick={() => navigate('/owner/orders')} className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-accent/20 cursor-pointer hover:bg-gray-800 transition-all hover:scale-[1.02] shadow-lg">
-                    <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mb-4">
-                        <ClipboardList size={32} className="text-accent" />
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-accent/10 flex items-center justify-center mb-4">
+                        <ClipboardList size={28} className="text-accent md:hidden" />
+                        <ClipboardList size={32} className="text-accent hidden md:block" />
                     </div>
-                    <p className="font-black text-lg">Pedidos</p>
-                    <p className="text-xs text-text-secondary">Gestão de Mesas</p>
+                    <p className="font-black text-base md:text-lg">Pedidos</p>
+                    <p className="text-[10px] md:text-xs text-text-secondary">Gestão de Mesas</p>
                 </div>
                 
                 <div onClick={() => navigate('/owner/menu')} className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-primary/20 cursor-pointer hover:bg-gray-800 transition-all hover:scale-[1.02] shadow-lg">
-                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                        <Utensils size={32} className="text-primary" />
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <Utensils size={28} className="text-primary md:hidden" />
+                        <Utensils size={32} className="text-primary hidden md:block" />
                     </div>
-                    <p className="font-black text-lg">Cardápio</p>
-                    <p className="text-xs text-text-secondary">Produtos e Preços</p>
+                    <p className="font-black text-base md:text-lg">Cardápio</p>
+                    <p className="text-[10px] md:text-xs text-text-secondary">Produtos e Preços</p>
                 </div>
 
                 <div className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-gray-700 shadow-lg">
-                    <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center mb-4 text-accent">
-                        <Ticket size={32} />
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gray-700 flex items-center justify-center mb-4 text-accent">
+                        <Ticket size={28} className="md:hidden" />
+                        <Ticket size={32} className="hidden md:block" />
                     </div>
-                    <p className="font-black text-lg">{activePromotionsCount}</p>
-                    <p className="text-xs text-text-secondary">Promoções Ativas</p>
+                    <p className="font-black text-base md:text-lg">{activePromotionsCount}</p>
+                    <p className="text-[10px] md:text-xs text-text-secondary">Promoções Ativas</p>
                 </div>
 
                 <div className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-gray-700 shadow-lg">
-                    <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center mb-4 text-primary">
-                        <BarChart2 size={32} />
+                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gray-700 flex items-center justify-center mb-4 text-primary">
+                        <BarChart2 size={28} className="md:hidden" />
+                        <BarChart2 size={32} className="hidden md:block" />
                     </div>
-                    <p className="font-black text-lg">Status</p>
-                    <p className="text-xs text-text-secondary">Desempenho Online</p>
+                    <p className="font-black text-base md:text-lg">Status</p>
+                    <p className="text-[10px] md:text-xs text-text-secondary">Desempenho Online</p>
                 </div>
             </div>
 

@@ -37,24 +37,25 @@ const OrderBoardPage: React.FC = () => {
                 .neq('status', 'cancelled'),
             supabase
                 .from('tables')
-                // Alterado para usar a relação 'profiles' via 'current_user_id'
-                .select('table_number, current_user_id, profiles!tables_current_user_id_fkey(name)') 
+                // Usando a sintaxe de join implícita. Se a FK estiver correta, funciona.
+                .select('table_number, current_user_id, profiles(name)') 
                 .eq('place_id', selectedPlaceId)
                 .order('table_number', { ascending: true })
         ]);
         
         if (!ordersRes.error) setOrders(ordersRes.data || []);
         
-        // O Supabase usa o nome da FK para o join se não for a PK.
-        // A FK é tables_current_user_id_fkey.
         if (!tablesRes.error) {
-            // Mapeamos os dados para o tipo TableState, ajustando o nome da propriedade do join
+            // Mapeamos os dados para o tipo TableState
             const mappedTables = (tablesRes.data || []).map((t: any) => ({
                 table_number: t.table_number,
                 current_user_id: t.current_user_id,
-                profiles: t.profiles, // O nome da propriedade é 'profiles'
+                profiles: t.profiles,
             }));
             setTables(mappedTables);
+        } else {
+            console.error("Erro ao buscar mesas:", tablesRes.error);
+            setTables([]); // Garante que o estado não fique preso
         }
         setLoading(false);
     }, [selectedPlaceId]);

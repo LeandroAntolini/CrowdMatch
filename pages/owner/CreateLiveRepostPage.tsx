@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { Place } from '../../types';
@@ -8,11 +8,11 @@ import * as htmlToImage from 'html-to-image';
 import { supabase } from '@/integrations/supabase/client';
 
 // Componente para o card de preview que será convertido em imagem
-const LiveRepostPreview: React.FC<{ place: Place | null; posts: LivePost[] }> = React.forwardRef(({ place, posts }, ref) => {
+const LiveRepostPreview = React.forwardRef<HTMLDivElement, { place: Place | null; posts: LivePost[] }>(({ place, posts }, ref) => {
     if (!place) return null;
 
     return (
-        <div ref={ref as React.RefObject<HTMLDivElement>} className="w-[350px] h-[350px] bg-surface p-6 flex flex-col justify-between font-sans" id="live-repost-card">
+        <div ref={ref} className="w-[350px] h-[350px] bg-surface p-6 flex flex-col justify-between font-sans" id="live-repost-card">
             <div>
                 <div className="flex items-center mb-4">
                     <img src={place.photoUrl} alt={place.name} className="w-12 h-12 rounded-md object-cover mr-3" />

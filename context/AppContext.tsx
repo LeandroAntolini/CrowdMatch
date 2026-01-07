@@ -65,7 +65,6 @@ const mapProfileToUser = (profileData: any, sessionUser: SupabaseUser | null): U
         photos: profileData.photos,
         gender: profileData.gender,
         sexualOrientation: profileData.sexual_orientation,
-        match_preferences: profileData.match_preferences, // Mantendo compatibilidade com o banco
         matchPreferences: profileData.match_preferences,
         city: profileData.city,
         state: profileData.state,

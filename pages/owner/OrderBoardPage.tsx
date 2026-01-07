@@ -37,13 +37,25 @@ const OrderBoardPage: React.FC = () => {
                 .neq('status', 'cancelled'),
             supabase
                 .from('tables')
-                .select('table_number, current_user_id, profiles(name)')
+                // Alterado para usar a relação 'profiles' via 'current_user_id'
+                .select('table_number, current_user_id, profiles!tables_current_user_id_fkey(name)') 
                 .eq('place_id', selectedPlaceId)
                 .order('table_number', { ascending: true })
         ]);
         
         if (!ordersRes.error) setOrders(ordersRes.data || []);
-        if (!tablesRes.error) setTables(tablesRes.data as any || []);
+        
+        // O Supabase usa o nome da FK para o join se não for a PK.
+        // A FK é tables_current_user_id_fkey.
+        if (!tablesRes.error) {
+            // Mapeamos os dados para o tipo TableState, ajustando o nome da propriedade do join
+            const mappedTables = (tablesRes.data || []).map((t: any) => ({
+                table_number: t.table_number,
+                current_user_id: t.current_user_id,
+                profiles: t.profiles, // O nome da propriedade é 'profiles'
+            }));
+            setTables(mappedTables);
+        }
         setLoading(false);
     }, [selectedPlaceId]);
 
@@ -74,7 +86,8 @@ const OrderBoardPage: React.FC = () => {
             map[t.table_number] = {
                 table: t.table_number,
                 user: t.current_user_id,
-                userName: t.profiles?.name || '',
+                // O nome do perfil vem do join, se existir
+                userName: t.profiles?.name || '', 
                 hasOrder: false,
                 pendingOrder: false,
                 orders: [],
@@ -89,7 +102,8 @@ const OrderBoardPage: React.FC = () => {
                 map[order.table_number].orders.push(order);
                 map[order.table_number].total += order.total_price;
                 if (order.status === 'pending') map[order.table_number].pendingOrder = true;
-                // Se a mesa estiver sem nome mas tiver pedido, pega o nome do pedido
+                // Se a mesa estiver sem nome (usuário não logado ou perfil não carregado), 
+                // mas tiver pedido, pega o nome do perfil do pedido (que tem RLS diferente)
                 if (!map[order.table_number].userName) map[order.table_number].userName = order.profiles?.name || 'Cliente';
             }
         });

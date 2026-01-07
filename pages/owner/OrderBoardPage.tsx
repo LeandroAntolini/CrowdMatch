@@ -1,4 +1,3 @@
-' dentro do JSX.">
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Order } from '../../types';

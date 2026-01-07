@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Order, OrderStatus } from '../../types';
-import { ClipboardList, CheckCircle, Clock, Utensils, Phone, Check, AlertTriangle, User as UserIcon } from 'lucide-react';
+import { ClipboardList, CheckCircle, Clock, Utensils, Phone, Check, AlertTriangle, User as UserIcon, Bell } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { toast } from 'react-hot-toast';
 
 interface TableGroup {
     [tableNumber: number]: {
@@ -21,6 +22,7 @@ const OrderBoardPage: React.FC = () => {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const fetchOrders = async () => {
         if (ownedPlaceIds.length === 0) {
@@ -61,9 +63,33 @@ const OrderBoardPage: React.FC = () => {
 
     useEffect(() => {
         fetchOrders();
+
+        // Configurar áudio de notificação
+        audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
         const channel = supabase.channel('orders-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => fetchOrders())
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'orders' 
+            }, (payload) => {
+                const newOrder = payload.new as any;
+                if (ownedPlaceIds.includes(newOrder.place_id)) {
+                    toast.success(`Novo pedido na Mesa ${newOrder.table_number}!`, {
+                        icon: '🔔',
+                        duration: 5000,
+                    });
+                    audioRef.current?.play().catch(e => console.log("Audio play blocked"));
+                    fetchOrders();
+                }
+            })
+            .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'orders' 
+            }, () => fetchOrders())
             .subscribe();
+
         return () => { supabase.removeChannel(channel); };
     }, [ownedPlaceIds]);
 
@@ -73,7 +99,6 @@ const OrderBoardPage: React.FC = () => {
         else fetchOrders();
     };
 
-    // Agrupamento dos pedidos por mesa e usuário
     const groupedOrders = useMemo(() => {
         const groups: TableGroup = {};
         orders.forEach(order => {
@@ -109,10 +134,15 @@ const OrderBoardPage: React.FC = () => {
 
     return (
         <div className="p-4 space-y-6">
-            <h1 className="text-2xl font-bold flex items-center">
-                <ClipboardList className="mr-2 text-primary" />
-                Painel de Pedidos
-            </h1>
+            <div className="flex justify-between items-center">
+                <h1 className="text-2xl font-bold flex items-center">
+                    <ClipboardList className="mr-2 text-primary" />
+                    Painel de Pedidos
+                </h1>
+                <div className="bg-surface px-3 py-1 rounded-full text-[10px] font-bold text-accent animate-pulse border border-accent/30 flex items-center">
+                    <Bell size={12} className="mr-1" /> AO VIVO
+                </div>
+            </div>
 
             {Object.keys(groupedOrders).length === 0 ? (
                 <div className="text-center py-20 text-text-secondary">
@@ -120,7 +150,7 @@ const OrderBoardPage: React.FC = () => {
                     <p>Nenhum pedido pendente nas mesas.</p>
                 </div>
             ) : (
-                <div className="space-y-8">
+                <div className="space-y-8 pb-20">
                     {Object.entries(groupedOrders).map(([tableNum, users]) => (
                         <div key={tableNum} className="space-y-4">
                             <div className="flex items-center bg-gray-800 p-2 rounded-lg border-l-4 border-accent">

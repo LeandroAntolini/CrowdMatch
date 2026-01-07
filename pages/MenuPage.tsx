@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import QuickSignUpForm from '../components/QuickSignUpForm';
 import MenuQrScannerModal from '../components/MenuQrScannerModal';
 import ComandaOverlay from '../components/ComandaOverlay';
+import { toast } from 'react-hot-toast';
 
 const MenuPage: React.FC = () => {
     const { placeId, tableNumber } = useParams<{ placeId: string; tableNumber: string }>();
@@ -25,7 +26,6 @@ const MenuPage: React.FC = () => {
     const [cart, setCart] = useState<{ [key: string]: number }>({});
     const [loading, setLoading] = useState(true);
     const [ordering, setOrdering] = useState(false);
-    const [orderSuccess, setOrderSuccess] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [isComandaOpen, setIsComandaOpen] = useState(false);
 
@@ -63,7 +63,6 @@ const MenuPage: React.FC = () => {
         fetchMenu();
         if (isAuthenticated) fetchOrders();
 
-        // Check-in automático
         if (isAuthenticated && tableNumber && !isCheckedIn && isPlaceOpen) {
             checkInUser(placeId);
         }
@@ -96,28 +95,29 @@ const MenuPage: React.FC = () => {
     }, [cart, menuItems]);
 
     const handlePlaceOrder = async () => {
-        if (!isAuthenticated || !tableNumber || !placeId || !isPlaceOpen) return;
+        if (!isAuthenticated || !tableNumber || !placeId || !isPlaceOpen || !currentUser) return;
+        
+        const orderId = crypto.randomUUID();
         setOrdering(true);
 
         try {
-            const { data: order, error: orderError } = await supabase
+            const { error: orderError } = await supabase
                 .from('orders')
                 .insert({
+                    id: orderId,
                     place_id: placeId,
-                    user_id: currentUser?.id,
+                    user_id: currentUser.id,
                     table_number: parseInt(tableNumber),
                     total_price: cartTotal,
                     status: 'pending'
-                })
-                .select()
-                .single();
+                });
 
             if (orderError) throw orderError;
 
             const orderItems = Object.entries(cart).map(([id, qty]) => {
                 const item = menuItems.find(i => i.id === id);
                 return {
-                    order_id: order.id,
+                    order_id: orderId,
                     menu_item_id: id,
                     quantity: qty,
                     unit_price: item?.price || 0
@@ -127,12 +127,11 @@ const MenuPage: React.FC = () => {
             const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
             if (itemsError) throw itemsError;
 
-            await fetchOrders();
-            setOrderSuccess(true);
+            toast.success("Pedido enviado para a cozinha!", { duration: 4000 });
             setCart({});
-            setTimeout(() => setOrderSuccess(false), 5000); // Remove o sucesso após 5s
+            await fetchOrders();
         } catch (error: any) {
-            alert("Erro ao realizar pedido: " + error.message);
+            toast.error("Erro ao enviar pedido: " + error.message);
         } finally {
             setOrdering(false);
         }
@@ -179,13 +178,6 @@ const MenuPage: React.FC = () => {
                     )}
                 </div>
             </header>
-
-            {orderSuccess && (
-                <div className="bg-green-500 text-white p-3 flex items-center justify-center text-sm font-bold animate-fade-in-up">
-                    <CheckCircle size={18} className="mr-2" />
-                    Pedido enviado com sucesso!
-                </div>
-            )}
 
             {!isPlaceOpen && (
                 <div className="bg-red-500/20 text-red-400 p-3 flex items-center justify-center text-sm font-semibold border-b border-red-500/30">

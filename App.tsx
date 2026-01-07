@@ -7,6 +7,7 @@ import UserLayout from './layouts/UserLayout';
 import OwnerLayout from './layouts/OwnerLayout';
 import LoadingSpinner from './components/LoadingSpinner';
 import MenuPage from './pages/MenuPage';
+import { Toaster } from 'react-hot-toast';
 
 const App: React.FC = () => {
     useEffect(() => {
@@ -17,6 +18,7 @@ const App: React.FC = () => {
         <AppProvider>
             <HashRouter>
                 <AppRoutes />
+                <Toaster position="top-center" reverseOrder={false} />
             </HashRouter>
         </AppProvider>
     );
@@ -45,15 +47,12 @@ const AppRoutes: React.FC = () => {
         <div className="h-screen w-screen bg-background text-text-primary font-sans overflow-hidden">
             <main className="h-full w-full">
                 <Routes>
-                    {/* Rotas públicas de cardápio - Acesso Prioritário */}
                     <Route path="/menu/:placeId" element={<MenuPage />} />
                     <Route path="/menu/:placeId/:tableNumber" element={<MenuPage />} />
 
-                    {/* Fluxo Condicional de App */}
                     {!hasOnboarded ? (
                         <>
                             <Route path="/" element={<OnboardingPage />} />
-                            {/* Redireciona tudo para Onboarding, EXCETO as rotas de menu já definidas acima */}
                             <Route path="*" element={<Navigate to="/" />} />
                         </>
                     ) : !isAuthenticated ? (

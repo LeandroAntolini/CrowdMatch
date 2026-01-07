@@ -36,14 +36,19 @@ const MenuPage: React.FC = () => {
     const fetchOrders = async () => {
         if (!placeId || !currentUser?.id) return;
         
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*, order_items(*, menu_items(*))')
-            .eq('place_id', placeId)
-            .eq('user_id', currentUser.id)
-            .order('created_at', { ascending: false });
-        
-        if (data) setUserOrders(data);
+        try {
+            const { data, error } = await supabase
+                .from('orders')
+                .select('*, order_items(*, menu_items(*))')
+                .eq('place_id', placeId)
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            if (data) setUserOrders(data);
+        } catch (e) {
+            console.error("Erro ao buscar comanda:", e);
+        }
     };
 
     useEffect(() => {
@@ -61,7 +66,10 @@ const MenuPage: React.FC = () => {
         };
 
         fetchMenu();
-        if (isAuthenticated) fetchOrders();
+        
+        if (isAuthenticated && currentUser?.id) {
+            fetchOrders();
+        }
 
         if (isAuthenticated && tableNumber && !isCheckedIn && isPlaceOpen) {
             checkInUser(placeId);
@@ -95,12 +103,16 @@ const MenuPage: React.FC = () => {
     }, [cart, menuItems]);
 
     const handlePlaceOrder = async () => {
-        if (!isAuthenticated || !tableNumber || !placeId || !isPlaceOpen || !currentUser) return;
+        if (!isAuthenticated || !tableNumber || !placeId || !isPlaceOpen || !currentUser) {
+            toast.error("Você precisa estar identificado para pedir.");
+            return;
+        }
         
         const orderId = crypto.randomUUID();
         setOrdering(true);
 
         try {
+            // 1. Criar o cabeçalho do pedido
             const { error: orderError } = await supabase
                 .from('orders')
                 .insert({
@@ -114,6 +126,7 @@ const MenuPage: React.FC = () => {
 
             if (orderError) throw orderError;
 
+            // 2. Criar os itens do pedido
             const orderItems = Object.entries(cart).map(([id, qty]) => {
                 const item = menuItems.find(i => i.id === id);
                 return {
@@ -129,9 +142,11 @@ const MenuPage: React.FC = () => {
 
             toast.success("Pedido enviado para a cozinha!", { duration: 4000 });
             setCart({});
-            await fetchOrders();
+            // Aguarda um pequeno delay para o banco processar antes de atualizar a lista
+            setTimeout(() => fetchOrders(), 500);
         } catch (error: any) {
-            toast.error("Erro ao enviar pedido: " + error.message);
+            console.error("Erro no pedido:", error);
+            toast.error("Erro ao enviar pedido: " + (error.message || "Tente novamente."));
         } finally {
             setOrdering(false);
         }

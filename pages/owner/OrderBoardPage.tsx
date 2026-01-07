@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Order, OrderStatus } from '../../types';
-import { ClipboardList, CheckCircle, Clock, Utensils, Phone, Check, AlertTriangle, User as UserIcon, Bell } from 'lucide-react';
+import { ClipboardList, CheckCircle, Clock, Utensils, Phone, Check, AlertTriangle, User as UserIcon, Bell, ChevronDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { toast } from 'react-hot-toast';
@@ -20,14 +20,22 @@ interface TableGroup {
 }
 
 const OrderBoardPage: React.FC = () => {
-    const { ownedPlaceIds } = useAppContext();
+    const { ownedPlaceIds, getPlaceById } = useAppContext();
+    const [selectedPlaceId, setSelectedPlaceId] = useState('');
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
+    // Inicializa o local selecionado
+    useEffect(() => {
+        if (ownedPlaceIds.length > 0 && !selectedPlaceId) {
+            setSelectedPlaceId(ownedPlaceIds[0]);
+        }
+    }, [ownedPlaceIds, selectedPlaceId]);
+
     const fetchOrders = async () => {
-        if (ownedPlaceIds.length === 0) {
+        if (!selectedPlaceId) {
             setLoading(false);
             return;
         }
@@ -46,7 +54,7 @@ const OrderBoardPage: React.FC = () => {
                         phone
                     )
                 `)
-                .in('place_id', ownedPlaceIds)
+                .eq('place_id', selectedPlaceId) // Filtra apenas pelo local selecionado
                 .neq('status', 'paid')
                 .neq('status', 'cancelled')
                 .order('created_at', { ascending: true });
@@ -64,36 +72,38 @@ const OrderBoardPage: React.FC = () => {
     };
 
     useEffect(() => {
+        if (!selectedPlaceId) return;
+
         fetchOrders();
 
         // Configurar áudio de notificação
         audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
-        const channel = supabase.channel('orders-updates')
+        const channel = supabase.channel(`orders-updates-${selectedPlaceId}`)
             .on('postgres_changes', { 
                 event: 'INSERT', 
                 schema: 'public', 
-                table: 'orders' 
+                table: 'orders',
+                filter: `place_id=eq.${selectedPlaceId}` // Monitora apenas o local atual
             }, (payload) => {
                 const newOrder = payload.new as any;
-                if (ownedPlaceIds.includes(newOrder.place_id)) {
-                    toast.success(`Novo pedido na Mesa ${newOrder.table_number}!`, {
-                        icon: '🔔',
-                        duration: 5000,
-                    });
-                    audioRef.current?.play().catch(e => console.log("Audio play blocked"));
-                    fetchOrders();
-                }
+                toast.success(`Novo pedido na Mesa ${newOrder.table_number}!`, {
+                    icon: '🔔',
+                    duration: 5000,
+                });
+                audioRef.current?.play().catch(e => console.log("Audio play blocked"));
+                fetchOrders();
             })
             .on('postgres_changes', { 
                 event: 'UPDATE', 
                 schema: 'public', 
-                table: 'orders' 
+                table: 'orders',
+                filter: `place_id=eq.${selectedPlaceId}`
             }, () => fetchOrders())
             .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [ownedPlaceIds]);
+    }, [selectedPlaceId]);
 
     const updateStatus = async (orderId: string, status: OrderStatus) => {
         const { error: updateError } = await supabase.from('orders').update({ status }).eq('id', orderId);
@@ -132,11 +142,13 @@ const OrderBoardPage: React.FC = () => {
         }
     };
 
-    if (loading) return <LoadingSpinner message="Monitorando pedidos..." />;
+    if (ownedPlaceIds.length === 0) {
+        return <div className="p-6 text-center">Você não gerencia nenhum estabelecimento.</div>;
+    }
 
     return (
-        <div className="p-4 space-y-6">
-            <div className="flex justify-between items-center">
+        <div className="p-4 space-y-4">
+            <div className="flex justify-between items-center mb-2">
                 <h1 className="text-2xl font-bold flex items-center">
                     <ClipboardList className="mr-2 text-primary" />
                     Painel de Pedidos
@@ -146,89 +158,101 @@ const OrderBoardPage: React.FC = () => {
                 </div>
             </div>
 
-            {Object.keys(groupedOrders).length === 0 ? (
-                <div className="text-center py-20 text-text-secondary">
-                    <Utensils size={64} className="mx-auto mb-4 opacity-20" />
-                    <p>Nenhum pedido pendente nas mesas.</p>
-                </div>
-            ) : (
-                <div className="space-y-8 pb-20">
-                    {Object.entries(groupedOrders).map(([tableNum, users]) => (
-                        <div key={tableNum} className="space-y-4">
-                            <div className="flex items-center bg-gray-800 p-2 rounded-lg border-l-4 border-accent">
-                                <h2 className="text-xl font-black text-white px-2">MESA {tableNum}</h2>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 gap-4 pl-2 border-l border-gray-700">
-                                {Object.entries(users).map(([uid, data]) => {
-                                    const userData = data as UserOrderData;
-                                    return (
-                                        <div key={uid} className="bg-surface rounded-xl overflow-hidden shadow-md border border-gray-700">
-                                            <div className="bg-gray-800/50 p-3 flex justify-between items-center border-b border-gray-700">
-                                                <div className="flex items-center">
-                                                    <UserIcon size={16} className="text-primary mr-2" />
-                                                    <div>
-                                                        <p className="font-bold text-sm text-text-primary">{userData.userName}</p>
-                                                        {userData.userPhone && <p className="text-[10px] text-text-secondary">{userData.userPhone}</p>}
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-xs text-text-secondary uppercase font-bold">Consumo</p>
-                                                    <p className="text-sm font-black text-accent">R$ {userData.total.toFixed(2)}</p>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="p-3 space-y-3">
-                                                {userData.orders.map(order => (
-                                                    <div key={order.id} className={`p-2 rounded-lg border-l-4 bg-gray-900/30 ${getStatusColor(order.status)}`}>
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <span className="text-[10px] font-bold text-gray-500 uppercase">
-                                                                {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                            <span className="text-xs font-bold text-text-primary">R$ {order.total_price.toFixed(2)}</span>
-                                                        </div>
-                                                        
-                                                        <div className="space-y-1 mb-3">
-                                                            {order.order_items?.map(item => (
-                                                                <p key={item.id} className="text-xs text-text-secondary">
-                                                                    <span className="font-bold text-text-primary">{item.quantity}x</span> {item.menu_item?.name}
-                                                                </p>
-                                                            ))}
-                                                        </div>
-
-                                                        <div className="flex gap-2">
-                                                            {order.status === 'pending' && (
-                                                                <button onClick={() => updateStatus(order.id, 'preparing')} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors flex-1">
-                                                                    Preparar
-                                                                </button>
-                                                            )}
-                                                            {order.status === 'preparing' && (
-                                                                <button onClick={() => updateStatus(order.id, 'delivered')} className="bg-green-600/20 text-green-400 hover:bg-green-600 hover:text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors flex-1">
-                                                                    Entregar
-                                                                </button>
-                                                            )}
-                                                            {order.status === 'delivered' && (
-                                                                <button onClick={() => updateStatus(order.id, 'paid')} className="bg-white/10 text-text-primary hover:bg-white hover:text-black px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors flex-1">
-                                                                    Finalizar
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            
-                                            <div className="bg-accent/5 p-2 text-center border-t border-gray-700">
-                                                <p className="text-[10px] text-text-secondary">
-                                                    Total com 10%: <span className="font-bold text-primary">R$ {(userData.total * 1.1).toFixed(2)}</span>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
+            {/* Seletor de Estabelecimento */}
+            <div className="relative">
+                <select 
+                    value={selectedPlaceId}
+                    onChange={(e) => setSelectedPlaceId(e.target.value)}
+                    className="w-full p-4 bg-surface border border-gray-700 rounded-xl appearance-none focus:ring-2 focus:ring-accent outline-none font-bold text-text-primary"
+                >
+                    {ownedPlaceIds.map(id => (
+                        <option key={id} value={id}>{getPlaceById(id)?.name || "Local Desconhecido"}</option>
                     ))}
-                </div>
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" size={20} />
+            </div>
+
+            {loading ? <LoadingSpinner message="Monitorando pedidos..." /> : (
+                <>
+                    {Object.keys(groupedOrders).length === 0 ? (
+                        <div className="text-center py-20 text-text-secondary">
+                            <Utensils size={64} className="mx-auto mb-4 opacity-20" />
+                            <p>Nenhum pedido pendente nas mesas de {getPlaceById(selectedPlaceId)?.name}.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6 pb-20">
+                            {Object.entries(groupedOrders).map(([tableNum, users]) => (
+                                <div key={tableNum} className="space-y-3">
+                                    <div className="flex items-center bg-gray-800 p-2 rounded-lg border-l-4 border-accent">
+                                        <h2 className="text-xl font-black text-white px-2">MESA {tableNum}</h2>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 gap-4 pl-2 border-l border-gray-700">
+                                        {Object.entries(users).map(([uid, data]) => {
+                                            const userData = data as UserOrderData;
+                                            return (
+                                                <div key={uid} className="bg-surface rounded-xl overflow-hidden shadow-md border border-gray-700">
+                                                    <div className="bg-gray-800/50 p-3 flex justify-between items-center border-b border-gray-700">
+                                                        <div className="flex items-center">
+                                                            <UserIcon size={16} className="text-primary mr-2" />
+                                                            <div>
+                                                                <p className="font-bold text-sm text-text-primary">{userData.userName}</p>
+                                                                {userData.userPhone && <p className="text-[10px] text-text-secondary">{userData.userPhone}</p>}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-xs text-text-secondary uppercase font-bold">Consumo</p>
+                                                            <p className="text-sm font-black text-accent">R$ {userData.total.toFixed(2)}</p>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="p-3 space-y-3">
+                                                        {userData.orders.map(order => (
+                                                            <div key={order.id} className={`p-2 rounded-lg border-l-4 bg-gray-900/30 ${getStatusColor(order.status)}`}>
+                                                                <div className="flex justify-between items-start mb-2">
+                                                                    <span className="text-[10px] font-bold text-gray-500 uppercase">
+                                                                        {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                    <span className="text-xs font-bold text-text-primary">R$ {order.total_price.toFixed(2)}</span>
+                                                                </div>
+                                                                
+                                                                <div className="space-y-1 mb-3">
+                                                                    {order.order_items?.map(item => (
+                                                                        <p key={item.id} className="text-xs text-text-secondary">
+                                                                            <span className="font-bold text-text-primary">{item.quantity}x</span> {item.menu_item?.name}
+                                                                        </p>
+                                                                    ))}
+                                                                </div>
+
+                                                                <div className="flex gap-2">
+                                                                    {order.status === 'pending' && (
+                                                                        <button onClick={() => updateStatus(order.id, 'preparing')} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors flex-1">
+                                                                            Preparar
+                                                                        </button>
+                                                                    )}
+                                                                    {order.status === 'preparing' && (
+                                                                        <button onClick={() => updateStatus(order.id, 'delivered')} className="bg-green-600/20 text-green-400 hover:bg-green-600 hover:text-white px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors flex-1">
+                                                                            Entregar
+                                                                        </button>
+                                                                    )}
+                                                                    {order.status === 'delivered' && (
+                                                                        <button onClick={() => updateStatus(order.id, 'paid')} className="bg-white/10 text-text-primary hover:bg-white hover:text-black px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors flex-1">
+                                                                            Finalizar
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

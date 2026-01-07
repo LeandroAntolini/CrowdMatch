@@ -1,3 +1,4 @@
+' dentro do JSX.">
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Order } from '../../types';
@@ -131,7 +132,7 @@ const OrderBoardPage: React.FC = () => {
                     <div className="col-span-full py-20 text-center opacity-40">
                         <Coffee size={48} className="mx-auto mb-4" />
                         <p className="font-bold">Nenhuma mesa configurada.</p>
-                        <p className="text-xs">Vá em "Perfil > QR das Mesas" para inicializar seu salão.</p>
+                        <p className="text-xs">Vá em "Perfil &gt; QR das Mesas" para inicializar seu salão.</p>
                     </div>
                 ) : (
                     tableMap.map(m => {

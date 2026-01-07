@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { MenuItem, Order } from '../types';
-import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode, AlertCircle, CheckCircle, Receipt } from 'lucide-react';
+import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode, Receipt } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '@/integrations/supabase/client';
 import QuickSignUpForm from '../components/QuickSignUpForm';
@@ -26,6 +26,20 @@ const MenuPage: React.FC = () => {
     const place = placeId ? getPlaceById(placeId) : null;
     const isPlaceOpen = place?.isOpen ?? true;
 
+    // Função para registrar que o usuário está na mesa
+    const occupyTable = useCallback(async () => {
+        if (!placeId || !tableNumber || !currentUser?.id) return;
+        
+        await supabase
+            .from('tables')
+            .update({ 
+                current_user_id: currentUser.id,
+                last_activity: new Date().toISOString()
+            })
+            .eq('place_id', placeId)
+            .eq('table_number', parseInt(tableNumber));
+    }, [placeId, tableNumber, currentUser?.id]);
+
     const fetchOrders = useCallback(async () => {
         if (!placeId || !currentUser?.id) return;
         
@@ -47,7 +61,10 @@ const MenuPage: React.FC = () => {
         const loadData = async () => {
             const { data } = await supabase.from('menu_items').select('*').eq('place_id', placeId).eq('is_available', true);
             setMenuItems(data || []);
-            if (isAuthenticated) await fetchOrders();
+            if (isAuthenticated) {
+                await fetchOrders();
+                await occupyTable();
+            }
             setLoading(false);
         };
         loadData();
@@ -63,7 +80,7 @@ const MenuPage: React.FC = () => {
                 .subscribe();
             return () => { supabase.removeChannel(channel); };
         }
-    }, [placeId, isAuthenticated, currentUser?.id, fetchOrders]);
+    }, [placeId, isAuthenticated, currentUser?.id, fetchOrders, occupyTable]);
 
     const addToCart = (id: string) => isPlaceOpen && setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
     const removeFromCart = (id: string) => setCart(prev => {
@@ -85,7 +102,6 @@ const MenuPage: React.FC = () => {
         
         setOrdering(true);
         try {
-            // 1. Inserir o pedido e obter o objeto criado (para pegar o ID gerado pelo banco)
             const { data: orderData, error: orderError } = await supabase
                 .from('orders')
                 .insert({
@@ -100,7 +116,6 @@ const MenuPage: React.FC = () => {
 
             if (orderError) throw orderError;
 
-            // 2. Inserir os itens usando o ID do pedido retornado
             const itemsToInsert = Object.entries(cart).map(([itemId, qty]) => ({
                 order_id: orderData.id,
                 menu_item_id: itemId,
@@ -108,15 +123,12 @@ const MenuPage: React.FC = () => {
                 unit_price: menuItems.find(i => i.id === itemId)?.price || 0
             }));
 
-            const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
-            if (itemsError) throw itemsError;
-
-            toast.success("Pedido enviado para a cozinha!");
+            await supabase.from('order_items').insert(itemsToInsert);
+            toast.success("Pedido enviado!");
             setCart({});
             await fetchOrders();
         } catch (error: any) {
-            console.error("Erro ao processar pedido:", error);
-            toast.error("Falha no envio: " + error.message);
+            toast.error("Falha: " + error.message);
         } finally {
             setOrdering(false);
         }
@@ -187,13 +199,9 @@ const MenuPage: React.FC = () => {
                         <span className="font-bold uppercase text-xs opacity-80 text-white">Seu Carrinho</span>
                         <span className="text-2xl font-black text-white">R$ {cartTotal.toFixed(2)}</span>
                     </div>
-                    <button 
-                        onClick={handlePlaceOrder} 
-                        disabled={ordering} 
-                        className="w-full bg-white text-accent font-black py-4 rounded-xl flex items-center justify-center shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
-                    >
+                    <button onClick={handlePlaceOrder} disabled={ordering} className="w-full bg-white text-accent font-black py-4 rounded-xl flex items-center justify-center">
                         {ordering ? <Loader2 className="animate-spin mr-2" /> : <ShoppingBag className="mr-2" />} 
-                        ENVIAR PEDIDO NA MESA {tableNumber}
+                        ENVIAR PEDIDO - MESA {tableNumber}
                     </button>
                 </div>
             )}

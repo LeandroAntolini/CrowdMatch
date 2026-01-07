@@ -1,70 +1,75 @@
 import React, { useState, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { QRCodeSVG } from 'qrcode.react';
-import { Plus, Minus, FileText, Loader2 } from 'lucide-react';
+import { Plus, Minus, FileText, Loader2, Save } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'react-hot-toast';
 
 const TableQRManager: React.FC = () => {
     const { ownedPlaceIds, getPlaceById } = useAppContext();
     const [selectedPlaceId, setSelectedPlaceId] = useState(ownedPlaceIds[0] || '');
     const [tableCount, setTableCount] = useState(5);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const qrContainerRef = useRef<HTMLDivElement>(null);
 
     const place = getPlaceById(selectedPlaceId);
-    
-    // URL base do app. O CrowdMatch usa hash router.
     const baseUrl = `${window.location.origin}/#/menu/${selectedPlaceId}`;
+
+    const initializeTables = async () => {
+        if (!selectedPlaceId) return;
+        setIsSaving(true);
+        try {
+            // Cria os objetos de mesa de 1 até o número selecionado
+            const tableRecords = Array.from({ length: tableCount }, (_, i) => ({
+                place_id: selectedPlaceId,
+                table_number: i + 1,
+            }));
+
+            const { error } = await supabase
+                .from('tables')
+                .upsert(tableRecords, { onConflict: 'place_id,table_number' });
+
+            if (error) throw error;
+            toast.success(`${tableCount} mesas inicializadas no sistema!`);
+        } catch (error: any) {
+            toast.error("Erro ao salvar mesas: " + error.message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const generatePDF = async () => {
         if (!qrContainerRef.current || !place) return;
-        
         setIsGenerating(true);
         try {
             const pdf = new jsPDF('p', 'mm', 'a4');
             const elements = qrContainerRef.current.children;
-            
-            // Tamanho padrão de 100mm (10cm)
             const targetWidth = 100; 
 
             for (let i = 0; i < elements.length; i++) {
                 const element = elements[i] as HTMLElement;
-                
-                // Opções otimizadas para html2canvas
                 const canvas = await html2canvas(element, {
                     scale: 3, 
                     useCORS: true,
-                    allowTaint: true,
-                    logging: false,
                     backgroundColor: '#ffffff',
-                    onclone: (clonedDoc) => {
-                        // Força visibilidade e cores no clone usado para a captura
-                        const clonedElement = clonedDoc.querySelector(`[data-qr-card="${i+1}"]`) as HTMLElement;
-                        if (clonedElement) {
-                            clonedElement.style.visibility = 'visible';
-                        }
-                    }
                 });
                 
                 const imgData = canvas.toDataURL('image/png');
                 const pdfPageWidth = pdf.internal.pageSize.getWidth();
                 const pdfPageHeight = pdf.internal.pageSize.getHeight();
-                
                 const targetHeight = (canvas.height * targetWidth) / canvas.width;
                 
                 if (i > 0) pdf.addPage();
-                
                 const xPos = (pdfPageWidth - targetWidth) / 2;
                 const yPos = (pdfPageHeight - targetHeight) / 2;
-                
                 pdf.addImage(imgData, 'PNG', xPos, yPos, targetWidth, targetHeight);
             }
-            
             pdf.save(`QRCodes_${place.name.replace(/\s+/g, '_')}.pdf`);
         } catch (error) {
-            console.error("Erro ao gerar PDF:", error);
-            alert("Erro ao gerar o arquivo. Tente novamente.");
+            toast.error("Erro ao gerar PDF.");
         } finally {
             setIsGenerating(false);
         }
@@ -75,8 +80,6 @@ const TableQRManager: React.FC = () => {
             <h1 className="text-2xl font-bold mb-6">QR Codes das Mesas</h1>
             
             <div className="bg-surface p-4 rounded-xl mb-8 space-y-4">
-                <p className="text-sm text-text-secondary">Gere um PDF com QR Codes de 10cm, perfeitos para displays de mesa.</p>
-                
                 <div className="space-y-2">
                     <label className="text-xs font-bold text-text-secondary uppercase">Estabelecimento</label>
                     <select 
@@ -94,7 +97,7 @@ const TableQRManager: React.FC = () => {
                     <span className="text-sm font-bold">Número de Mesas:</span>
                     <div className="flex items-center bg-gray-800 rounded-lg">
                         <button onClick={() => setTableCount(Math.max(1, tableCount - 1))} className="p-2 text-primary hover:bg-gray-700 rounded-l-lg transition-colors">
-                            <Minus size={18} />
+                            <Plus size={18} className="rotate-45" />
                         </button>
                         <span className="px-6 font-bold text-lg">{tableCount}</span>
                         <button onClick={() => setTableCount(tableCount + 1)} className="p-2 text-primary hover:bg-gray-700 rounded-r-lg transition-colors">
@@ -103,59 +106,46 @@ const TableQRManager: React.FC = () => {
                     </div>
                 </div>
 
-                <button 
-                    onClick={generatePDF}
-                    disabled={isGenerating || !place}
-                    className="w-full bg-primary text-background font-bold py-4 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all shadow-lg disabled:bg-gray-600 disabled:text-gray-400"
-                >
-                    {isGenerating ? (
-                        <>
-                            <Loader2 className="mr-2 animate-spin" />
-                            Gerando PDF...
-                        </>
-                    ) : (
-                        <>
-                            <FileText className="mr-2" /> 
-                            Gerar Arquivo PDF
-                        </>
-                    )}
-                </button>
+                <div className="grid grid-cols-2 gap-3">
+                    <button 
+                        onClick={initializeTables}
+                        disabled={isSaving || !place}
+                        className="bg-gray-700 text-white font-bold py-3 rounded-xl flex items-center justify-center hover:bg-gray-600 transition-all disabled:opacity-50"
+                    >
+                        {isSaving ? <Loader2 className="animate-spin" /> : <Save className="mr-2" size={18} />}
+                        Configurar Mesas
+                    </button>
+                    <button 
+                        onClick={generatePDF}
+                        disabled={isGenerating || !place}
+                        className="bg-primary text-background font-bold py-3 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-50"
+                    >
+                        {isGenerating ? <Loader2 className="animate-spin" /> : <FileText className="mr-2" size={18} />} 
+                        Gerar PDF
+                    </button>
+                </div>
             </div>
 
             <h2 className="text-sm font-bold text-text-secondary uppercase mb-4">Pré-visualização</h2>
-            
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" ref={qrContainerRef}>
                 {Array.from({ length: tableCount }, (_, i) => i + 1).map(num => (
                     <div 
                         key={num} 
-                        data-qr-card={num}
                         className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[280px] mx-auto overflow-hidden"
-                        style={{ backgroundColor: '#ffffff', color: '#000000' }}
                     >
-                        <div className="text-center mb-4 w-full px-2">
-                            <h2 
-                                className="text-xl font-black mb-1 leading-tight break-words"
-                                style={{ color: '#000000', wordBreak: 'break-word' }}
-                            >
-                                {place?.name}
-                            </h2>
+                        <div className="text-center mb-4 w-full">
+                            <h2 className="text-xl font-black mb-1 leading-tight break-words">{place?.name}</h2>
                             <div className="h-0.5 w-16 mx-auto mb-2" style={{ backgroundColor: '#EC4899' }}></div>
                             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Cardápio Digital</p>
                         </div>
-                        
                         <div className="p-3 bg-white border-2 border-black rounded-xl">
                             <QRCodeSVG value={`${baseUrl}/${num}`} size={140} level="H" />
                         </div>
-
                         <div className="mt-4 text-center w-full">
                             <p className="text-[9px] font-medium text-gray-400 mb-2">Escaneie para pedir</p>
-                            <div className="bg-black text-white px-5 py-1.5 rounded-lg inline-block font-black text-xl" style={{ backgroundColor: '#000000', color: '#ffffff' }}>
+                            <div className="bg-black text-white px-5 py-1.5 rounded-lg inline-block font-black text-xl">
                                 MESA {num}
                             </div>
-                        </div>
-                        
-                        <div className="mt-4 pt-3 border-t border-gray-50 w-full text-center">
-                            <p className="text-gray-300 text-[7px] font-bold uppercase tracking-widest">Powered by CrowdMatch</p>
                         </div>
                     </div>
                 ))}

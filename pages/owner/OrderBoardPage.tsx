@@ -1,16 +1,23 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Order } from '../../types';
-import { ClipboardList, ChevronRight, User as UserIcon, RefreshCw, ChevronDown, Bell } from 'lucide-react';
+import { ClipboardList, RefreshCw, ChevronDown, User, Coffee, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import OwnerOrderDetailsModal from '../../components/owner/OwnerOrderDetailsModal';
 import { toast } from 'react-hot-toast';
 
+interface TableState {
+    table_number: number;
+    current_user_id: string | null;
+    profiles?: { name: string };
+}
+
 const OrderBoardPage: React.FC = () => {
     const { ownedPlaceIds, getPlaceById } = useAppContext();
     const [selectedPlaceId, setSelectedPlaceId] = useState('');
     const [orders, setOrders] = useState<Order[]>([]);
+    const [tables, setTables] = useState<TableState[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedComanda, setSelectedComanda] = useState<{ table: number, name: string, uid: string } | null>(null);
 
@@ -18,137 +25,157 @@ const OrderBoardPage: React.FC = () => {
         if (ownedPlaceIds.length > 0 && !selectedPlaceId) setSelectedPlaceId(ownedPlaceIds[0]);
     }, [ownedPlaceIds, selectedPlaceId]);
 
-    const fetchOrders = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         if (!selectedPlaceId) return;
         
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*, order_items(*, menu_items(*)), profiles(name, phone)')
-            .eq('place_id', selectedPlaceId)
-            .neq('status', 'paid')
-            .neq('status', 'cancelled')
-            .order('created_at', { ascending: true });
+        const [ordersRes, tablesRes] = await Promise.all([
+            supabase
+                .from('orders')
+                .select('*, order_items(*, menu_items(*)), profiles(name, phone)')
+                .eq('place_id', selectedPlaceId)
+                .neq('status', 'paid')
+                .neq('status', 'cancelled'),
+            supabase
+                .from('tables')
+                .select('table_number, current_user_id, profiles(name)')
+                .eq('place_id', selectedPlaceId)
+                .order('table_number', { ascending: true })
+        ]);
         
-        if (!error) {
-            setOrders(data || []);
-        }
+        if (!ordersRes.error) setOrders(ordersRes.data || []);
+        if (!tablesRes.error) setTables(tablesRes.data as any || []);
         setLoading(false);
     }, [selectedPlaceId]);
 
     useEffect(() => {
         if (!selectedPlaceId) return;
-        fetchOrders();
+        fetchData();
 
-        const channel = supabase.channel(`orders-list-${selectedPlaceId}`)
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'orders', 
-                filter: `place_id=eq.${selectedPlaceId}` 
-            }, (payload) => {
-                if (payload.eventType === 'INSERT') {
-                    toast.success(`Novo pedido: Mesa ${payload.new.table_number}`, { icon: '🔔' });
-                }
-                fetchOrders();
-            })
-            .on('postgres_changes', { 
-                event: '*', 
-                schema: 'public', 
-                table: 'order_items' 
-            }, () => fetchOrders())
+        const ordersChannel = supabase.channel(`orders-${selectedPlaceId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `place_id=eq.${selectedPlaceId}` }, () => fetchData())
+            .subscribe();
+            
+        const tablesChannel = supabase.channel(`tables-${selectedPlaceId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'tables', filter: `place_id=eq.${selectedPlaceId}` }, () => fetchData())
             .subscribe();
 
-        return () => { supabase.removeChannel(channel); };
-    }, [selectedPlaceId, fetchOrders]);
+        return () => { 
+            supabase.removeChannel(ordersChannel);
+            supabase.removeChannel(tablesChannel);
+        };
+    }, [selectedPlaceId, fetchData]);
 
-    const groupedOrders = useMemo(() => {
-        const groups: { [key: string]: { table: number, name: string, userId: string, orders: Order[], total: number, lastUpdate: string } } = {};
+    // Mesclar mesas e pedidos
+    const tableMap = useMemo(() => {
+        const map: { [key: number]: { table: number, user: string | null, userName: string, hasOrder: boolean, pendingOrder: boolean, orders: Order[], total: number } } = {};
         
+        // Inicializa todas as mesas cadastradas como inativas
+        tables.forEach(t => {
+            map[t.table_number] = {
+                table: t.table_number,
+                user: t.current_user_id,
+                userName: t.profiles?.name || '',
+                hasOrder: false,
+                pendingOrder: false,
+                orders: [],
+                total: 0
+            };
+        });
+
+        // Adiciona pedidos às mesas
         orders.forEach(order => {
-            const key = `${order.table_number}-${order.user_id}`;
-            if (!groups[key]) {
-                groups[key] = {
-                    table: order.table_number,
-                    name: order.profiles?.name || 'Cliente',
-                    userId: order.user_id,
-                    orders: [],
-                    total: 0,
-                    lastUpdate: order.created_at
-                };
-            }
-            groups[key].orders.push(order);
-            groups[key].total += order.total_price;
-            if (new Date(order.created_at) > new Date(groups[key].lastUpdate)) {
-                groups[key].lastUpdate = order.created_at;
+            if (map[order.table_number]) {
+                map[order.table_number].hasOrder = true;
+                map[order.table_number].orders.push(order);
+                map[order.table_number].total += order.total_price;
+                if (order.status === 'pending') map[order.table_number].pendingOrder = true;
+                // Se a mesa estiver sem nome mas tiver pedido, pega o nome do pedido
+                if (!map[order.table_number].userName) map[order.table_number].userName = order.profiles?.name || 'Cliente';
             }
         });
 
-        return Object.values(groups).sort((a, b) => {
-            if (a.table !== b.table) return a.table - b.table;
-            return new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime();
-        });
-    }, [orders]);
+        return Object.values(map).sort((a, b) => a.table - b.table);
+    }, [tables, orders]);
 
-    if (loading) return <LoadingSpinner message="Carregando lista de pedidos..." />;
+    if (loading) return <LoadingSpinner message="Abrindo o mapa de mesas..." />;
 
     return (
-        <div className="p-4 md:p-8 space-y-6 pb-24 max-w-2xl mx-auto">
-            <header className="flex justify-between items-center mb-8">
+        <div className="p-4 md:p-8 space-y-6 pb-24">
+            <header className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-black uppercase tracking-tight flex items-center">
                         <ClipboardList className="mr-2 text-primary" />
-                        Pedidos Ativos
+                        Mapa de Mesas
                     </h1>
-                    <p className="text-xs text-text-secondary">Clique em uma mesa para gerenciar a comanda</p>
                 </div>
-                <button onClick={fetchOrders} className="p-2 bg-gray-800 rounded-full"><RefreshCw size={20} /></button>
+                <button onClick={fetchData} className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition-colors">
+                    <RefreshCw size={20} />
+                </button>
             </header>
 
-            <div className="relative w-full mb-8">
+            <div className="relative w-full mb-8 max-w-xs">
                 <select 
                     value={selectedPlaceId} 
                     onChange={e => setSelectedPlaceId(e.target.value)} 
-                    className="w-full p-4 bg-surface border border-gray-700 rounded-2xl appearance-none outline-none font-bold text-sm shadow-xl"
+                    className="w-full p-3 bg-surface border border-gray-700 rounded-xl outline-none font-bold text-sm"
                 >
                     {ownedPlaceIds.map(id => (
                         <option key={id} value={id}>{getPlaceById(id)?.name}</option>
                     ))}
                 </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary" size={20} />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary" size={16} />
             </div>
 
-            <div className="space-y-3">
-                {groupedOrders.length === 0 ? (
-                    <div className="text-center py-20 opacity-30">
-                        <Bell size={48} className="mx-auto mb-4" />
-                        <p className="font-bold">Nenhum pedido no momento.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {tableMap.length === 0 ? (
+                    <div className="col-span-full py-20 text-center opacity-40">
+                        <Coffee size={48} className="mx-auto mb-4" />
+                        <p className="font-bold">Nenhuma mesa configurada.</p>
+                        <p className="text-xs">Vá em "Perfil > QR das Mesas" para inicializar seu salão.</p>
                     </div>
                 ) : (
-                    groupedOrders.map(group => (
-                        <button
-                            key={`${group.table}-${group.userId}`}
-                            onClick={() => setSelectedComanda({ table: group.table, name: group.name, uid: group.userId })}
-                            className="w-full bg-surface border border-gray-800 p-4 rounded-2xl flex items-center justify-between hover:border-accent/50 transition-all active:scale-[0.98] shadow-sm"
-                        >
-                            <div className="flex items-center">
-                                <div className="bg-primary text-background font-black text-sm px-3 py-1.5 rounded-xl mr-4 shadow-md">
-                                    MESA {group.table}
-                                </div>
-                                <div className="text-left">
-                                    <h3 className="font-bold text-text-primary">{group.name}</h3>
-                                    <p className="text-[10px] text-text-secondary font-medium">
-                                        {group.orders.length} pedido(s) • R$ {group.total.toFixed(2)}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex items-center text-accent">
-                                {group.orders.some(o => o.status === 'pending') && (
-                                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse mr-3"></span>
+                    tableMap.map(m => {
+                        // Lógica de cores baseada no estado
+                        let bgColor = "bg-gray-800/30 border-gray-800 text-gray-600"; // Inativa
+                        let iconColor = "text-gray-700";
+                        
+                        if (m.user || m.hasOrder) {
+                            bgColor = "bg-surface border-primary/50 text-text-primary shadow-lg"; // Ocupada/Ativa
+                            iconColor = "text-primary";
+                        }
+                        
+                        if (m.hasOrder) {
+                            bgColor = "bg-surface border-accent text-text-primary shadow-xl ring-1 ring-accent/30"; // Com pedido
+                            iconColor = "text-accent";
+                        }
+
+                        if (m.pendingOrder) {
+                            bgColor = "bg-accent text-white shadow-2xl animate-pulse"; // Pedido Pendente (Urgente)
+                            iconColor = "text-white";
+                        }
+
+                        return (
+                            <button
+                                key={m.table}
+                                onClick={() => (m.user || m.hasOrder) && setSelectedComanda({ table: m.table, name: m.userName, uid: m.user || m.orders[0]?.user_id })}
+                                className={`${bgColor} border-2 p-4 rounded-2xl flex flex-col items-center justify-center transition-all duration-300 min-h-[120px] relative overflow-hidden`}
+                            >
+                                <span className="absolute top-2 left-3 font-black text-lg opacity-50">{m.table}</span>
+                                
+                                {m.pendingOrder ? <AlertCircle size={28} className="mb-2" /> : <User size={24} className={`${iconColor} mb-2`} />}
+                                
+                                <span className="text-[10px] font-bold uppercase truncate w-full text-center">
+                                    {m.userName || 'Livre'}
+                                </span>
+                                
+                                {m.total > 0 && (
+                                    <span className="mt-1 text-[10px] font-black px-2 py-0.5 bg-black/20 rounded-full">
+                                        R$ {m.total.toFixed(2)}
+                                    </span>
                                 )}
-                                <ChevronRight size={20} />
-                            </div>
-                        </button>
-                    ))
+                            </button>
+                        );
+                    })
                 )}
             </div>
 
@@ -156,9 +183,9 @@ const OrderBoardPage: React.FC = () => {
                 <OwnerOrderDetailsModal 
                     tableNumber={selectedComanda.table}
                     customerName={selectedComanda.name}
-                    orders={groupedOrders.find(g => g.table === selectedComanda.table && g.userId === selectedComanda.uid)?.orders || []}
+                    orders={tableMap.find(m => m.table === selectedComanda.table)?.orders || []}
                     onClose={() => setSelectedComanda(null)}
-                    onUpdate={fetchOrders}
+                    onUpdate={fetchData}
                 />
             )}
         </div>

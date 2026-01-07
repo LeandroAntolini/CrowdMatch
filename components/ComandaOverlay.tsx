@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Receipt, CheckCircle2, Clock } from 'lucide-react';
+import { X, Receipt, CheckCircle2, Clock, Info } from 'lucide-react';
 import { Order } from '../types';
 
 interface ComandaOverlayProps {
@@ -11,7 +11,9 @@ interface ComandaOverlayProps {
 const ComandaOverlay: React.FC<ComandaOverlayProps> = ({ isOpen, onClose, orders }) => {
     if (!isOpen) return null;
 
-    const totalAccumulated = orders.reduce((sum, order) => sum + order.total_price, 0);
+    const subtotal = orders.reduce((sum, order) => sum + order.total_price, 0);
+    const serviceCharge = subtotal * 0.10;
+    const totalWithService = subtotal + serviceCharge;
 
     const getStatusIcon = (status: string) => {
         switch (status) {
@@ -72,7 +74,7 @@ const ComandaOverlay: React.FC<ComandaOverlayProps> = ({ isOpen, onClose, orders
                                 </div>
                                 
                                 <div className="mt-3 pt-3 border-t border-gray-700 flex justify-between font-bold">
-                                    <span>Subtotal</span>
+                                    <span>Valor do Pedido</span>
                                     <span className="text-accent">R$ {order.total_price.toFixed(2)}</span>
                                 </div>
                             </div>
@@ -80,20 +82,31 @@ const ComandaOverlay: React.FC<ComandaOverlayProps> = ({ isOpen, onClose, orders
                     )}
                 </div>
 
-                <div className="p-6 bg-gray-900/50 border-t border-gray-700 rounded-t-3xl">
-                    <div className="flex justify-between items-center mb-6">
+                <div className="p-6 bg-gray-900/50 border-t border-gray-700 rounded-t-3xl space-y-3">
+                    <div className="flex justify-between items-center text-sm text-text-secondary">
+                        <span>Subtotal Consumo</span>
+                        <span>R$ {subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-text-secondary">
+                        <div className="flex items-center">
+                            <span>Taxa de Serviço (10%)</span>
+                            <Info size={14} className="ml-1 opacity-50" />
+                        </div>
+                        <span>R$ {serviceCharge.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
                         <span className="text-lg font-bold">Total da Conta</span>
-                        <span className="text-2xl font-black text-primary">R$ {totalAccumulated.toFixed(2)}</span>
+                        <div className="text-right">
+                            <span className="text-2xl font-black text-primary block">R$ {totalWithService.toFixed(2)}</span>
+                            <span className="text-[10px] text-text-secondary uppercase">Sugerido com taxa</span>
+                        </div>
                     </div>
                     <button 
                         onClick={onClose}
-                        className="w-full bg-surface text-text-primary font-bold py-4 rounded-xl hover:bg-gray-800 transition-colors"
+                        className="w-full bg-accent text-white font-bold py-4 rounded-xl hover:bg-pink-600 transition-colors mt-4"
                     >
                         Continuar Pedindo
                     </button>
-                    <p className="text-[10px] text-center text-text-secondary mt-4 uppercase tracking-widest">
-                        Apresente seu QR Code no caixa para pagar
-                    </p>
                 </div>
             </div>
         </div>

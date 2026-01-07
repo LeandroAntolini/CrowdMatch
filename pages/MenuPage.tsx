@@ -13,7 +13,7 @@ import { toast } from 'react-hot-toast';
 const MenuPage: React.FC = () => {
     const { placeId, tableNumber } = useParams<{ placeId: string; tableNumber: string }>();
     const navigate = useNavigate();
-    const { getPlaceById, isAuthenticated, checkInUser, getCurrentCheckIn, currentUser } = useAppContext();
+    const { getPlaceById, isAuthenticated, checkInUser, currentUser } = useAppContext();
 
     const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
     const [userOrders, setUserOrders] = useState<Order[]>([]);
@@ -26,26 +26,20 @@ const MenuPage: React.FC = () => {
     const place = placeId ? getPlaceById(placeId) : null;
     const isPlaceOpen = place?.isOpen ?? true;
 
-    // Busca de pedidos refatorada para ser chamada a qualquer momento
     const fetchOrders = useCallback(async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
-        if (!placeId || !userId) return;
+        if (!placeId || !currentUser?.id) return;
         
-        try {
-            const { data, error } = await supabase
-                .from('orders')
-                .select('*, order_items(*, menu_items(*))')
-                .eq('place_id', placeId)
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false });
-            
-            if (error) throw error;
-            setUserOrders(data || []);
-        } catch (e) {
-            console.error("Erro ao carregar comanda:", e);
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*, order_items(*, menu_items(*))')
+            .eq('place_id', placeId)
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false });
+        
+        if (!error && data) {
+            setUserOrders(data);
         }
-    }, [placeId]);
+    }, [placeId, currentUser?.id]);
 
     useEffect(() => {
         if (!placeId) return;
@@ -58,9 +52,8 @@ const MenuPage: React.FC = () => {
         };
         loadData();
 
-        // Real-time para a comanda do usuário
         if (isAuthenticated && currentUser?.id) {
-            const channel = supabase.channel(`comanda-${placeId}-${currentUser.id}`)
+            const channel = supabase.channel(`comanda-${placeId}`)
                 .on('postgres_changes', { 
                     event: '*', 
                     schema: 'public', 
@@ -85,37 +78,52 @@ const MenuPage: React.FC = () => {
     }, 0), [cart, menuItems]);
 
     const handlePlaceOrder = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user || !tableNumber || !placeId) return;
+        if (!currentUser?.id || !tableNumber || !placeId) {
+            toast.error("Erro de autenticação.");
+            return;
+        }
         
         setOrdering(true);
         try {
-            const orderId = crypto.randomUUID();
-            // 1. Criar pedido
-            const { error: oErr } = await supabase.from('orders').insert({
-                id: orderId, place_id: placeId, user_id: session.user.id,
-                table_number: parseInt(tableNumber), total_price: cartTotal, status: 'pending'
-            });
-            if (oErr) throw oErr;
+            // 1. Inserir o pedido e obter o objeto criado (para pegar o ID gerado pelo banco)
+            const { data: orderData, error: orderError } = await supabase
+                .from('orders')
+                .insert({
+                    place_id: placeId,
+                    user_id: currentUser.id,
+                    table_number: parseInt(tableNumber),
+                    total_price: cartTotal,
+                    status: 'pending'
+                })
+                .select()
+                .single();
 
-            // 2. Criar itens
-            const items = Object.entries(cart).map(([id, qty]) => ({
-                order_id: orderId, menu_item_id: id, quantity: qty, unit_price: menuItems.find(i => i.id === id)?.price || 0
+            if (orderError) throw orderError;
+
+            // 2. Inserir os itens usando o ID do pedido retornado
+            const itemsToInsert = Object.entries(cart).map(([itemId, qty]) => ({
+                order_id: orderData.id,
+                menu_item_id: itemId,
+                quantity: qty,
+                unit_price: menuItems.find(i => i.id === itemId)?.price || 0
             }));
-            const { error: iErr } = await supabase.from('order_items').insert(items);
-            if (iErr) throw iErr;
 
-            toast.success("Pedido enviado!");
+            const { error: itemsError } = await supabase.from('order_items').insert(itemsToInsert);
+            if (itemsError) throw itemsError;
+
+            toast.success("Pedido enviado para a cozinha!");
             setCart({});
             await fetchOrders();
         } catch (error: any) {
-            toast.error("Falha ao enviar: " + error.message);
+            console.error("Erro ao processar pedido:", error);
+            toast.error("Falha no envio: " + error.message);
         } finally {
             setOrdering(false);
         }
     };
 
     if (loading) return <LoadingSpinner />;
+    
     if (!isAuthenticated && tableNumber) return (
         <div className="p-6 flex flex-col items-center justify-center min-h-full">
             <QrCode size={64} className="text-accent mb-4" />
@@ -130,37 +138,37 @@ const MenuPage: React.FC = () => {
                     <button onClick={() => navigate(-1)} className="mr-4 text-text-secondary"><ChevronLeft size={28} /></button>
                     <div>
                         <h1 className="text-xl font-bold truncate max-w-[150px]">{place?.name}</h1>
-                        <p className="text-xs text-accent font-bold">{tableNumber ? `MESA ${tableNumber}` : 'Cardápio'}</p>
+                        <p className="text-xs text-accent font-bold">{tableNumber ? `MESA ${tableNumber}` : 'Cardápio Digital'}</p>
                     </div>
                 </div>
                 <button onClick={() => setIsComandaOpen(true)} className="p-2 text-text-secondary relative">
                     <Receipt size={24} />
-                    {userOrders.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-accent rounded-full border border-surface"></span>}
+                    {userOrders.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-accent rounded-full border-2 border-surface"></span>}
                 </button>
             </header>
 
-            <div className="flex-grow overflow-y-auto p-4 space-y-8 pb-32">
+            <div className="flex-grow overflow-y-auto p-4 space-y-8 pb-40">
                 {useMemo(() => {
                     const cats = Array.from(new Set(menuItems.map(i => i.category)));
                     return cats.map(cat => (
                         <section key={cat}>
-                            <h2 className="text-lg font-bold text-primary mb-4 border-l-4 border-primary pl-3">{cat}</h2>
+                            <h2 className="text-lg font-bold text-primary mb-4 border-l-4 border-primary pl-3 uppercase tracking-wider">{cat}</h2>
                             <div className="space-y-4">
                                 {menuItems.filter(i => i.category === cat).map(item => (
-                                    <div key={item.id} className="bg-surface rounded-xl p-3 flex items-center shadow-md">
-                                        <img src={item.image_url || 'https://picsum.photos/seed/food/100/100'} className="w-20 h-20 rounded-lg object-cover mr-4" />
+                                    <div key={item.id} className="bg-surface rounded-2xl p-3 flex items-center shadow-lg border border-gray-800">
+                                        <img src={item.image_url || 'https://picsum.photos/seed/food/100/100'} className="w-20 h-20 rounded-xl object-cover mr-4" />
                                         <div className="flex-grow">
-                                            <h3 className="font-bold">{item.name}</h3>
-                                            <p className="text-xs text-text-secondary mb-2">{item.description}</p>
+                                            <h3 className="font-bold text-text-primary">{item.name}</h3>
+                                            <p className="text-[10px] text-text-secondary mb-2 line-clamp-2">{item.description}</p>
                                             <div className="flex justify-between items-center">
-                                                <span className="font-bold text-accent">R$ {item.price.toFixed(2)}</span>
+                                                <span className="font-black text-accent">R$ {item.price.toFixed(2)}</span>
                                                 {tableNumber && isPlaceOpen && (
-                                                    <div className="flex items-center bg-gray-800 rounded-full px-2">
-                                                        {cart[item.id] && (
-                                                            <><button onClick={() => removeFromCart(item.id)} className="p-1 text-accent"><Minus size={18} /></button>
-                                                            <span className="px-3 font-bold">{cart[item.id]}</span></>
-                                                        )}
-                                                        <button onClick={() => addToCart(item.id)} className="p-1 text-accent"><Plus size={18} /></button>
+                                                    <div className="flex items-center bg-gray-800 rounded-full p-1 border border-gray-700">
+                                                        {cart[item.id] ? (
+                                                            <><button onClick={() => removeFromCart(item.id)} className="p-1.5 text-accent hover:bg-gray-700 rounded-full transition-colors"><Minus size={16} /></button>
+                                                            <span className="px-3 font-bold text-sm">{cart[item.id]}</span></>
+                                                        ) : null}
+                                                        <button onClick={() => addToCart(item.id)} className="p-1.5 text-accent hover:bg-gray-700 rounded-full transition-colors"><Plus size={16} /></button>
                                                     </div>
                                                 )}
                                             </div>
@@ -174,13 +182,18 @@ const MenuPage: React.FC = () => {
             </div>
 
             {cartTotal > 0 && (
-                <div className="fixed bottom-20 left-4 right-4 bg-accent p-4 rounded-xl shadow-2xl z-20">
-                    <div className="flex justify-between items-center mb-4 font-bold">
-                        <span>Seu Carrinho</span>
-                        <span>R$ {cartTotal.toFixed(2)}</span>
+                <div className="fixed bottom-24 left-4 right-4 bg-accent p-4 rounded-2xl shadow-2xl z-20 animate-fade-in-up">
+                    <div className="flex justify-between items-center mb-3">
+                        <span className="font-bold uppercase text-xs opacity-80 text-white">Seu Carrinho</span>
+                        <span className="text-2xl font-black text-white">R$ {cartTotal.toFixed(2)}</span>
                     </div>
-                    <button onClick={handlePlaceOrder} disabled={ordering} className="w-full bg-white text-accent font-bold py-3 rounded-lg flex items-center justify-center">
-                        {ordering && <Loader2 className="animate-spin mr-2" />} Fazer Pedido
+                    <button 
+                        onClick={handlePlaceOrder} 
+                        disabled={ordering} 
+                        className="w-full bg-white text-accent font-black py-4 rounded-xl flex items-center justify-center shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                    >
+                        {ordering ? <Loader2 className="animate-spin mr-2" /> : <ShoppingBag className="mr-2" />} 
+                        ENVIAR PEDIDO NA MESA {tableNumber}
                     </button>
                 </div>
             )}

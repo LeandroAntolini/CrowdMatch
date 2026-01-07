@@ -140,7 +140,7 @@ export interface MenuItem {
   is_available: boolean;
 }
 
-export type OrderStatus = 'pending' | 'preparing' | 'delivered' | 'paid' | 'cancelled';
+export type OrderStatus = 'pending' | 'preparing' | 'delivering' | 'delivered' | 'paid' | 'cancelled';
 
 export interface OrderItem {
   id: string;

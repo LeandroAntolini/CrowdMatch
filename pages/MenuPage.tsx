@@ -6,6 +6,7 @@ import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode, Alert
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '@/integrations/supabase/client';
 import QuickSignUpForm from '../components/QuickSignUpForm';
+import MenuQrScannerModal from '../components/MenuQrScannerModal';
 
 const MenuPage: React.FC = () => {
     const { placeId, tableNumber } = useParams<{ placeId: string; tableNumber: string }>();
@@ -23,6 +24,7 @@ const MenuPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [ordering, setOrdering] = useState(false);
     const [orderSuccess, setOrderSuccess] = useState(false);
+    const [isScannerOpen, setIsScannerOpen] = useState(false);
 
     const place = placeId ? getPlaceById(placeId) : null;
     const isCheckedIn = getCurrentCheckIn()?.placeId === placeId;
@@ -116,6 +118,10 @@ const MenuPage: React.FC = () => {
         } finally {
             setOrdering(false);
         }
+    };
+
+    const handleScanSuccess = (scannedTableNumber: string) => {
+        navigate(`/menu/${placeId}/${scannedTableNumber}`, { replace: true });
     };
 
     if (loading) return <LoadingSpinner message="Carregando cardápio..." />;
@@ -252,12 +258,25 @@ const MenuPage: React.FC = () => {
             )}
             
             {!tableNumber && (
-                <div className="fixed bottom-20 left-4 right-4 bg-surface p-4 rounded-xl border border-accent/30 text-center">
-                    <p className="text-sm text-text-secondary">
+                <div className="fixed bottom-20 left-4 right-4 bg-surface p-4 rounded-xl border border-accent/30 flex items-center justify-between shadow-2xl">
+                    <p className="text-sm text-text-secondary text-left flex-grow mr-4">
                         Escaneie o QR Code da mesa para fazer pedidos.
                     </p>
+                    <button 
+                        onClick={() => setIsScannerOpen(true)}
+                        className="bg-accent text-white p-3 rounded-lg shadow-lg flex items-center justify-center shrink-0"
+                    >
+                        <QrCode size={24} />
+                    </button>
                 </div>
             )}
+
+            <MenuQrScannerModal 
+                isOpen={isScannerOpen}
+                onClose={() => setIsScannerOpen(false)}
+                onScan={handleScanSuccess}
+                expectedPlaceId={placeId || ''}
+            />
         </div>
     );
 };

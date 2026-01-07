@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { Plus, Minus, FileText, Loader2 } from 'lucide-react';
-import jsPDF from 'jsPDF';
+import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 const TableQRManager: React.FC = () => {

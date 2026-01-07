@@ -132,7 +132,7 @@ const OrderBoardPage: React.FC = () => {
                 <select 
                     value={selectedPlaceId} 
                     onChange={e => setSelectedPlaceId(e.target.value)} 
-                    className="w-full p-3 bg-surface border border-gray-700 rounded-xl outline-none font-bold text-sm"
+                    className="w-full p-3 bg-surface border border-gray-700 rounded-xl outline-none font-bold text-sm appearance-none"
                 >
                     {ownedPlaceIds.map(id => (
                         <option key={id} value={id}>{getPlaceById(id)?.name}</option>

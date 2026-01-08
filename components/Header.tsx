@@ -80,6 +80,10 @@ const Header: React.FC = () => {
             setLoadingOrders(false);
         }
     };
+    
+    const handleDisabledClick = () => {
+        toast.error("Escaneie o QR Code da mesa para ativar sua comanda digital.");
+    };
 
     return (
         <>
@@ -110,8 +114,8 @@ const Header: React.FC = () => {
                 {/* LADO DIREITO: Comanda e Scanner QR */}
                 <div className="flex items-center space-x-1">
                     <button 
-                        onClick={handleOpenComanda}
-                        disabled={!hasActiveOrders || loadingOrders}
+                        onClick={hasActiveOrders ? handleOpenComanda : handleDisabledClick}
+                        disabled={loadingOrders}
                         className={`relative p-2 transition-colors ${hasActiveOrders ? 'text-accent hover:text-pink-400' : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
                         aria-label="Abrir Comanda"
                     >

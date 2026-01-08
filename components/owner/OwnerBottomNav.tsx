@@ -1,9 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Ticket, Newspaper, Building, Radio, Utensils, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Ticket, Building, Utensils, ClipboardList, LayoutGrid } from 'lucide-react';
 
 const navItems = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Painel' },
+    { to: '/owner/tables', icon: LayoutGrid, label: 'Mesas' },
     { to: '/owner/orders', icon: ClipboardList, label: 'Pedidos' },
     { to: '/owner/menu', icon: Utensils, label: 'Cardápio' },
     { to: '/owner/promotions', icon: Ticket, label: 'Promos' },
@@ -26,7 +27,7 @@ const OwnerBottomNav: React.FC = () => {
                     }
                 >
                     <Icon size={24} />
-                    <span className="text-xs mt-1">{label}</span>
+                    <span className="text-[10px] mt-1">{label}</span>
                 </NavLink>
             ))}
         </nav>

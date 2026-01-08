@@ -14,6 +14,7 @@ import OwnerLivePage from '../pages/owner/OwnerLivePage';
 import MenuManagementPage from '../pages/owner/MenuManagementPage';
 import OrderBoardPage from '../pages/owner/OrderBoardPage';
 import TableQRManager from '../pages/owner/TableQRManager';
+import TablesPage from '../pages/owner/TablesPage';
 import OwnerHeader from '../components/owner/OwnerHeader';
 import OwnerBottomNav from '../components/owner/OwnerBottomNav';
 
@@ -30,6 +31,7 @@ const OwnerLayout: React.FC = () => {
                 <div className="w-full max-w-7xl">
                     <Routes>
                         <Route path="/dashboard" element={<OwnerDashboardPage />} />
+                        <Route path="/owner/tables" element={<TablesPage />} />
                         <Route path="/owner/orders" element={<OrderBoardPage />} />
                         <Route path="/owner/menu" element={<MenuManagementPage />} />
                         <Route path="/owner/qrs" element={<TableQRManager />} />

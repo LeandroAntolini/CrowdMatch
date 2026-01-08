@@ -12,6 +12,12 @@ const OwnerHeader: React.FC = () => {
         switch (location.pathname) {
             case '/dashboard':
                 return 'Dashboard';
+            case '/owner/tables':
+                return 'Gestão de Mesas';
+            case '/owner/orders':
+                return 'Pedidos Ativos';
+            case '/owner/menu':
+                return 'Cardápio Digital';
             case '/owner/promotions':
                 return 'Minhas Promoções';
             case '/owner/feeds':

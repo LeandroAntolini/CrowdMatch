@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, XCircle, Heart, Radio, Clock, Ticket, Utensils } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, XCircle, Heart, Radio, Clock, Ticket, Utensils, Receipt } from 'lucide-react';
 import MapModal from '../components/MapModal';
 import LivePostForm from '../components/LivePostForm';
 import LiveFeedBox from '../components/LiveFeedBox';
 import PromotionClaimStatus from '../components/PromotionClaimStatus';
-import { PromotionType } from '../types';
+import { PromotionType, Order } from '../types';
 import ConfirmationTicket from '../components/ConfirmationTicket';
+import ComandaOverlay from '../components/ComandaOverlay';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ClaimResultState {
     message: string;
@@ -39,12 +41,16 @@ const PlaceDetailsPage: React.FC = () => {
         promotionClaims,
         claimPromotion,
         currentUser,
-        getUserOrderForPlace
+        getUserOrderForPlace,
+        getActiveTableForUser
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
     const [claimResult, setClaimResult] = useState<ClaimResultState | null>(null);
     const [confirmationTicket, setConfirmationTicket] = useState<{ type: 'check-in' | 'going'; timestamp: number; order: number } | null>(null);
+    const [activeTable, setActiveTable] = useState<number | null>(null);
+    const [userOrders, setUserOrders] = useState<Order[]>([]);
+    const [isComandaOpen, setIsComandaOpen] = useState(false);
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
@@ -52,8 +58,6 @@ const PlaceDetailsPage: React.FC = () => {
     const isCheckedInHere = currentCheckIn?.placeId === id;
     const isGoingHere = id ? isUserGoingToPlace(id) : false;
     const isCheckedInElsewhere = currentCheckIn && !isCheckedInHere;
-    const busyPlaceId = currentCheckIn?.placeId;
-    const busyPlace = busyPlaceId ? getPlaceById(busyPlaceId) : null;
     const isCurrentlyFavorite = id ? isFavorite(id) : false;
 
     const activeGoingPromotions = id ? getActivePromotionsForPlace(id, 'FIRST_N_GOING') : [];
@@ -62,8 +66,27 @@ const PlaceDetailsPage: React.FC = () => {
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place?.id).length;
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place?.id).length;
 
+    const fetchOrders = useCallback(async () => {
+        if (!id || !currentUser?.id) return;
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*, order_items(*, menu_items(*))')
+            .eq('place_id', id)
+            .eq('user_id', currentUser.id)
+            .order('created_at', { ascending: false });
+        if (!error && data) setUserOrders(data);
+    }, [id, currentUser?.id]);
+
     useEffect(() => {
         if (!id || !currentUser) return;
+
+        const loadSessionData = async () => {
+            const table = await getActiveTableForUser(id);
+            setActiveTable(table);
+            if (table) await fetchOrders();
+        };
+
+        loadSessionData();
 
         if (isCheckedInHere) {
             const order = getUserOrderForPlace(id, 'check-in');
@@ -84,13 +107,16 @@ const PlaceDetailsPage: React.FC = () => {
         } else {
             setConfirmationTicket(null);
         }
-    }, [isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, id, currentUser, getUserOrderForPlace]);
+    }, [id, currentUser, isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, getActiveTableForUser, fetchOrders, getUserOrderForPlace]);
 
     const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
 
     if (!place) {
         return <LoadingSpinner />;
     }
+
+    const isNightlife = place?.category === 'Boate' || place?.category === 'Casa de Shows' || place?.category === 'Espaço Musical';
+    const labelSingular = isNightlife ? 'Comanda' : 'Mesa';
     
     const handleFavoriteToggle = () => {
         if (!id) return;
@@ -132,7 +158,6 @@ const PlaceDetailsPage: React.FC = () => {
                 if (result) lastClaimResult = result;
             }
             if (lastClaimResult) setClaimResult(lastClaimResult);
-
         } catch (e: any) {
             alert(e.message);
         }
@@ -170,7 +195,21 @@ const PlaceDetailsPage: React.FC = () => {
                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
                 </button>
             </div>
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-4 right-4 flex space-x-2">
+                {activeTable && (
+                    <button 
+                        onClick={() => setIsComandaOpen(true)} 
+                        className="bg-accent text-white rounded-full p-2 relative shadow-lg"
+                        aria-label="Ver Comanda Ativa"
+                    >
+                        <Receipt size={24} />
+                        {userOrders.length > 0 && (
+                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-white text-accent text-[10px] font-black flex items-center justify-center rounded-full border-2 border-accent">
+                                {userOrders.length}
+                            </span>
+                        )}
+                    </button>
+                )}
                 <button onClick={handleFavoriteToggle} className="bg-black/50 text-white rounded-full p-2 transition-colors">
                     <Heart size={24} fill={isCurrentlyFavorite ? '#EC4899' : 'none'} stroke={isCurrentlyFavorite ? '#EC4899' : 'currentColor'} />
                 </button>
@@ -178,7 +217,14 @@ const PlaceDetailsPage: React.FC = () => {
             
             <div className="p-4">
                 <h1 className="text-3xl font-bold">{place.name}</h1>
-                <p className="text-text-secondary mt-1">{place.category}</p>
+                <div className="flex items-center mt-1">
+                    <p className="text-text-secondary">{place.category}</p>
+                    {activeTable && (
+                        <span className="ml-3 px-2 py-0.5 bg-accent text-white text-[10px] font-black rounded uppercase">
+                            {labelSingular} {activeTable}
+                        </span>
+                    )}
+                </div>
                 
                 <div className="flex items-center space-x-4 my-4 text-text-secondary">
                     <div className="flex items-center">
@@ -204,13 +250,12 @@ const PlaceDetailsPage: React.FC = () => {
                         {place.isOpen ? "Aberto Agora" : "Fechado"}
                     </div>
                     
-                    {/* Botão para o Cardápio */}
                     <Link 
-                        to={`/menu/${place.id}`} 
+                        to={activeTable ? `/menu/${place.id}/${activeTable}` : `/menu/${place.id}`} 
                         className="bg-accent/20 text-accent text-xs font-bold px-3 py-1 rounded-full flex items-center"
                     >
                         <Utensils size={14} className="mr-1" />
-                        Ver Cardápio
+                        Cardápio {activeTable ? `da ${labelSingular} ${activeTable}` : 'Digital'}
                     </Link>
                 </div>
 
@@ -225,15 +270,7 @@ const PlaceDetailsPage: React.FC = () => {
                             <Ticket size={24} className="mr-2 text-accent" />
                             Promoções Ativas
                         </h2>
-                        {activeGoingPromotions.map(promo => (
-                            <PromotionClaimStatus 
-                                key={promo.id} 
-                                promotion={promo} 
-                                claim={getUserClaim(promo.id)}
-                                claimOrder={claimResult?.claimOrder}
-                            />
-                        ))}
-                        {activeCheckinPromotions.map(promo => (
+                        {[...activeGoingPromotions, ...activeCheckinPromotions].map(promo => (
                             <PromotionClaimStatus 
                                 key={promo.id} 
                                 promotion={promo} 
@@ -256,7 +293,7 @@ const PlaceDetailsPage: React.FC = () => {
                             {isCheckedInElsewhere && (
                                 <div className="text-center p-4 bg-gray-800 rounded-lg">
                                     <p className="font-semibold text-yellow-400">Check-in Ativo!</p>
-                                    <p className="text-sm text-text-secondary">Você está em "{busyPlace?.name}". Faça check-out lá para fazer check-in aqui.</p>
+                                    <p className="text-sm text-text-secondary">Você já está em outro local. Faça check-out para realizar check-in aqui.</p>
                                 </div>
                             )}
                             
@@ -277,10 +314,6 @@ const PlaceDetailsPage: React.FC = () => {
                                 <Users className="mr-2" size={18} />
                                 {isCheckedInHere ? 'Você está Aqui' : 'Estou Aqui'}
                             </button>
-                            
-                            {!place.isOpen && !isCheckedInHere && !isGoingHere && (
-                                <p className="text-xs text-center text-text-secondary mt-2">O check-in fica disponível durante o horário de funcionamento.</p>
-                            )}
                         </div>
 
                         <div className="w-full sm:w-1/2">
@@ -327,6 +360,12 @@ const PlaceDetailsPage: React.FC = () => {
                 places={places}
                 checkIns={checkIns}
                 highlightedPlaceId={id}
+            />
+
+            <ComandaOverlay 
+                isOpen={isComandaOpen} 
+                onClose={() => setIsComandaOpen(false)} 
+                orders={userOrders} 
             />
         </div>
     );

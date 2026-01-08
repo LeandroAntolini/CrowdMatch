@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
-import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, PostLike } from '../types';
+import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, Order } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -165,6 +165,7 @@ interface AppContextType {
     fetchUsersForPlace: (placeId: string) => Promise<void>;
     potentialMatches: User[];
     fetchPotentialMatches: (placeId: string) => Promise<void>;
+    getActiveTableForUser: (placeId: string) => Promise<number | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -690,6 +691,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, [currentUser, promotionClaims, refreshOwnerPromotions]);
 
+    const getActiveTableForUser = useCallback(async (placeId: string): Promise<number | null> => {
+        if (!currentUser) return null;
+        const { data, error } = await supabase
+            .from('tables')
+            .select('table_number')
+            .eq('place_id', placeId)
+            .eq('current_user_id', currentUser.id)
+            .maybeSingle();
+        
+        if (error || !data) return null;
+        return data.table_number;
+    }, [currentUser]);
+
     const getPlaceById = (id: string) => places.find(p => p.id === id);
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
     const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id); 
@@ -933,7 +947,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
-        potentialMatches, fetchPotentialMatches,
+        potentialMatches, fetchPotentialMatches, getActiveTableForUser
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

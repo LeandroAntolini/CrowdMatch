@@ -86,6 +86,8 @@ const PlaceDetailsPage: React.FC = () => {
         const table = await getActiveTableForUser(id);
         setActiveTable(table);
         
+        console.log(`[PlaceDetailsPage] Active Table for ${currentUser.id} at ${id}:`, table); // LOG DE DEBUG
+        
         // 2. Buscar pedidos se houver mesa ativa
         if (table) {
             await fetchOrders();
@@ -223,7 +225,6 @@ const PlaceDetailsPage: React.FC = () => {
                 </button>
             </div>
             <div className="absolute top-4 right-4 flex space-x-2">
-                {/* Botão de Comanda no topo REMOVIDO */}
                 <button onClick={handleFavoriteToggle} className="bg-black/50 text-white rounded-full p-2 transition-colors">
                     <Heart size={24} fill={isCurrentlyFavorite ? '#EC4899' : 'none'} stroke={isCurrentlyFavorite ? '#EC4899' : 'currentColor'} />
                 </button>

@@ -35,21 +35,15 @@ const AppRoutes: React.FC = () => {
         );
     }
 
-    if (isAuthenticated && isLoading) {
-        return (
-            <div className="h-screen w-screen bg-background flex items-center justify-center">
-                <LoadingSpinner message="Carregando dados do perfil..." />
-            </div>
-        );
-    }
-
     return (
         <div className="h-screen w-screen bg-background text-text-primary font-sans overflow-hidden">
             <main className="h-full w-full">
                 <Routes>
+                    {/* Rotas de Cardápio são prioritárias e universais */}
                     <Route path="/menu/:placeId" element={<MenuPage />} />
                     <Route path="/menu/:placeId/:tableNumber" element={<MenuPage />} />
 
+                    {/* Fluxo de Onboarding e Auth */}
                     {!hasOnboarded ? (
                         <>
                             <Route path="/" element={<OnboardingPage />} />
@@ -60,10 +54,17 @@ const AppRoutes: React.FC = () => {
                             <Route path="/auth" element={<AuthPage />} />
                             <Route path="*" element={<Navigate to="/auth" />} />
                         </>
-                    ) : currentUser?.role === 'owner' ? (
-                        <Route path="/*" element={<OwnerLayout />} />
                     ) : (
-                        <Route path="/*" element={<UserLayout />} />
+                        /* App Principal (Logado) */
+                        <>
+                            {isLoading ? (
+                                <Route path="*" element={<div className="h-full flex items-center justify-center"><LoadingSpinner message="Sincronizando dados..." /></div>} />
+                            ) : currentUser?.role === 'owner' ? (
+                                <Route path="/*" element={<OwnerLayout />} />
+                            ) : (
+                                <Route path="/*" element={<UserLayout />} />
+                            )}
+                        </>
                     )}
                 </Routes>
             </main>

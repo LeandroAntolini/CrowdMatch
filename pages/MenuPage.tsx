@@ -23,7 +23,7 @@ const MenuPage: React.FC = () => {
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [isComandaOpen, setIsComandaOpen] = useState(false);
 
-    const place = placeId ? getPlaceById(placeId) : null;
+    const place = useMemo(() => placeId ? getPlaceById(placeId) : null, [placeId, getPlaceById]);
     const isPlaceOpen = place?.isOpen ?? true;
 
     const isNightlife = place?.category === 'Boate' || place?.category === 'Casa de Shows' || place?.category === 'Espaço Musical';
@@ -31,10 +31,16 @@ const MenuPage: React.FC = () => {
 
     const occupyTable = useCallback(async () => {
         if (!placeId || !tableNumber || !currentUser?.id) return;
-        await supabase.from('tables').update({ 
-            current_user_id: currentUser.id, 
-            last_activity: new Date().toISOString() 
-        }).eq('place_id', placeId).eq('table_number', parseInt(tableNumber));
+        try {
+            await supabase.from('tables').upsert({ 
+                place_id: placeId,
+                table_number: parseInt(tableNumber),
+                current_user_id: currentUser.id, 
+                last_activity: new Date().toISOString() 
+            }, { onConflict: 'place_id,table_number' });
+        } catch (e) {
+            console.error("Erro ao ocupar mesa:", e);
+        }
     }, [placeId, tableNumber, currentUser?.id]);
 
     const fetchOrders = useCallback(async () => {
@@ -56,37 +62,46 @@ const MenuPage: React.FC = () => {
 
         const loadData = async () => {
             try {
-                const { data } = await supabase.from('menu_items').select('*').eq('place_id', placeId).eq('is_available', true);
+                // Carrega itens do cardápio
+                const { data, error: menuError } = await supabase
+                    .from('menu_items')
+                    .select('*')
+                    .eq('place_id', placeId)
+                    .eq('is_available', true);
+                
+                if (menuError) throw menuError;
                 setMenuItems(data || []);
 
+                // Se logado e em uma mesa, processa check-in e ocupação
                 if (isAuthenticated && currentUser) {
                     await fetchOrders();
-                    await occupyTable();
-
-                    // CHECK-IN AUTOMÁTICO:
-                    // Se estiver em uma mesa e o local estiver aberto, realiza o check-in automaticamente
-                    if (tableNumber && isPlaceOpen) {
-                        const currentCi = getCurrentCheckIn();
-                        if (currentCi?.placeId !== placeId) {
-                            await checkInUser(placeId);
-                            toast.success(`Check-in automático em ${place?.name || 'estabelecimento'}!`);
+                    
+                    if (tableNumber) {
+                        await occupyTable();
+                        
+                        if (isPlaceOpen) {
+                            const currentCi = getCurrentCheckIn();
+                            if (currentCi?.placeId !== placeId) {
+                                await checkInUser(placeId);
+                                toast.success(`Check-in automático: Você está na ${labelSingular} ${tableNumber}!`);
+                            }
                         }
                     }
                 }
             } catch (err) {
                 console.error("Erro ao carregar cardápio:", err);
-                toast.error("Erro ao carregar cardápio.");
+                toast.error("Erro ao sincronizar dados do local.");
             } finally {
                 setLoading(false);
             }
         };
 
         loadData();
-    }, [placeId, tableNumber, isAuthenticated, currentUser, isPlaceOpen, fetchOrders, occupyTable, checkInUser, getCurrentCheckIn, place?.name]);
+    }, [placeId, tableNumber, isAuthenticated, currentUser, isPlaceOpen, fetchOrders, occupyTable, checkInUser, getCurrentCheckIn, labelSingular]);
 
     const addToCart = (id: string) => {
         if (!isPlaceOpen) {
-            toast.error("Este estabelecimento está fechado no momento.");
+            toast.error("O estabelecimento está fechado.");
             return;
         }
         setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
@@ -105,7 +120,7 @@ const MenuPage: React.FC = () => {
 
     const handlePlaceOrder = async () => {
         if (!currentUser?.id || !tableNumber || !placeId) {
-            toast.error("Você precisa estar em uma mesa para pedir.");
+            toast.error("Erro na identificação da mesa.");
             return;
         }
         setOrdering(true);
@@ -128,77 +143,107 @@ const MenuPage: React.FC = () => {
             }));
             
             await supabase.from('order_items').insert(itemsToInsert);
-            toast.success("Pedido enviado com sucesso!");
+            toast.success("Pedido enviado para a cozinha!");
             setCart({});
             await fetchOrders();
         } catch (error: any) {
-            toast.error("Falha ao enviar pedido: " + error.message);
+            toast.error("Erro ao enviar: " + error.message);
         } finally {
             setOrdering(false);
         }
     };
 
-    if (loading) return <LoadingSpinner message="Carregando cardápio..." />;
+    if (loading) return (
+        <div className="h-screen w-screen bg-background flex items-center justify-center">
+            <LoadingSpinner message="Abrindo cardápio..." />
+        </div>
+    );
     
-    if (!placeId) return <div className="p-10 text-center">Local não encontrado.</div>;
+    if (!placeId) return <div className="h-screen bg-background p-10 text-center flex flex-col items-center justify-center">Local não identificado. <button onClick={() => navigate('/')} className="mt-4 text-accent">Voltar</button></div>;
 
     if (!isAuthenticated && tableNumber) return (
-        <div className="p-6 flex flex-col items-center justify-center min-h-full">
-            <QrCode size={64} className="text-accent mb-4" />
+        <div className="h-screen bg-background p-6 flex flex-col items-center justify-center">
+            <div className="text-center mb-8">
+                <QrCode size={64} className="text-accent mx-auto mb-4" />
+                <h1 className="text-2xl font-bold mb-2">Bem-vindo ao {place?.name || 'Local'}</h1>
+                <p className="text-text-secondary text-sm">Identificamos que você está na <strong>{labelSingular} {tableNumber}</strong>.</p>
+            </div>
             <QuickSignUpForm onSuccess={() => isPlaceOpen && checkInUser(placeId!)} />
         </div>
     );
 
     return (
-        <div className="flex flex-col h-full bg-background">
-            <header className="p-4 bg-surface border-b border-gray-700 sticky top-0 z-10 flex justify-between items-center">
+        <div className="flex flex-col h-screen bg-background overflow-hidden">
+            <header className="flex-shrink-0 p-4 bg-surface border-b border-gray-800 sticky top-0 z-50 flex justify-between items-center shadow-lg">
                 <div className="flex items-center">
-                    <button onClick={() => navigate(-1)} className="mr-4 text-text-secondary"><ChevronLeft size={28} /></button>
-                    <div>
-                        <h1 className="text-xl font-bold truncate max-w-[150px]">{place?.name || 'Cardápio'}</h1>
-                        <p className="text-xs text-accent font-bold">
-                            {tableNumber ? `${labelSingular.toUpperCase()} ${tableNumber}` : 'Cardápio Digital'}
+                    <button onClick={() => navigate(-1)} className="mr-3 p-2 hover:bg-gray-800 rounded-full text-text-secondary"><ChevronLeft size={24} /></button>
+                    <div className="overflow-hidden">
+                        <h1 className="text-lg font-black truncate max-w-[140px] leading-tight">{place?.name || 'Cardápio'}</h1>
+                        <p className="text-[10px] text-accent font-black uppercase tracking-widest">
+                            {tableNumber ? `${labelSingular} ${tableNumber}` : 'Cardápio Digital'}
                             {!isPlaceOpen && " • FECHADO"}
                         </p>
                     </div>
                 </div>
-                <button onClick={() => setIsComandaOpen(true)} className="p-2 text-text-secondary relative">
-                    <Receipt size={24} />
-                    {userOrders.length > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-accent rounded-full border-2 border-surface"></span>}
+                <button 
+                    onClick={() => setIsComandaOpen(true)} 
+                    className="p-3 bg-gray-800 rounded-xl text-text-primary relative hover:bg-gray-700 transition-colors"
+                    aria-label="Ver Comanda"
+                >
+                    <Receipt size={22} />
+                    {userOrders.length > 0 && (
+                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-[10px] font-black flex items-center justify-center rounded-full border-2 border-surface">
+                            {userOrders.length}
+                        </span>
+                    )}
                 </button>
             </header>
 
-            <div className="flex-grow overflow-y-auto p-4 space-y-8 pb-40">
+            <div className="flex-grow overflow-y-auto p-4 space-y-8 pb-48">
                 {!isPlaceOpen && (
-                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-red-400 text-sm flex items-center">
-                        <Utensils size={18} className="mr-3 flex-shrink-0" />
-                        <p>O local está fechado agora. Você pode visualizar o cardápio, mas os pedidos estão desabilitados.</p>
+                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-sm flex items-center shadow-sm">
+                        <Utensils size={20} className="mr-3 flex-shrink-0" />
+                        <p className="font-medium">O local está fechado. Você pode ver os itens, mas pedidos estão desabilitados.</p>
                     </div>
                 )}
 
                 {useMemo(() => {
                     const categories = Array.from(new Set(menuItems.map(i => i.category)));
-                    if (menuItems.length === 0) return <p className="text-center text-text-secondary py-10">Nenhum item disponível no momento.</p>;
+                    if (menuItems.length === 0) return (
+                        <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                            <Utensils size={48} className="mb-4" />
+                            <p className="font-bold">Nenhum item disponível.</p>
+                        </div>
+                    );
                     
                     return categories.map(cat => (
-                        <section key={cat}>
-                            <h2 className="text-lg font-bold text-primary mb-4 border-l-4 border-primary pl-3 uppercase tracking-wider">{cat}</h2>
+                        <section key={cat} className="animate-fade-in-up">
+                            <h2 className="text-sm font-black text-primary mb-4 border-l-4 border-primary pl-3 uppercase tracking-tighter">{cat}</h2>
                             <div className="space-y-4">
                                 {menuItems.filter(i => i.category === cat).map(item => (
-                                    <div key={item.id} className="bg-surface rounded-2xl p-3 flex items-center shadow-lg border border-gray-800">
-                                        <img src={item.image_url || 'https://picsum.photos/seed/food/100/100'} className="w-20 h-20 rounded-xl object-cover mr-4" />
-                                        <div className="flex-grow">
-                                            <h3 className="font-bold text-text-primary">{item.name}</h3>
-                                            <p className="text-[10px] text-text-secondary mb-2 line-clamp-2">{item.description}</p>
+                                    <div key={item.id} className="bg-surface rounded-2xl p-3 flex items-center shadow-xl border border-gray-800/50 hover:border-gray-700 transition-all">
+                                        <div className="relative">
+                                            <img src={item.image_url || 'https://picsum.photos/seed/food/100/100'} className="w-20 h-20 rounded-xl object-cover" alt={item.name} />
+                                            {!item.is_available && (
+                                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+                                                    <span className="text-[8px] font-black text-white uppercase">Esgotado</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex-grow ml-4">
+                                            <h3 className="font-bold text-text-primary text-sm">{item.name}</h3>
+                                            <p className="text-[10px] text-text-secondary mb-2 line-clamp-2 leading-relaxed">{item.description}</p>
                                             <div className="flex justify-between items-center">
-                                                <span className="font-black text-accent">R$ {item.price.toFixed(2)}</span>
+                                                <span className="font-black text-accent text-base">R$ {item.price.toFixed(2)}</span>
                                                 {tableNumber && (
-                                                    <div className={`flex items-center bg-gray-800 rounded-full p-1 border border-gray-700 ${!isPlaceOpen ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                    <div className={`flex items-center bg-gray-900 rounded-full p-1 border border-gray-800 ${(!isPlaceOpen || !item.is_available) ? 'opacity-30 pointer-events-none' : ''}`}>
                                                         {cart[item.id] ? (
-                                                            <><button onClick={() => removeFromCart(item.id)} className="p-1.5 text-accent hover:bg-gray-700 rounded-full transition-colors"><Minus size={16} /></button>
-                                                            <span className="px-3 font-bold text-sm">{cart[item.id]}</span></>
+                                                            <div className="flex items-center">
+                                                                <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-accent hover:bg-gray-800 rounded-full transition-colors"><Minus size={16} /></button>
+                                                                <span className="px-3 font-black text-sm text-text-primary">{cart[item.id]}</span>
+                                                            </div>
                                                         ) : null}
-                                                        <button onClick={() => addToCart(item.id)} className="p-1.5 text-accent hover:bg-gray-700 rounded-full transition-colors"><Plus size={16} /></button>
+                                                        <button onClick={() => addToCart(item.id)} className="p-1.5 text-accent hover:bg-gray-800 rounded-full transition-colors"><Plus size={16} /></button>
                                                     </div>
                                                 )}
                                             </div>
@@ -212,20 +257,34 @@ const MenuPage: React.FC = () => {
             </div>
 
             {cartTotal > 0 && isPlaceOpen && (
-                <div className="fixed bottom-24 left-4 right-4 bg-accent p-4 rounded-2xl shadow-2xl z-20 animate-fade-in-up">
-                    <div className="flex justify-between items-center mb-3">
-                        <span className="font-bold uppercase text-xs opacity-80 text-white">Seu Carrinho</span>
-                        <span className="text-2xl font-black text-white">R$ {cartTotal.toFixed(2)}</span>
+                <div className="fixed bottom-6 left-4 right-4 bg-accent p-4 rounded-3xl shadow-[0_-10px_40px_rgba(236,72,153,0.4)] z-[60] animate-fade-in-up">
+                    <div className="flex justify-between items-center mb-4 px-2">
+                        <div className="flex flex-col">
+                            <span className="font-black uppercase text-[10px] tracking-widest opacity-70 text-white">Carrinho</span>
+                            <span className="text-2xl font-black text-white">R$ {cartTotal.toFixed(2)}</span>
+                        </div>
+                        <div className="bg-white/20 px-3 py-1 rounded-lg text-white text-xs font-black">
+                            {Object.values(cart).reduce((a, b) => a + b, 0)} ITENS
+                        </div>
                     </div>
-                    <button onClick={handlePlaceOrder} disabled={ordering} className="w-full bg-white text-accent font-black py-4 rounded-xl flex items-center justify-center">
-                        {ordering ? <Loader2 className="animate-spin mr-2" /> : <ShoppingBag className="mr-2" />} 
-                        ENVIAR PEDIDO - {labelSingular.toUpperCase()} {tableNumber}
+                    <button 
+                        onClick={handlePlaceOrder} 
+                        disabled={ordering} 
+                        className="w-full bg-white text-accent font-black py-4 rounded-2xl flex items-center justify-center hover:scale-[0.98] transition-transform active:scale-95 shadow-lg"
+                    >
+                        {ordering ? <Loader2 className="animate-spin mr-2" /> : <ShoppingBag className="mr-2" size={20} />} 
+                        CONFIRMAR PEDIDO • {labelSingular.toUpperCase()} {tableNumber}
                     </button>
                 </div>
             )}
 
             <ComandaOverlay isOpen={isComandaOpen} onClose={() => setIsComandaOpen(false)} orders={userOrders} />
-            <MenuQrScannerModal isOpen={isScannerOpen} onClose={() => setIsScannerOpen(false)} onScan={num => navigate(`/menu/${placeId}/${num}`)} expectedPlaceId={placeId} />
+            <MenuQrScannerModal 
+                isOpen={isScannerOpen} 
+                onClose={() => setIsScannerOpen(false)} 
+                onScan={num => navigate(`/menu/${placeId}/${num}`)} 
+                expectedPlaceId={placeId} 
+            />
         </div>
     );
 };

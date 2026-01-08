@@ -209,6 +209,10 @@ const PlaceDetailsPage: React.FC = () => {
 
     const checkInDisabled = !place.isOpen || isCheckedInHere || isCheckedInElsewhere;
     const goingDisabled = isGoingHere || isCheckedInHere;
+    
+    const menuLink = activeTable 
+        ? `/menu/${place.id}/${activeTable}` 
+        : `/menu/${place.id}`;
 
     return (
         <div className="relative">
@@ -257,7 +261,7 @@ const PlaceDetailsPage: React.FC = () => {
                     
                     {/* Link para Cardápio Digital */}
                     <Link 
-                        to={`/menu/${place.id}`} 
+                        to={menuLink} 
                         className="bg-gray-700/50 text-text-secondary text-xs font-bold px-3 py-1 rounded-full flex items-center hover:bg-gray-600 transition-colors"
                     >
                         <Utensils size={14} className="mr-1" />

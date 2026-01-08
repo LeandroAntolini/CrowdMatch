@@ -219,21 +219,7 @@ const PlaceDetailsPage: React.FC = () => {
                 </button>
             </div>
             <div className="absolute top-4 right-4 flex space-x-2">
-                {/* Botão de Comanda no topo (mantido, mas o principal será na seção de status) */}
-                {activeTable && (
-                    <button 
-                        onClick={() => setIsComandaOpen(true)} 
-                        className="bg-accent text-white rounded-full p-2 relative shadow-lg"
-                        aria-label="Ver Comanda Ativa"
-                    >
-                        <Receipt size={24} />
-                        {userOrders.length > 0 && (
-                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-white text-accent text-[10px] font-black flex items-center justify-center rounded-full border-2 border-accent">
-                                {userOrders.length}
-                            </span>
-                        )}
-                    </button>
-                )}
+                {/* Botão de Comanda no topo REMOVIDO */}
                 <button onClick={handleFavoriteToggle} className="bg-black/50 text-white rounded-full p-2 transition-colors">
                     <Heart size={24} fill={isCurrentlyFavorite ? '#EC4899' : 'none'} stroke={isCurrentlyFavorite ? '#EC4899' : 'currentColor'} />
                 </button>
@@ -243,7 +229,6 @@ const PlaceDetailsPage: React.FC = () => {
                 <h1 className="text-3xl font-bold">{place.name}</h1>
                 <div className="flex items-center mt-1">
                     <p className="text-text-secondary">{place.category}</p>
-                    {/* Indicador da Mesa (removido daqui para ser movido para a seção de status) */}
                 </div>
                 
                 <div className="flex items-center space-x-4 my-4 text-text-secondary">

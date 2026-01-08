@@ -2,6 +2,7 @@ import React from 'react';
 import { QrReader } from 'react-qr-reader';
 import { X, ScanLine } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 
 interface MenuQrScannerModalProps {
     isOpen: boolean;
@@ -18,29 +19,31 @@ const MenuQrScannerModal: React.FC<MenuQrScannerModalProps> = ({ isOpen, onClose
     const handleResult = (result: any) => {
         if (result) {
             const text = result.getText();
+            console.log("QR Scanned:", text);
             
-            // O formato esperado é .../#/menu/:placeId/:tableNumber
-            // Vamos tentar extrair os parâmetros
-            const parts = text.split('/');
-            const tableNum = parts[parts.length - 1];
-            const scannedPlaceId = parts[parts.length - 2];
+            // Regex para capturar o placeId e tableNumber de URLs do tipo .../menu/PLACE_ID/TABLE_NUMBER
+            // Suporta URLs com ou sem hash, com ou sem barra no final
+            const menuRegex = /\/menu\/([^\/]+)\/(\d+)\/?$/;
+            const match = text.match(menuRegex);
 
-            if (scannedPlaceId && tableNum && !isNaN(Number(tableNum))) {
-                // Se estivermos esperando um local específico (dentro do menu)
+            if (match) {
+                const scannedPlaceId = match[1];
+                const tableNum = match[2];
+
                 if (expectedPlaceId) {
                     if (scannedPlaceId === expectedPlaceId) {
                         onScan?.(tableNum);
                         onClose();
                     } else {
-                        alert("Este QR Code pertence a outro estabelecimento.");
+                        toast.error("Este QR Code pertence a outro estabelecimento.");
                     }
                 } else {
-                    // Uso global (Header): Redireciona para o menu escaneado
+                    // Uso global: Redireciona
                     onClose();
                     navigate(`/menu/${scannedPlaceId}/${tableNum}`);
                 }
             } else {
-                alert("QR Code inválido. Certifique-se de que é um QR Code de mesa do CrowdMatch.");
+                toast.error("QR Code inválido. Aponte para um código de mesa do CrowdMatch.");
             }
         }
     };

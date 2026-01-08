@@ -87,14 +87,6 @@ const TablesPage: React.FC = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    {table.current_user_id && (
-                                        <button 
-                                            onClick={() => navigate('/owner/orders')}
-                                            className="bg-primary/10 text-primary p-2 rounded-lg"
-                                        >
-                                            <LayoutGrid size={18} />
-                                        </button>
-                                    )}
                                     <button 
                                         onClick={() => navigate('/owner/qrs')}
                                         className="text-text-secondary p-2"

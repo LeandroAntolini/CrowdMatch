@@ -12,7 +12,6 @@ import CreateLiveRepostPage from '../pages/owner/CreateLiveRepostPage';
 import VerifyQrPage from '../pages/owner/VerifyQrPage';
 import OwnerLivePage from '../pages/owner/OwnerLivePage'; 
 import MenuManagementPage from '../pages/owner/MenuManagementPage';
-import OrderBoardPage from '../pages/owner/OrderBoardPage';
 import TableQRManager from '../pages/owner/TableQRManager';
 import TablesPage from '../pages/owner/TablesPage';
 import OwnerHeader from '../components/owner/OwnerHeader';
@@ -32,7 +31,6 @@ const OwnerLayout: React.FC = () => {
                     <Routes>
                         <Route path="/dashboard" element={<OwnerDashboardPage />} />
                         <Route path="/owner/tables" element={<TablesPage />} />
-                        <Route path="/owner/orders" element={<OrderBoardPage />} />
                         <Route path="/owner/menu" element={<MenuManagementPage />} />
                         <Route path="/owner/qrs" element={<TableQRManager />} />
                         <Route path="/owner/feeds" element={<OwnerFeedsPage />} />

@@ -14,7 +14,7 @@ const Header: React.FC = () => {
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [isComandaOpen, setIsComandaOpen] = useState(false);
     const [userOrders, setUserOrders] = useState<Order[]>([]);
-    const [loadingOrders, setLoadingOrders] = useState(false);
+    const [loadingOrders, setLoadingOrders] = useState(false); // Corrigido: usando setLoadingOrders
 
     const getTitle = () => {
         switch (location.pathname) {
@@ -59,7 +59,7 @@ const Header: React.FC = () => {
     const handleOpenComanda = async () => {
         if (!hasActiveOrders || !activeOrderPlaceId) return;
 
-        setIsLoadingOrders(true);
+        setLoadingOrders(true); // Corrigido: usando setLoadingOrders
         try {
             const { data, error } = await supabase
                 .from('orders')
@@ -76,7 +76,7 @@ const Header: React.FC = () => {
             console.error("Erro ao buscar pedidos:", e);
             toast.error("Não foi possível carregar sua comanda.");
         } finally {
-            setIsLoadingOrders(false);
+            setLoadingOrders(false); // Corrigido: usando setLoadingOrders
         }
     };
 

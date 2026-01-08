@@ -5,30 +5,86 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { toast } from 'react-hot-toast';
+import OwnerOrderDetailsModal from '../../components/owner/OwnerOrderDetailsModal';
+import { Order } from '../../types';
+
+interface TableWithUser extends Order {
+    id: string;
+    place_id: string;
+    table_number: number;
+    current_user_id: string | null;
+    profiles: { name: string } | null;
+    active_orders: Order[];
+}
 
 const TablesPage: React.FC = () => {
     const { ownedPlaceIds, getPlaceById } = useAppContext();
     const [selectedPlaceId, setSelectedPlaceId] = useState(ownedPlaceIds[0] || '');
-    const [tables, setTables] = useState<any[]>([]);
+    const [tables, setTables] = useState<TableWithUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeletingAll, setIsDeletingAll] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [activeTableData, setActiveTableData] = useState<{ tableNumber: number; customerName: string; orders: Order[] } | null>(null);
     const navigate = useNavigate();
 
     const fetchTables = useCallback(async () => {
         if (!selectedPlaceId) return;
         setLoading(true);
-        const { data, error } = await supabase
+        
+        // 1. Buscar todas as mesas e o perfil do usuário ativo
+        const { data: tablesData, error: tablesError } = await supabase
             .from('tables')
-            .select('*')
+            .select('*, profiles(name)')
             .eq('place_id', selectedPlaceId)
             .order('table_number', { ascending: true });
         
-        if (error) {
-            console.error("Erro ao buscar mesas:", error);
+        if (tablesError) {
+            console.error("Erro ao buscar mesas:", tablesError);
             toast.error("Erro ao carregar mesas.");
-        } else {
-            setTables(data || []);
+            setLoading(false);
+            return;
         }
+
+        const tablesWithUsers: TableWithUser[] = tablesData.map(t => ({
+            ...t,
+            profiles: t.profiles as { name: string } | null,
+            active_orders: [], // Será preenchido no próximo passo
+        }));
+
+        // 2. Buscar pedidos ativos para as mesas ocupadas
+        const occupiedTableIds = tablesWithUsers.filter(t => t.current_user_id).map(t => t.current_user_id);
+        
+        if (occupiedTableIds.length > 0) {
+            const { data: ordersData, error: ordersError } = await supabase
+                .from('orders')
+                .select('*, order_items(*, menu_items(*))')
+                .eq('place_id', selectedPlaceId)
+                .in('user_id', occupiedTableIds)
+                .not('status', 'in', '("paid", "cancelled")')
+                .order('created_at', { ascending: false });
+
+            if (ordersError) {
+                console.error("Erro ao buscar pedidos ativos:", ordersError);
+                // Continua mesmo com erro nos pedidos
+            } else {
+                // Agrupa pedidos por usuário (que é o mesmo que a mesa ocupada)
+                const ordersByUser: { [userId: string]: Order[] } = (ordersData || []).reduce((acc, order) => {
+                    const userId = order.user_id;
+                    acc[userId] = acc[userId] || [];
+                    acc[userId].push(order as Order);
+                    return acc;
+                }, {});
+
+                // Anexa os pedidos ativos à mesa correspondente
+                tablesWithUsers.forEach(table => {
+                    if (table.current_user_id && ordersByUser[table.current_user_id]) {
+                        table.active_orders = ordersByUser[table.current_user_id];
+                    }
+                });
+            }
+        }
+
+        setTables(tablesWithUsers);
         setLoading(false);
     }, [selectedPlaceId]);
 
@@ -40,6 +96,9 @@ const TablesPage: React.FC = () => {
 
     useEffect(() => {
         fetchTables();
+        // Configura o polling para atualizar o status das mesas a cada 10 segundos
+        const interval = setInterval(fetchTables, 10000);
+        return () => clearInterval(interval);
     }, [fetchTables]);
 
     const place = getPlaceById(selectedPlaceId);
@@ -79,6 +138,17 @@ const TablesPage: React.FC = () => {
             setTables([]);
         }
         setIsDeletingAll(false);
+    };
+    
+    const handleTableClick = (table: TableWithUser) => {
+        if (table.current_user_id && table.profiles) {
+            setActiveTableData({
+                tableNumber: table.table_number,
+                customerName: table.profiles.name,
+                orders: table.active_orders,
+            });
+            setIsModalOpen(true);
+        }
     };
 
     return (
@@ -130,43 +200,58 @@ const TablesPage: React.FC = () => {
 
                 {loading ? <LoadingSpinner /> : (
                     <div className="grid grid-cols-1 gap-3">
-                        {tables.map(table => (
-                            <div key={table.id} className="bg-surface p-4 rounded-xl border border-gray-800 flex items-center justify-between hover:border-gray-700 transition-colors">
-                                <div className="flex items-center">
-                                    <div className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center font-black text-primary mr-4 border border-primary/20">
-                                        {table.table_number}
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm">{labelSingular} {table.table_number}</p>
-                                        <div className="flex items-center mt-1">
-                                            {table.current_user_id ? (
-                                                <span className="text-[10px] text-green-400 font-bold flex items-center">
-                                                    <Users size={10} className="mr-1" /> Ocupada
-                                                </span>
-                                            ) : (
-                                                <span className="text-[10px] text-gray-500 uppercase font-bold">Livre</span>
-                                            )}
+                        {tables.map(table => {
+                            const isOccupied = !!table.current_user_id;
+                            const customerName = table.profiles?.name || 'Usuário Desconhecido';
+                            const hasActiveOrders = table.active_orders.length > 0;
+
+                            return (
+                                <div 
+                                    key={table.id} 
+                                    onClick={() => handleTableClick(table)}
+                                    className={`bg-surface p-4 rounded-xl border border-gray-800 flex items-center justify-between transition-colors cursor-pointer ${isOccupied ? 'hover:border-accent/50' : 'hover:border-gray-700'}`}
+                                >
+                                    <div className="flex items-center">
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black mr-4 border ${isOccupied ? 'bg-accent/10 text-accent border-accent/20' : 'bg-gray-800 text-primary border-primary/20'}`}>
+                                            {table.table_number}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm">{labelSingular} {table.table_number}</p>
+                                            <div className="flex items-center mt-1">
+                                                {isOccupied ? (
+                                                    <span className="text-[10px] text-green-400 font-bold flex items-center">
+                                                        <Users size={10} className="mr-1" /> Ocupada por {customerName}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Livre</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="flex items-center gap-1">
+                                        {hasActiveOrders && (
+                                            <span className="text-[10px] font-black text-white bg-red-500 px-2 py-1 rounded-full animate-pulse">
+                                                {table.active_orders.length} PEDIDOS
+                                            </span>
+                                        )}
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); navigate('/owner/qrs'); }}
+                                            className="text-text-secondary p-2 hover:text-accent transition-colors"
+                                            title="Ver QR Code"
+                                        >
+                                            <QrCode size={18} />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); deleteIndividualTable(table.id, table.table_number); }}
+                                            className="text-text-secondary p-2 hover:text-red-500 transition-colors"
+                                            title="Excluir mesa"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                    <button 
-                                        onClick={() => navigate('/owner/qrs')}
-                                        className="text-text-secondary p-2 hover:text-accent transition-colors"
-                                        title="Ver QR Code"
-                                    >
-                                        <QrCode size={18} />
-                                    </button>
-                                    <button 
-                                        onClick={() => deleteIndividualTable(table.id, table.table_number)}
-                                        className="text-text-secondary p-2 hover:text-red-500 transition-colors"
-                                        title="Excluir mesa"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
 
                         {tables.length === 0 && (
                             <div className="text-center py-12 bg-surface/50 rounded-2xl border border-dashed border-gray-700 flex flex-col items-center">
@@ -184,6 +269,17 @@ const TablesPage: React.FC = () => {
                     </div>
                 )}
             </div>
+            
+            {isModalOpen && activeTableData && (
+                <OwnerOrderDetailsModal 
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    onUpdate={fetchTables} // Recarrega a lista de mesas e pedidos após uma atualização
+                    tableNumber={activeTableData.tableNumber}
+                    customerName={activeTableData.customerName}
+                    orders={activeTableData.orders}
+                />
+            )}
         </div>
     );
 };

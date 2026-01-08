@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { QrCode, Plus, LayoutGrid, Users, ClipboardList, AlertCircle } from 'lucide-react';
+import { QrCode, Plus, LayoutGrid, Users, ClipboardList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -9,13 +9,14 @@ import { Order } from '../../types';
 
 const TablesPage: React.FC = () => {
     const { ownedPlaceIds, getPlaceById } = useAppContext();
-    const [selectedPlaceId, setSelectedPlaceId] = useState(ownedPlaceIds[0] || '');
+    const [selectedPlaceId, setSelectedPlaceId] = useState('');
     const [tables, setTables] = useState<any[]>([]);
     const [activeOrdersByTable, setActiveOrdersByTable] = useState<{ [key: number]: Order[] }>({});
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [selectedTableForModal, setSelectedTableForModal] = useState<{ number: number; name: string; orders: Order[] } | null>(null);
     const navigate = useNavigate();
 
+    // Sincroniza o ID selecionado com o primeiro local do lojista
     useEffect(() => {
         if (ownedPlaceIds.length > 0 && !selectedPlaceId) {
             setSelectedPlaceId(ownedPlaceIds[0]);
@@ -26,46 +27,52 @@ const TablesPage: React.FC = () => {
         if (!selectedPlaceId) return;
         setLoading(true);
         
-        // Busca Mesas
-        const { data: tablesData } = await supabase
-            .from('tables')
-            .select('*, profiles(name)')
-            .eq('place_id', selectedPlaceId)
-            .order('table_number', { ascending: true });
-        
-        // Busca Pedidos Ativos (pendentes, preparando, entregues - tudo que não foi pago ou cancelado)
-        const { data: ordersData } = await supabase
-            .from('orders')
-            .select('*, order_items(*, menu_items(*)), profiles(name)')
-            .eq('place_id', selectedPlaceId)
-            .neq('status', 'paid')
-            .neq('status', 'cancelled');
+        try {
+            // 1. Busca Mesas (Consulta simples para evitar erros de join)
+            const { data: tablesData, error: tablesError } = await supabase
+                .from('tables')
+                .select('*')
+                .eq('place_id', selectedPlaceId)
+                .order('table_number', { ascending: true });
+            
+            if (tablesError) throw tablesError;
 
-        if (tablesData) setTables(tablesData);
+            // 2. Busca Pedidos Ativos (não pagos e não cancelados)
+            const { data: ordersData, error: ordersError } = await supabase
+                .from('orders')
+                .select('*, order_items(*, menu_items(*)), profiles(name)')
+                .eq('place_id', selectedPlaceId)
+                .neq('status', 'paid')
+                .neq('status', 'cancelled');
+            
+            if (ordersError) throw ordersError;
 
-        // Agrupa pedidos por mesa
-        const grouped: { [key: number]: Order[] } = {};
-        if (ordersData) {
-            ordersData.forEach((order: any) => {
-                if (!grouped[order.table_number]) grouped[order.table_number] = [];
-                grouped[order.table_number].push(order);
-            });
+            setTables(tablesData || []);
+
+            // Agrupa pedidos por número da mesa
+            const grouped: { [key: number]: Order[] } = {};
+            if (ordersData) {
+                ordersData.forEach((order: any) => {
+                    const tableNum = order.table_number;
+                    if (!grouped[tableNum]) grouped[tableNum] = [];
+                    grouped[tableNum].push(order);
+                });
+            }
+            setActiveOrdersByTable(grouped);
+        } catch (err) {
+            console.error("Erro ao carregar dados das mesas:", err);
+        } finally {
+            setLoading(false);
         }
-        setActiveOrdersByTable(grouped);
-        setLoading(false);
     }, [selectedPlaceId]);
 
     useEffect(() => {
         fetchData();
         
-        // Real-time listener para novos pedidos
-        const channel = supabase.channel('table-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `place_id=eq.${selectedPlaceId}` }, () => {
-                fetchData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'tables', filter: `place_id=eq.${selectedPlaceId}` }, () => {
-                fetchData();
-            })
+        // Listener em tempo real para atualizações nas mesas e pedidos
+        const channel = supabase.channel('table-page-sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `place_id=eq.${selectedPlaceId}` }, () => fetchData())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'tables', filter: `place_id=eq.${selectedPlaceId}` }, () => fetchData())
             .subscribe();
 
         return () => {
@@ -83,7 +90,7 @@ const TablesPage: React.FC = () => {
         if (orders.length > 0) {
             setSelectedTableForModal({
                 number: table.table_number,
-                name: orders[0].profiles?.name || table.profiles?.name || 'Cliente',
+                name: orders[0].profiles?.name || 'Cliente',
                 orders: orders
             });
         }
@@ -111,7 +118,7 @@ const TablesPage: React.FC = () => {
                     className="w-full p-3 bg-surface border border-gray-700 rounded-xl font-bold text-sm outline-none"
                 >
                     {ownedPlaceIds.map(id => (
-                        <option key={id} value={id}>{getPlaceById(id)?.name || id}</option>
+                        <option key={id} value={id}>{getPlaceById(id)?.name || `Local: ${id.substring(0, 5)}`}</option>
                     ))}
                 </select>
             </div>
@@ -124,7 +131,7 @@ const TablesPage: React.FC = () => {
                     </button>
                 </div>
 
-                {loading ? <LoadingSpinner /> : (
+                {loading && tables.length === 0 ? <LoadingSpinner /> : (
                     <div className="grid grid-cols-1 gap-3">
                         {tables.map(table => {
                             const orders = activeOrdersByTable[table.table_number] || [];
@@ -144,9 +151,9 @@ const TablesPage: React.FC = () => {
                                         <div>
                                             <p className="font-bold text-sm">{labelSingular} {table.table_number}</p>
                                             <div className="flex items-center mt-1">
-                                                {table.current_user_id || hasOrders ? (
+                                                {hasOrders ? (
                                                     <span className="text-[10px] text-green-400 font-bold flex items-center">
-                                                        <Users size={10} className="mr-1" /> {orders[0]?.profiles?.name || table.profiles?.name || 'Ocupada'}
+                                                        <Users size={10} className="mr-1" /> {orders[0]?.profiles?.name || 'Ocupada'}
                                                     </span>
                                                 ) : (
                                                     <span className="text-[10px] text-gray-500 uppercase font-bold">Livre</span>
@@ -170,6 +177,15 @@ const TablesPage: React.FC = () => {
                                 </div>
                             );
                         })}
+                        {tables.length === 0 && (
+                             <div className="text-center py-10 bg-surface rounded-2xl border border-dashed border-gray-700">
+                                <LayoutGrid size={40} className="mx-auto mb-2 opacity-20" />
+                                <p className="text-text-secondary text-sm">Nenhuma {labelSingular.toLowerCase()} inicializada.</p>
+                                <button onClick={() => navigate('/owner/qrs')} className="mt-4 text-accent font-bold text-xs underline">
+                                    Configurar agora
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

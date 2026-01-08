@@ -166,6 +166,12 @@ interface AppContextType {
     potentialMatches: User[];
     fetchPotentialMatches: (placeId: string) => Promise<void>;
     getActiveTableForUser: (placeId: string) => Promise<number | null>;
+    
+    // NOVO: Estado e funções para Comanda
+    hasActiveOrders: boolean;
+    fetchActiveOrdersStatus: () => Promise<void>;
+    activeOrderPlaceId: string | null;
+    activeTableNumber: number | null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -192,11 +198,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [allFeedPosts, setAllFeedPosts] = useState<FeedPost[]>([]);
     const [ownedPlaceIds, setOwnedPlaceIds] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
-    const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false);
+    
+    // NOVO ESTADO PARA COMANDA
+    const [hasActiveOrders, setHasActiveOrders] = useState(false);
+    const [activeOrderPlaceId, setActiveOrderPlaceId] = useState<string | null>(null);
+    const [activeTableNumber, setActiveTableNumber] = useState<number | null>(null);
 
     // Derived state for better scoping
     const isAuthenticated = !!session?.user;
@@ -347,6 +358,74 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
         setOwnerFeedPosts(mappedPosts);
     }, []);
+    
+    const getActiveTableForUser = useCallback(async (placeId: string): Promise<number | null> => {
+        if (!currentUser) return null;
+        const { data, error } = await supabase
+            .from('tables')
+            .select('table_number')
+            .eq('place_id', placeId)
+            .eq('current_user_id', currentUser.id)
+            .maybeSingle();
+        
+        if (error || !data) return null;
+        return data.table_number;
+    }, [currentUser]);
+
+    const fetchActiveOrdersStatus = useCallback(async () => {
+        if (!currentUser?.id) {
+            setHasActiveOrders(false);
+            setActiveOrderPlaceId(null);
+            setActiveTableNumber(null);
+            return;
+        }
+
+        // 1. Buscar pedidos ativos (status not in 'paid', 'cancelled')
+        const { data: ordersData, error: ordersError } = await supabase
+            .from('orders')
+            .select('place_id, table_number')
+            .eq('user_id', currentUser.id)
+            .not('status', 'in', '("paid", "cancelled")')
+            .limit(1);
+
+        if (ordersError) {
+            console.error("Error fetching active orders status:", ordersError);
+            setHasActiveOrders(false);
+            setActiveOrderPlaceId(null);
+            setActiveTableNumber(null);
+            return;
+        }
+
+        if (ordersData && ordersData.length > 0) {
+            setHasActiveOrders(true);
+            setActiveOrderPlaceId(ordersData[0].place_id);
+            setActiveTableNumber(ordersData[0].table_number);
+            return;
+        }
+        
+        // 2. Se não houver pedidos, verificar se está em uma mesa (para o caso de ter acabado de escanear)
+        const { data: tableData, error: tableError } = await supabase
+            .from('tables')
+            .select('place_id, table_number')
+            .eq('current_user_id', currentUser.id)
+            .limit(1);
+            
+        if (tableError) {
+            console.error("Error fetching active table status:", tableError);
+        }
+
+        if (tableData && tableData.length > 0) {
+            setHasActiveOrders(true); // Consideramos que estar em uma mesa é ter uma comanda ativa
+            setActiveOrderPlaceId(tableData[0].place_id);
+            setActiveTableNumber(tableData[0].table_number);
+            return;
+        }
+
+        setHasActiveOrders(false);
+        setActiveOrderPlaceId(null);
+        setActiveTableNumber(null);
+
+    }, [currentUser]);
 
     // Monitoramento da sessão
     useEffect(() => {
@@ -489,7 +568,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     await fetchOwnerFeedPosts(session.user.id);
                     await refreshOwnerPromotions(session.user.id);
                 }
-
+                
+                await fetchActiveOrdersStatus(); // NOVO: Busca status da comanda
                 await refreshActiveLivePosts();
 
             } catch (e: any) {
@@ -509,6 +589,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!isAuthenticated) return;
         
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
+        const orderStatusIntervalId = setInterval(fetchActiveOrdersStatus, 10000); // Polling para status da comanda
         
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
             if (payload.eventType === 'INSERT') {
@@ -575,11 +656,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         return () => {
             clearInterval(intervalId);
+            clearInterval(orderStatusIntervalId); // Limpa o polling da comanda
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
         };
-    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds]);
+    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds, fetchActiveOrdersStatus]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -691,19 +773,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
     }, [currentUser, promotionClaims, refreshOwnerPromotions]);
 
-    const getActiveTableForUser = useCallback(async (placeId: string): Promise<number | null> => {
-        if (!currentUser) return null;
-        const { data, error } = await supabase
-            .from('tables')
-            .select('table_number')
-            .eq('place_id', placeId)
-            .eq('current_user_id', currentUser.id)
-            .maybeSingle();
-        
-        if (error || !data) return null;
-        return data.table_number;
-    }, [currentUser]);
-
     const getPlaceById = (id: string) => places.find(p => p.id === id);
     const getCurrentCheckIn = () => checkIns.find(ci => ci.userId === currentUser?.id);
     const getCurrentGoingIntention = () => goingIntentions.find(gi => gi.userId === currentUser?.id); 
@@ -744,7 +813,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             throw error;
         }
         if (data) {
-            setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
+            setCheckIns(prev => [...prev.filter(ci => !(ci.userId === currentUser.id && ci.placeId === placeId)), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
         }
     };
 
@@ -947,7 +1016,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
-        potentialMatches, fetchPotentialMatches, getActiveTableForUser
+        potentialMatches, fetchPotentialMatches, getActiveTableForUser,
+        // NOVO
+        hasActiveOrders, fetchActiveOrdersStatus, activeOrderPlaceId, activeTableNumber
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

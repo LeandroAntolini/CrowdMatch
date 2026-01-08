@@ -9,7 +9,6 @@ import LiveFeedBox from '../components/LiveFeedBox';
 import PromotionClaimStatus from '../components/PromotionClaimStatus';
 import { PromotionType, Order } from '../types';
 import ConfirmationTicket from '../components/ConfirmationTicket';
-import ComandaOverlay from '../components/ComandaOverlay';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'react-hot-toast';
 
@@ -43,15 +42,15 @@ const PlaceDetailsPage: React.FC = () => {
         claimPromotion,
         currentUser,
         getUserOrderForPlace,
-        getActiveTableForUser
+        getActiveTableForUser,
+        fetchActiveOrdersStatus // Usado para forçar a atualização do Header
     } = useAppContext();
     
     const [isMapModalOpen, setIsMapModalOpen] = useState(false);
     const [claimResult, setClaimResult] = useState<ClaimResultState | null>(null);
     const [confirmationTicket, setConfirmationTicket] = useState<{ type: 'check-in' | 'going'; timestamp: number; order: number } | null>(null);
     const [activeTable, setActiveTable] = useState<number | null>(null);
-    const [userOrders, setUserOrders] = useState<Order[]>([]);
-    const [isComandaOpen, setIsComandaOpen] = useState(false);
+    // userOrders e isComandaOpen removidos, pois o Header gerencia a Comanda
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
@@ -67,18 +66,8 @@ const PlaceDetailsPage: React.FC = () => {
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place?.id).length;
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place?.id).length;
 
-    const fetchOrders = useCallback(async () => {
-        if (!id || !currentUser?.id) return;
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*, order_items(*, menu_items(*))')
-            .eq('place_id', id)
-            .eq('user_id', currentUser.id)
-            .not('status', 'in', '("paid", "cancelled")') // Apenas pedidos ativos
-            .order('created_at', { ascending: false });
-        if (!error && data) setUserOrders(data);
-    }, [id, currentUser?.id]);
-
+    // fetchOrders removido, pois o Header gerencia a busca de pedidos ativos
+    
     const loadSessionData = useCallback(async () => {
         if (!id || !currentUser) return;
 
@@ -88,14 +77,7 @@ const PlaceDetailsPage: React.FC = () => {
         
         console.log(`[PlaceDetailsPage] Active Table for ${currentUser.id} at ${id}:`, table); // LOG DE DEBUG
         
-        // 2. Buscar pedidos se houver mesa ativa
-        if (table) {
-            await fetchOrders();
-        } else {
-            setUserOrders([]);
-        }
-
-        // 3. Atualizar ticket de confirmação (QR Code)
+        // 2. Atualizar ticket de confirmação (QR Code)
         if (isCheckedInHere) {
             const order = getUserOrderForPlace(id, 'check-in');
             setConfirmationTicket({
@@ -115,11 +97,14 @@ const PlaceDetailsPage: React.FC = () => {
         } else {
             setConfirmationTicket(null);
         }
-    }, [id, currentUser, isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, getActiveTableForUser, fetchOrders, getUserOrderForPlace]);
+        
+        // 3. Forçar atualização do status da comanda no contexto
+        fetchActiveOrdersStatus();
+    }, [id, currentUser, isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, getActiveTableForUser, getUserOrderForPlace, fetchActiveOrdersStatus]);
 
     useEffect(() => {
         loadSessionData();
-        // Polling para atualizar pedidos e status da mesa a cada 10 segundos
+        // Polling para atualizar status da mesa e check-in a cada 10 segundos
         const interval = setInterval(loadSessionData, 10000);
         return () => clearInterval(interval);
     }, [loadSessionData]);
@@ -188,8 +173,8 @@ const PlaceDetailsPage: React.FC = () => {
         checkOutUser();
         // Limpa o estado local
         setActiveTable(null);
-        setUserOrders([]);
         setConfirmationTicket(null);
+        fetchActiveOrdersStatus(); // Força a atualização do Header
     };
 
     const handleRemoveGoing = () => {
@@ -197,6 +182,7 @@ const PlaceDetailsPage: React.FC = () => {
         removeGoingIntention(id);
         // Limpa o estado local
         setConfirmationTicket(null);
+        fetchActiveOrdersStatus(); // Força a atualização do Header
     };
 
     const livePostCount = getLivePostCount(place.id);
@@ -269,25 +255,11 @@ const PlaceDetailsPage: React.FC = () => {
                         Cardápio Digital
                     </Link>
 
-                    {/* NOVO: Indicador de Mesa e Botão de Comanda */}
+                    {/* NOVO: Indicador de Mesa (O botão Comanda foi movido para o Header) */}
                     {activeTable && (
-                        <>
-                            <span className="px-2 py-0.5 bg-accent text-white text-xs font-black rounded-full uppercase">
-                                {labelSingular} {activeTable}
-                            </span>
-                            <button 
-                                onClick={() => setIsComandaOpen(true)} 
-                                className="bg-accent text-white text-xs font-bold px-3 py-1 rounded-full flex items-center hover:bg-pink-600 transition-colors relative"
-                            >
-                                <Receipt size={14} className="mr-1" />
-                                Minha Comanda
-                                {userOrders.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-accent text-[8px] font-black flex items-center justify-center rounded-full border border-accent">
-                                        {userOrders.length}
-                                    </span>
-                                )}
-                            </button>
-                        </>
+                        <span className="px-2 py-0.5 bg-accent text-white text-xs font-black rounded-full uppercase">
+                            {labelSingular} {activeTable}
+                        </span>
                     )}
                 </div>
 
@@ -392,12 +364,6 @@ const PlaceDetailsPage: React.FC = () => {
                 places={places}
                 checkIns={checkIns}
                 highlightedPlaceId={id}
-            />
-
-            <ComandaOverlay 
-                isOpen={isComandaOpen} 
-                onClose={() => setIsComandaOpen(false)} 
-                orders={userOrders} 
             />
         </div>
     );

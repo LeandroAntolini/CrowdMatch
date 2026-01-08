@@ -4,7 +4,7 @@ import { BarChart2, Ticket, Newspaper, Trash2, Loader2, Utensils, QrCode, Clipbo
 import { useNavigate } from 'react-router-dom';
 
 const OwnerDashboardPage: React.FC = () => {
-    const { currentUser, ownerPromotions, ownerFeedPosts, deleteAllLivePosts } = useAppContext();
+    const { currentUser, ownerPromotions, ownerFeedPosts, deleteAllLivePosts, ownedPlaceIds, getPlaceById } = useAppContext();
     const navigate = useNavigate();
     const [isDeleting, setIsDeleting] = React.useState(false);
 
@@ -12,6 +12,10 @@ const OwnerDashboardPage: React.FC = () => {
         if (!ownerPromotions) return 0;
         return ownerPromotions.filter(p => new Date(p.endDate) > new Date()).length;
     }, [ownerPromotions]);
+
+    const firstPlace = ownedPlaceIds.length > 0 ? getPlaceById(ownedPlaceIds[0]) : null;
+    const isNightlife = firstPlace?.category === 'Boate' || firstPlace?.category === 'Casa de Shows' || firstPlace?.category === 'Espaço Musical';
+    const labelAmbiente = isNightlife ? 'Comandas' : 'Mesas';
 
     const handleDeleteAllLivePosts = async () => {
         if (!window.confirm("ATENÇÃO: Tem certeza que deseja APAGAR TODOS os posts do Feed Ao Vivo? Esta ação é irreversível.")) {
@@ -47,7 +51,7 @@ const OwnerDashboardPage: React.FC = () => {
                         <LayoutGrid size={28} className="text-accent md:hidden" />
                         <LayoutGrid size={32} className="text-accent hidden md:block" />
                     </div>
-                    <p className="font-black text-base md:text-lg">Mesas</p>
+                    <p className="font-black text-base md:text-lg">{labelAmbiente}</p>
                     <p className="text-[10px] md:text-xs text-text-secondary">Gestão de Ambiente</p>
                 </div>
                 
@@ -82,7 +86,7 @@ const OwnerDashboardPage: React.FC = () => {
                             className="text-left p-5 bg-gray-800/50 hover:bg-accent hover:text-white rounded-2xl transition-all flex flex-col border border-gray-700"
                         >
                             <QrCode size={24} className="mb-2" />
-                            <span className="font-bold">QR das Mesas</span>
+                            <span className="font-bold">QR das {labelAmbiente}</span>
                             <span className="text-[10px] opacity-70">Gerar PDF para impressão</span>
                         </button>
                         <button 

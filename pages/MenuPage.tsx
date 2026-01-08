@@ -26,38 +26,22 @@ const MenuPage: React.FC = () => {
     const place = placeId ? getPlaceById(placeId) : null;
     const isPlaceOpen = place?.isOpen ?? true;
 
-    // Função para registrar que o usuário está na mesa
+    const isNightlife = place?.category === 'Boate' || place?.category === 'Casa de Shows' || place?.category === 'Espaço Musical';
+    const labelSingular = isNightlife ? 'Comanda' : 'Mesa';
+
     const occupyTable = useCallback(async () => {
         if (!placeId || !tableNumber || !currentUser?.id) return;
-        
-        await supabase
-            .from('tables')
-            .update({ 
-                current_user_id: currentUser.id,
-                last_activity: new Date().toISOString()
-            })
-            .eq('place_id', placeId)
-            .eq('table_number', parseInt(tableNumber));
+        await supabase.from('tables').update({ current_user_id: currentUser.id, last_activity: new Date().toISOString() }).eq('place_id', placeId).eq('table_number', parseInt(tableNumber));
     }, [placeId, tableNumber, currentUser?.id]);
 
     const fetchOrders = useCallback(async () => {
         if (!placeId || !currentUser?.id) return;
-        
-        const { data, error } = await supabase
-            .from('orders')
-            .select('*, order_items(*, menu_items(*))')
-            .eq('place_id', placeId)
-            .eq('user_id', currentUser.id)
-            .order('created_at', { ascending: false });
-        
-        if (!error && data) {
-            setUserOrders(data);
-        }
+        const { data, error } = await supabase.from('orders').select('*, order_items(*, menu_items(*))').eq('place_id', placeId).eq('user_id', currentUser.id).order('created_at', { ascending: false });
+        if (!error && data) setUserOrders(data);
     }, [placeId, currentUser?.id]);
 
     useEffect(() => {
         if (!placeId) return;
-
         const loadData = async () => {
             const { data } = await supabase.from('menu_items').select('*').eq('place_id', placeId).eq('is_available', true);
             setMenuItems(data || []);
@@ -68,19 +52,7 @@ const MenuPage: React.FC = () => {
             setLoading(false);
         };
         loadData();
-
-        if (isAuthenticated && currentUser?.id) {
-            const channel = supabase.channel(`comanda-${placeId}`)
-                .on('postgres_changes', { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'orders',
-                    filter: `user_id=eq.${currentUser.id}`
-                }, () => fetchOrders())
-                .subscribe();
-            return () => { supabase.removeChannel(channel); };
-        }
-    }, [placeId, isAuthenticated, currentUser?.id, fetchOrders, occupyTable]);
+    }, [placeId, isAuthenticated, fetchOrders, occupyTable]);
 
     const addToCart = (id: string) => isPlaceOpen && setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
     const removeFromCart = (id: string) => setCart(prev => {
@@ -99,30 +71,11 @@ const MenuPage: React.FC = () => {
             toast.error("Erro de autenticação.");
             return;
         }
-        
         setOrdering(true);
         try {
-            const { data: orderData, error: orderError } = await supabase
-                .from('orders')
-                .insert({
-                    place_id: placeId,
-                    user_id: currentUser.id,
-                    table_number: parseInt(tableNumber),
-                    total_price: cartTotal,
-                    status: 'pending'
-                })
-                .select()
-                .single();
-
+            const { data: orderData, error: orderError } = await supabase.from('orders').insert({ place_id: placeId, user_id: currentUser.id, table_number: parseInt(tableNumber), total_price: cartTotal, status: 'pending' }).select().single();
             if (orderError) throw orderError;
-
-            const itemsToInsert = Object.entries(cart).map(([itemId, qty]) => ({
-                order_id: orderData.id,
-                menu_item_id: itemId,
-                quantity: qty,
-                unit_price: menuItems.find(i => i.id === itemId)?.price || 0
-            }));
-
+            const itemsToInsert = Object.entries(cart).map(([itemId, qty]) => ({ order_id: orderData.id, menu_item_id: itemId, quantity: qty, unit_price: menuItems.find(i => i.id === itemId)?.price || 0 }));
             await supabase.from('order_items').insert(itemsToInsert);
             toast.success("Pedido enviado!");
             setCart({});
@@ -150,7 +103,7 @@ const MenuPage: React.FC = () => {
                     <button onClick={() => navigate(-1)} className="mr-4 text-text-secondary"><ChevronLeft size={28} /></button>
                     <div>
                         <h1 className="text-xl font-bold truncate max-w-[150px]">{place?.name}</h1>
-                        <p className="text-xs text-accent font-bold">{tableNumber ? `MESA ${tableNumber}` : 'Cardápio Digital'}</p>
+                        <p className="text-xs text-accent font-bold">{tableNumber ? `${labelSingular.toUpperCase()} ${tableNumber}` : 'Cardápio Digital'}</p>
                     </div>
                 </div>
                 <button onClick={() => setIsComandaOpen(true)} className="p-2 text-text-secondary relative">
@@ -201,7 +154,7 @@ const MenuPage: React.FC = () => {
                     </div>
                     <button onClick={handlePlaceOrder} disabled={ordering} className="w-full bg-white text-accent font-black py-4 rounded-xl flex items-center justify-center">
                         {ordering ? <Loader2 className="animate-spin mr-2" /> : <ShoppingBag className="mr-2" />} 
-                        ENVIAR PEDIDO - MESA {tableNumber}
+                        ENVIAR PEDIDO - {labelSingular.toUpperCase()} {tableNumber}
                     </button>
                 </div>
             )}

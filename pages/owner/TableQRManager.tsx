@@ -24,6 +24,10 @@ const TableQRManager: React.FC = () => {
     const place = getPlaceById(selectedPlaceId);
     const baseUrl = `${window.location.origin}/#/menu/${selectedPlaceId}`;
 
+    const isNightlife = place?.category === 'Boate' || place?.category === 'Casa de Shows' || place?.category === 'Espaço Musical';
+    const labelSingular = isNightlife ? 'Comanda' : 'Mesa';
+    const labelPlural = isNightlife ? 'Comandas' : 'Mesas';
+
     const initializeTables = async () => {
         if (!selectedPlaceId) {
             toast.error("Selecione um estabelecimento.");
@@ -41,9 +45,9 @@ const TableQRManager: React.FC = () => {
                 .upsert(tableRecords, { onConflict: 'place_id,table_number' });
 
             if (error) throw error;
-            toast.success(`${tableCount} mesas inicializadas no sistema!`);
+            toast.success(`${tableCount} ${labelPlural.toLowerCase()} inicializadas!`);
         } catch (error: any) {
-            toast.error("Erro ao salvar mesas: " + error.message);
+            toast.error("Erro ao salvar: " + error.message);
         } finally {
             setIsSaving(false);
         }
@@ -85,7 +89,7 @@ const TableQRManager: React.FC = () => {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">QR Codes das Mesas</h1>
+            <h1 className="text-2xl font-bold mb-6">QR Codes das {labelPlural}</h1>
             
             <div className="bg-surface p-4 rounded-xl mb-8 space-y-4">
                 <div className="space-y-2">
@@ -95,7 +99,6 @@ const TableQRManager: React.FC = () => {
                         onChange={(e) => setSelectedPlaceId(e.target.value)}
                         className="w-full p-2 bg-gray-800 border border-gray-600 rounded-lg"
                     >
-                        <option value="" disabled>Selecione um local</option>
                         {ownedPlaceIds.map(id => (
                             <option key={id} value={id}>{getPlaceById(id)?.name || id}</option>
                         ))}
@@ -103,7 +106,7 @@ const TableQRManager: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold">Número de Mesas:</span>
+                    <span className="text-sm font-bold">Número de {labelPlural}:</span>
                     <div className="flex items-center bg-gray-800 rounded-lg">
                         <button onClick={() => setTableCount(Math.max(1, tableCount - 1))} className="p-2 text-primary hover:bg-gray-700 rounded-l-lg transition-colors">
                             <Plus size={18} className="rotate-45" />
@@ -122,7 +125,7 @@ const TableQRManager: React.FC = () => {
                         className="bg-gray-700 text-white font-bold py-3 rounded-xl flex items-center justify-center hover:bg-gray-600 transition-all disabled:opacity-50"
                     >
                         {isSaving ? <Loader2 className="animate-spin" /> : <Save className="mr-2" size={18} />}
-                        Configurar Mesas
+                        Configurar
                     </button>
                     <button 
                         onClick={generatePDF}
@@ -138,12 +141,9 @@ const TableQRManager: React.FC = () => {
             <h2 className="text-sm font-bold text-text-secondary uppercase mb-4">Pré-visualização</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" ref={qrContainerRef}>
                 {Array.from({ length: tableCount }, (_, i) => i + 1).map(num => (
-                    <div 
-                        key={num} 
-                        className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[280px] mx-auto overflow-hidden"
-                    >
+                    <div key={num} className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[280px] mx-auto">
                         <div className="text-center mb-4 w-full">
-                            <h2 className="text-xl font-black mb-1 leading-tight break-words">{place?.name || 'Local'}</h2>
+                            <h2 className="text-xl font-black mb-1 leading-tight">{place?.name || 'Local'}</h2>
                             <div className="h-0.5 w-16 mx-auto mb-2" style={{ backgroundColor: '#EC4899' }}></div>
                             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Cardápio Digital</p>
                         </div>
@@ -152,8 +152,8 @@ const TableQRManager: React.FC = () => {
                         </div>
                         <div className="mt-4 text-center w-full">
                             <p className="text-[9px] font-medium text-gray-400 mb-2">Escaneie para pedir</p>
-                            <div className="bg-black text-white px-5 py-1.5 rounded-lg inline-block font-black text-xl">
-                                MESA {num}
+                            <div className="bg-black text-white px-5 py-1.5 rounded-lg inline-block font-black text-xl uppercase">
+                                {labelSingular} {num}
                             </div>
                         </div>
                     </div>

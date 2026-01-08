@@ -6,6 +6,7 @@ import MenuQrScannerModal from './MenuQrScannerModal';
 import ComandaOverlay from './ComandaOverlay';
 import { Order } from '../types';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'react-hot-toast';
 
 const Header: React.FC = () => {
     const { hasNewNotification, hasActiveOrders, activeOrderPlaceId, activeTableNumber, fetchActiveOrdersStatus } = useAppContext();
@@ -14,7 +15,7 @@ const Header: React.FC = () => {
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [isComandaOpen, setIsComandaOpen] = useState(false);
     const [userOrders, setUserOrders] = useState<Order[]>([]);
-    const [loadingOrders, setLoadingOrders] = useState(false); // Corrigido: usando setLoadingOrders
+    const [loadingOrders, setLoadingOrders] = useState(false);
 
     const getTitle = () => {
         switch (location.pathname) {
@@ -59,7 +60,7 @@ const Header: React.FC = () => {
     const handleOpenComanda = async () => {
         if (!hasActiveOrders || !activeOrderPlaceId) return;
 
-        setLoadingOrders(true); // Corrigido: usando setLoadingOrders
+        setLoadingOrders(true);
         try {
             const { data, error } = await supabase
                 .from('orders')
@@ -76,7 +77,7 @@ const Header: React.FC = () => {
             console.error("Erro ao buscar pedidos:", e);
             toast.error("Não foi possível carregar sua comanda.");
         } finally {
-            setLoadingOrders(false); // Corrigido: usando setLoadingOrders
+            setLoadingOrders(false);
         }
     };
 

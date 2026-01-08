@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { Plus, Minus, FileText, Loader2, Save } from 'lucide-react';
@@ -9,20 +9,28 @@ import { toast } from 'react-hot-toast';
 
 const TableQRManager: React.FC = () => {
     const { ownedPlaceIds, getPlaceById } = useAppContext();
-    const [selectedPlaceId, setSelectedPlaceId] = useState(ownedPlaceIds[0] || '');
+    const [selectedPlaceId, setSelectedPlaceId] = useState('');
     const [tableCount, setTableCount] = useState(5);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const qrContainerRef = useRef<HTMLDivElement>(null);
 
+    useEffect(() => {
+        if (ownedPlaceIds.length > 0 && !selectedPlaceId) {
+            setSelectedPlaceId(ownedPlaceIds[0]);
+        }
+    }, [ownedPlaceIds, selectedPlaceId]);
+
     const place = getPlaceById(selectedPlaceId);
     const baseUrl = `${window.location.origin}/#/menu/${selectedPlaceId}`;
 
     const initializeTables = async () => {
-        if (!selectedPlaceId) return;
+        if (!selectedPlaceId) {
+            toast.error("Selecione um estabelecimento.");
+            return;
+        }
         setIsSaving(true);
         try {
-            // Cria os objetos de mesa de 1 até o número selecionado
             const tableRecords = Array.from({ length: tableCount }, (_, i) => ({
                 place_id: selectedPlaceId,
                 table_number: i + 1,
@@ -87,8 +95,9 @@ const TableQRManager: React.FC = () => {
                         onChange={(e) => setSelectedPlaceId(e.target.value)}
                         className="w-full p-2 bg-gray-800 border border-gray-600 rounded-lg"
                     >
+                        <option value="" disabled>Selecione um local</option>
                         {ownedPlaceIds.map(id => (
-                            <option key={id} value={id}>{getPlaceById(id)?.name}</option>
+                            <option key={id} value={id}>{getPlaceById(id)?.name || id}</option>
                         ))}
                     </select>
                 </div>
@@ -109,7 +118,7 @@ const TableQRManager: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                     <button 
                         onClick={initializeTables}
-                        disabled={isSaving || !place}
+                        disabled={isSaving || !selectedPlaceId}
                         className="bg-gray-700 text-white font-bold py-3 rounded-xl flex items-center justify-center hover:bg-gray-600 transition-all disabled:opacity-50"
                     >
                         {isSaving ? <Loader2 className="animate-spin" /> : <Save className="mr-2" size={18} />}
@@ -117,7 +126,7 @@ const TableQRManager: React.FC = () => {
                     </button>
                     <button 
                         onClick={generatePDF}
-                        disabled={isGenerating || !place}
+                        disabled={isGenerating || !selectedPlaceId}
                         className="bg-primary text-background font-bold py-3 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-50"
                     >
                         {isGenerating ? <Loader2 className="animate-spin" /> : <FileText className="mr-2" size={18} />} 
@@ -134,7 +143,7 @@ const TableQRManager: React.FC = () => {
                         className="bg-white p-6 rounded-xl flex flex-col items-center border border-gray-200 shadow-sm text-black w-full max-w-[280px] mx-auto overflow-hidden"
                     >
                         <div className="text-center mb-4 w-full">
-                            <h2 className="text-xl font-black mb-1 leading-tight break-words">{place?.name}</h2>
+                            <h2 className="text-xl font-black mb-1 leading-tight break-words">{place?.name || 'Local'}</h2>
                             <div className="h-0.5 w-16 mx-auto mb-2" style={{ backgroundColor: '#EC4899' }}></div>
                             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Cardápio Digital</p>
                         </div>

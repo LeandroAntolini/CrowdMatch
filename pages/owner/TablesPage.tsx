@@ -7,23 +7,35 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 
 const TablesPage: React.FC = () => {
     const { ownedPlaceIds, getPlaceById } = useAppContext();
-    const [selectedPlaceId, setSelectedPlaceId] = useState(ownedPlaceIds[0] || '');
+    const [selectedPlaceId, setSelectedPlaceId] = useState('');
     const [tables, setTables] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+
+    // Sincroniza o ID selecionado quando a lista de locais do lojista carregar
+    useEffect(() => {
+        if (ownedPlaceIds.length > 0 && !selectedPlaceId) {
+            setSelectedPlaceId(ownedPlaceIds[0]);
+        }
+    }, [ownedPlaceIds, selectedPlaceId]);
 
     useEffect(() => {
         if (!selectedPlaceId) return;
 
         const fetchTables = async () => {
             setLoading(true);
+            // Simplificamos a query removendo o join complexo para garantir que as mesas apareçam
             const { data, error } = await supabase
                 .from('tables')
-                .select('*, profiles(name)')
+                .select('*')
                 .eq('place_id', selectedPlaceId)
                 .order('table_number', { ascending: true });
             
-            if (data) setTables(data);
+            if (error) {
+                console.error("Erro ao buscar mesas:", error);
+            } else {
+                setTables(data || []);
+            }
             setLoading(false);
         };
 
@@ -51,8 +63,9 @@ const TablesPage: React.FC = () => {
                     onChange={(e) => setSelectedPlaceId(e.target.value)}
                     className="w-full p-3 bg-surface border border-gray-700 rounded-xl font-bold text-sm outline-none"
                 >
+                    <option value="" disabled>Selecione um estabelecimento</option>
                     {ownedPlaceIds.map(id => (
-                        <option key={id} value={id}>{getPlaceById(id)?.name}</option>
+                        <option key={id} value={id}>{getPlaceById(id)?.name || `Local ID: ${id.substring(0, 5)}`}</option>
                     ))}
                 </select>
             </div>
@@ -78,7 +91,7 @@ const TablesPage: React.FC = () => {
                                         <div className="flex items-center mt-1">
                                             {table.current_user_id ? (
                                                 <span className="text-[10px] text-green-400 font-bold flex items-center">
-                                                    <Users size={10} className="mr-1" /> {table.profiles?.name || 'Cliente Ativo'}
+                                                    <Users size={10} className="mr-1" /> Cliente Ativo
                                                 </span>
                                             ) : (
                                                 <span className="text-[10px] text-gray-500 uppercase font-bold">Livre</span>
@@ -96,6 +109,18 @@ const TablesPage: React.FC = () => {
                                 </div>
                             </div>
                         ))}
+                        {tables.length === 0 && !loading && (
+                            <div className="text-center py-10 bg-surface rounded-2xl border border-dashed border-gray-700">
+                                <LayoutGrid size={40} className="mx-auto mb-2 opacity-20" />
+                                <p className="text-text-secondary text-sm">Nenhuma mesa configurada.</p>
+                                <button 
+                                    onClick={() => navigate('/owner/qrs')}
+                                    className="mt-4 text-accent font-bold text-xs underline"
+                                >
+                                    Configurar mesas agora
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

@@ -77,17 +77,21 @@ const PlaceDetailsPage: React.FC = () => {
         if (!error && data) setUserOrders(data);
     }, [id, currentUser?.id]);
 
-    useEffect(() => {
+    const loadSessionData = useCallback(async () => {
         if (!id || !currentUser) return;
 
-        const loadSessionData = async () => {
-            const table = await getActiveTableForUser(id);
-            setActiveTable(table);
-            if (table) await fetchOrders();
-        };
+        // 1. Buscar mesa ativa
+        const table = await getActiveTableForUser(id);
+        setActiveTable(table);
+        
+        // 2. Buscar pedidos se houver mesa ativa
+        if (table) {
+            await fetchOrders();
+        } else {
+            setUserOrders([]);
+        }
 
-        loadSessionData();
-
+        // 3. Atualizar ticket de confirmação (QR Code)
         if (isCheckedInHere) {
             const order = getUserOrderForPlace(id, 'check-in');
             setConfirmationTicket({
@@ -108,6 +112,10 @@ const PlaceDetailsPage: React.FC = () => {
             setConfirmationTicket(null);
         }
     }, [id, currentUser, isCheckedInHere, isGoingHere, currentCheckIn, goingIntentions, getActiveTableForUser, fetchOrders, getUserOrderForPlace]);
+
+    useEffect(() => {
+        loadSessionData();
+    }, [loadSessionData]);
 
     const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
 
@@ -138,6 +146,9 @@ const PlaceDetailsPage: React.FC = () => {
         await checkInUser(id);
         setClaimResult(null);
         
+        // Recarrega dados da sessão para atualizar o QR Code e a mesa (se aplicável)
+        await loadSessionData();
+        
         let lastClaimResult: ClaimResultState | null = null;
         for (const promo of activeCheckinPromotions) {
             const result = await claimPromotion(promo.id);
@@ -152,6 +163,9 @@ const PlaceDetailsPage: React.FC = () => {
             await addGoingIntention(id);
             setClaimResult(null);
             
+            // Recarrega dados da sessão para atualizar o QR Code
+            await loadSessionData();
+            
             let lastClaimResult: ClaimResultState | null = null;
             for (const promo of activeGoingPromotions) {
                 const result = await claimPromotion(promo.id);
@@ -165,12 +179,16 @@ const PlaceDetailsPage: React.FC = () => {
 
     const handleCheckOut = () => {
         checkOutUser();
+        // Limpa o estado local
+        setActiveTable(null);
+        setUserOrders([]);
         setConfirmationTicket(null);
     };
 
     const handleRemoveGoing = () => {
         if (!id) return;
         removeGoingIntention(id);
+        // Limpa o estado local
         setConfirmationTicket(null);
     };
 

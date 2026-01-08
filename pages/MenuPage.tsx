@@ -62,7 +62,6 @@ const MenuPage: React.FC = () => {
 
         const loadData = async () => {
             try {
-                // Carrega itens do cardápio
                 const { data, error: menuError } = await supabase
                     .from('menu_items')
                     .select('*')
@@ -72,7 +71,6 @@ const MenuPage: React.FC = () => {
                 if (menuError) throw menuError;
                 setMenuItems(data || []);
 
-                // Se logado e em uma mesa, processa check-in e ocupação
                 if (isAuthenticated && currentUser) {
                     await fetchOrders();
                     
@@ -153,6 +151,55 @@ const MenuPage: React.FC = () => {
         }
     };
 
+    // Renderização das categorias movida para fora do return principal (JSX)
+    const renderedMenu = useMemo(() => {
+        const categories = Array.from(new Set(menuItems.map(i => i.category)));
+        if (menuItems.length === 0) return (
+            <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                <Utensils size={48} className="mb-4" />
+                <p className="font-bold">Nenhum item disponível.</p>
+            </div>
+        );
+        
+        return categories.map(cat => (
+            <section key={cat} className="animate-fade-in-up mt-6 first:mt-0">
+                <h2 className="text-sm font-black text-primary mb-4 border-l-4 border-primary pl-3 uppercase tracking-tighter">{cat}</h2>
+                <div className="space-y-4">
+                    {menuItems.filter(i => i.category === cat).map(item => (
+                        <div key={item.id} className="bg-surface rounded-2xl p-3 flex items-center shadow-xl border border-gray-800/50">
+                            <div className="relative flex-shrink-0">
+                                <img src={item.image_url || 'https://picsum.photos/seed/food/100/100'} className="w-20 h-20 rounded-xl object-cover" alt={item.name} />
+                                {!item.is_available && (
+                                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
+                                        <span className="text-[8px] font-black text-white uppercase">Esgotado</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex-grow ml-4 min-w-0">
+                                <h3 className="font-bold text-text-primary text-sm truncate">{item.name}</h3>
+                                <p className="text-[10px] text-text-secondary mb-2 line-clamp-2 leading-relaxed">{item.description}</p>
+                                <div className="flex justify-between items-center">
+                                    <span className="font-black text-accent text-base">R$ {item.price.toFixed(2)}</span>
+                                    {tableNumber && (
+                                        <div className={`flex items-center bg-gray-900 rounded-full p-1 border border-gray-800 ${(!isPlaceOpen || !item.is_available) ? 'opacity-30 pointer-events-none' : ''}`}>
+                                            {cart[item.id] ? (
+                                                <div className="flex items-center">
+                                                    <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-accent hover:bg-gray-800 rounded-full transition-colors"><Minus size={16} /></button>
+                                                    <span className="px-3 font-black text-sm text-text-primary">{cart[item.id]}</span>
+                                                </div>
+                                            ) : null}
+                                            <button onClick={() => addToCart(item.id)} className="p-1.5 text-accent hover:bg-gray-800 rounded-full transition-colors"><Plus size={16} /></button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        ));
+    }, [menuItems, cart, tableNumber, isPlaceOpen]);
+
     if (loading) return (
         <div className="h-screen w-screen bg-background flex items-center justify-center">
             <LoadingSpinner message="Abrindo cardápio..." />
@@ -175,7 +222,7 @@ const MenuPage: React.FC = () => {
     return (
         <div className="flex flex-col h-screen bg-background overflow-hidden">
             <header className="flex-shrink-0 p-4 bg-surface border-b border-gray-800 sticky top-0 z-50 flex justify-between items-center shadow-lg">
-                <div className="flex items-center">
+                <div className="flex items-center overflow-hidden">
                     <button onClick={() => navigate(-1)} className="mr-3 p-2 hover:bg-gray-800 rounded-full text-text-secondary"><ChevronLeft size={24} /></button>
                     <div className="overflow-hidden">
                         <h1 className="text-lg font-black truncate max-w-[140px] leading-tight">{place?.name || 'Cardápio'}</h1>
@@ -199,61 +246,15 @@ const MenuPage: React.FC = () => {
                 </button>
             </header>
 
-            <div className="flex-grow overflow-y-auto p-4 space-y-8 pb-48">
+            <div className="flex-grow overflow-y-auto p-4 pb-48">
                 {!isPlaceOpen && (
-                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-sm flex items-center shadow-sm">
+                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-sm flex items-center shadow-sm mb-4">
                         <Utensils size={20} className="mr-3 flex-shrink-0" />
                         <p className="font-medium">O local está fechado. Você pode ver os itens, mas pedidos estão desabilitados.</p>
                     </div>
                 )}
 
-                {useMemo(() => {
-                    const categories = Array.from(new Set(menuItems.map(i => i.category)));
-                    if (menuItems.length === 0) return (
-                        <div className="flex flex-col items-center justify-center py-20 opacity-30">
-                            <Utensils size={48} className="mb-4" />
-                            <p className="font-bold">Nenhum item disponível.</p>
-                        </div>
-                    );
-                    
-                    return categories.map(cat => (
-                        <section key={cat} className="animate-fade-in-up">
-                            <h2 className="text-sm font-black text-primary mb-4 border-l-4 border-primary pl-3 uppercase tracking-tighter">{cat}</h2>
-                            <div className="space-y-4">
-                                {menuItems.filter(i => i.category === cat).map(item => (
-                                    <div key={item.id} className="bg-surface rounded-2xl p-3 flex items-center shadow-xl border border-gray-800/50 hover:border-gray-700 transition-all">
-                                        <div className="relative">
-                                            <img src={item.image_url || 'https://picsum.photos/seed/food/100/100'} className="w-20 h-20 rounded-xl object-cover" alt={item.name} />
-                                            {!item.is_available && (
-                                                <div className="absolute inset-0 bg-black/60 flex items-center justify-center rounded-xl">
-                                                    <span className="text-[8px] font-black text-white uppercase">Esgotado</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex-grow ml-4">
-                                            <h3 className="font-bold text-text-primary text-sm">{item.name}</h3>
-                                            <p className="text-[10px] text-text-secondary mb-2 line-clamp-2 leading-relaxed">{item.description}</p>
-                                            <div className="flex justify-between items-center">
-                                                <span className="font-black text-accent text-base">R$ {item.price.toFixed(2)}</span>
-                                                {tableNumber && (
-                                                    <div className={`flex items-center bg-gray-900 rounded-full p-1 border border-gray-800 ${(!isPlaceOpen || !item.is_available) ? 'opacity-30 pointer-events-none' : ''}`}>
-                                                        {cart[item.id] ? (
-                                                            <div className="flex items-center">
-                                                                <button onClick={() => removeFromCart(item.id)} className="p-1.5 text-accent hover:bg-gray-800 rounded-full transition-colors"><Minus size={16} /></button>
-                                                                <span className="px-3 font-black text-sm text-text-primary">{cart[item.id]}</span>
-                                                            </div>
-                                                        ) : null}
-                                                        <button onClick={() => addToCart(item.id)} className="p-1.5 text-accent hover:bg-gray-800 rounded-full transition-colors"><Plus size={16} /></button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    ));
-                }, [menuItems, cart, tableNumber, isPlaceOpen])}
+                {renderedMenu}
             </div>
 
             {cartTotal > 0 && isPlaceOpen && (

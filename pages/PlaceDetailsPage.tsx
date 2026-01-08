@@ -11,6 +11,7 @@ import { PromotionType, Order } from '../types';
 import ConfirmationTicket from '../components/ConfirmationTicket';
 import ComandaOverlay from '../components/ComandaOverlay';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'react-hot-toast';
 
 interface ClaimResultState {
     message: string;
@@ -73,6 +74,7 @@ const PlaceDetailsPage: React.FC = () => {
             .select('*, order_items(*, menu_items(*))')
             .eq('place_id', id)
             .eq('user_id', currentUser.id)
+            .not('status', 'in', '("paid", "cancelled")') // Apenas pedidos ativos
             .order('created_at', { ascending: false });
         if (!error && data) setUserOrders(data);
     }, [id, currentUser?.id]);
@@ -115,6 +117,9 @@ const PlaceDetailsPage: React.FC = () => {
 
     useEffect(() => {
         loadSessionData();
+        // Polling para atualizar pedidos e status da mesa a cada 10 segundos
+        const interval = setInterval(loadSessionData, 10000);
+        return () => clearInterval(interval);
     }, [loadSessionData]);
 
     const getUserClaim = (promotionId: string) => promotionClaims.find(c => c.promotionId === promotionId);
@@ -214,6 +219,7 @@ const PlaceDetailsPage: React.FC = () => {
                 </button>
             </div>
             <div className="absolute top-4 right-4 flex space-x-2">
+                {/* Botão de Comanda no topo (mantido, mas o principal será na seção de status) */}
                 {activeTable && (
                     <button 
                         onClick={() => setIsComandaOpen(true)} 
@@ -237,11 +243,7 @@ const PlaceDetailsPage: React.FC = () => {
                 <h1 className="text-3xl font-bold">{place.name}</h1>
                 <div className="flex items-center mt-1">
                     <p className="text-text-secondary">{place.category}</p>
-                    {activeTable && (
-                        <span className="ml-3 px-2 py-0.5 bg-accent text-white text-[10px] font-black rounded uppercase">
-                            {labelSingular} {activeTable}
-                        </span>
-                    )}
+                    {/* Indicador da Mesa (removido daqui para ser movido para a seção de status) */}
                 </div>
                 
                 <div className="flex items-center space-x-4 my-4 text-text-secondary">
@@ -263,18 +265,40 @@ const PlaceDetailsPage: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="flex items-center space-x-3 mb-4">
+                <div className="flex items-center flex-wrap gap-3 mb-4">
                     <div className={`px-2 py-0.5 text-xs font-semibold rounded-full inline-block ${place.isOpen ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                         {place.isOpen ? "Aberto Agora" : "Fechado"}
                     </div>
                     
+                    {/* Link para Cardápio Digital */}
                     <Link 
-                        to={activeTable ? `/menu/${place.id}/${activeTable}` : `/menu/${place.id}`} 
-                        className="bg-accent/20 text-accent text-xs font-bold px-3 py-1 rounded-full flex items-center"
+                        to={`/menu/${place.id}`} 
+                        className="bg-gray-700/50 text-text-secondary text-xs font-bold px-3 py-1 rounded-full flex items-center hover:bg-gray-600 transition-colors"
                     >
                         <Utensils size={14} className="mr-1" />
-                        Cardápio {activeTable ? `da ${labelSingular} ${activeTable}` : 'Digital'}
+                        Cardápio Digital
                     </Link>
+
+                    {/* NOVO: Indicador de Mesa e Botão de Comanda */}
+                    {activeTable && (
+                        <>
+                            <span className="px-2 py-0.5 bg-accent text-white text-xs font-black rounded-full uppercase">
+                                {labelSingular} {activeTable}
+                            </span>
+                            <button 
+                                onClick={() => setIsComandaOpen(true)} 
+                                className="bg-accent text-white text-xs font-bold px-3 py-1 rounded-full flex items-center hover:bg-pink-600 transition-colors relative"
+                            >
+                                <Receipt size={14} className="mr-1" />
+                                Minha Comanda
+                                {userOrders.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-white text-accent text-[8px] font-black flex items-center justify-center rounded-full border border-accent">
+                                        {userOrders.length}
+                                    </span>
+                                )}
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 <button onClick={() => setIsMapModalOpen(true)} className="flex items-start text-left text-text-secondary mb-6 w-full hover:bg-surface p-2 rounded-lg transition-colors">

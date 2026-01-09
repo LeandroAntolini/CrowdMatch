@@ -2,14 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { MapPin, Star, Users, CalendarClock, XCircle, Heart, Radio, Clock, Ticket, Utensils, Receipt } from 'lucide-react';
+import { MapPin, Star, Users, CalendarClock, XCircle, Heart, Radio, Clock, Ticket, Utensils } from 'lucide-react';
 import MapModal from '../components/MapModal';
 import LivePostForm from '../components/LivePostForm';
 import LiveFeedBox from '../components/LiveFeedBox';
 import PromotionClaimStatus from '../components/PromotionClaimStatus';
-import { PromotionType, Order } from '../types';
+import { PromotionType } from '../types';
 import ConfirmationTicket from '../components/ConfirmationTicket';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'react-hot-toast';
 
 interface ClaimResultState {
@@ -50,7 +49,6 @@ const PlaceDetailsPage: React.FC = () => {
     const [claimResult, setClaimResult] = useState<ClaimResultState | null>(null);
     const [confirmationTicket, setConfirmationTicket] = useState<{ type: 'check-in' | 'going'; timestamp: number; order: number } | null>(null);
     const [activeTable, setActiveTable] = useState<number | null>(null);
-    // userOrders e isComandaOpen removidos, pois o Header gerencia a Comanda
     
     const place = id ? getPlaceById(id) : undefined;
     const currentCheckIn = getCurrentCheckIn();
@@ -66,7 +64,6 @@ const PlaceDetailsPage: React.FC = () => {
     const crowdCount = (checkIns || []).filter(ci => ci.placeId === place?.id).length;
     const goingCount = (goingIntentions || []).filter(gi => gi.placeId === place?.id).length;
 
-    // fetchOrders removido, pois o Header gerencia a busca de pedidos ativos
     
     const loadSessionData = useCallback(async () => {
         if (!id || !currentUser) return;
@@ -201,6 +198,15 @@ const PlaceDetailsPage: React.FC = () => {
     const menuLink = activeTable 
         ? `/menu/${place.id}/${activeTable}` 
         : `/menu/${place.id}`;
+        
+    const menuButtonText = activeTable 
+        ? `${labelSingular} ${activeTable}` 
+        : 'Cardápio Digital';
+        
+    const menuButtonClass = activeTable 
+        ? 'bg-accent text-white text-sm font-black' // Prominent when active
+        : 'bg-gray-700/50 text-text-secondary text-xs font-bold'; // Opaque when inactive
+
 
     return (
         <div className="relative">
@@ -246,21 +252,14 @@ const PlaceDetailsPage: React.FC = () => {
                         {place.isOpen ? "Aberto Agora" : "Fechado"}
                     </div>
                     
-                    {/* Link para Cardápio Digital */}
+                    {/* Link para Cardápio Digital / Mesa Ativa */}
                     <Link 
                         to={menuLink} 
-                        className="bg-gray-700/50 text-text-secondary text-xs font-bold px-3 py-1 rounded-full flex items-center hover:bg-gray-600 transition-colors"
+                        className={`px-3 py-1 rounded-full flex items-center hover:bg-gray-600 transition-colors ${menuButtonClass}`}
                     >
                         <Utensils size={14} className="mr-1" />
-                        Cardápio Digital
+                        {menuButtonText}
                     </Link>
-
-                    {/* NOVO: Indicador de Mesa (O botão Comanda foi movido para o Header) */}
-                    {activeTable && (
-                        <span className="px-2 py-0.5 bg-accent text-white text-xs font-black rounded-full uppercase">
-                            {labelSingular} {activeTable}
-                        </span>
-                    )}
                 </div>
 
                 <button onClick={() => setIsMapModalOpen(true)} className="flex items-start text-left text-text-secondary mb-6 w-full hover:bg-surface p-2 rounded-lg transition-colors">

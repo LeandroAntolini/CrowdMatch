@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
 import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, Order } from '../types';
 import { supabase } from '@/integrations/supabase/client';
@@ -167,7 +169,6 @@ interface AppContextType {
     fetchPotentialMatches: (placeId: string) => Promise<void>;
     getActiveTableForUser: (placeId: string) => Promise<number | null>;
     
-    // NOVO: Estado e funções para Comanda
     hasActiveOrders: boolean;
     fetchActiveOrdersStatus: () => Promise<void>;
     activeOrderPlaceId: string | null;
@@ -204,15 +205,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
     
-    // NOVO ESTADO PARA COMANDA
     const [hasActiveOrders, setHasActiveOrders] = useState(false);
     const [activeOrderPlaceId, setActiveOrderPlaceId] = useState<string | null>(null);
     const [activeTableNumber, setActiveTableNumber] = useState<number | null>(null);
 
-    // Derived state for better scoping
     const isAuthenticated = !!session?.user;
 
-    // Sincroniza o ref com o estado do cache para acesso estável em callbacks
     useEffect(() => {
         cacheRef.current = userProfilesCache;
     }, [userProfilesCache]);
@@ -380,7 +378,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return;
         }
 
-        // 1. Buscar pedidos ativos (status not in 'paid', 'cancelled')
+        const { data: tableData, error: tableError } = await supabase
+            .from('tables')
+            .select('place_id, table_number')
+            .eq('current_user_id', currentUser.id)
+            .limit(1);
+            
+        if (tableError) {
+            console.error("Error fetching active table status:", tableError);
+        }
+
+        if (tableData && tableData.length > 0) {
+            setHasActiveOrders(true);
+            setActiveOrderPlaceId(tableData[0].place_id);
+            setActiveTableNumber(tableData[0].table_number);
+            return;
+        }
+
         const { data: ordersData, error: ordersError } = await supabase
             .from('orders')
             .select('place_id, table_number')
@@ -403,31 +417,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return;
         }
         
-        // 2. Se não houver pedidos, verificar se está em uma mesa (para o caso de ter acabado de escanear)
-        const { data: tableData, error: tableError } = await supabase
-            .from('tables')
-            .select('place_id, table_number')
-            .eq('current_user_id', currentUser.id)
-            .limit(1);
-            
-        if (tableError) {
-            console.error("Error fetching active table status:", tableError);
-        }
-
-        if (tableData && tableData.length > 0) {
-            setHasActiveOrders(true); // Consideramos que estar em uma mesa é ter uma comanda ativa
-            setActiveOrderPlaceId(tableData[0].place_id);
-            setActiveTableNumber(tableData[0].table_number);
-            return;
-        }
-
         setHasActiveOrders(false);
         setActiveOrderPlaceId(null);
         setActiveTableNumber(null);
 
     }, [currentUser]);
 
-    // Monitoramento da sessão
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
@@ -437,7 +432,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return () => subscription.unsubscribe();
     }, []);
 
-    // Carregamento inicial de dados - Depende apenas da sessão
     useEffect(() => {
         if (!session?.user) {
             setCurrentUser(null);
@@ -569,7 +563,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     await refreshOwnerPromotions(session.user.id);
                 }
                 
-                await fetchActiveOrdersStatus(); // NOVO: Busca status da comanda
+                await fetchActiveOrdersStatus();
                 await refreshActiveLivePosts();
 
             } catch (e: any) {
@@ -581,15 +575,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
 
         fetchInitialData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [session?.user?.id]); // Apenas re-carrega se o ID do usuário mudar
+    }, [session?.user?.id]);
 
-    // Efeitos secundários estáveis
     useEffect(() => {
         if (!isAuthenticated) return;
         
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
-        const orderStatusIntervalId = setInterval(fetchActiveOrdersStatus, 10000); // Polling para status da comanda
+        const orderStatusIntervalId = setInterval(fetchActiveOrdersStatus, 10000);
         
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
             if (payload.eventType === 'INSERT') {
@@ -656,7 +648,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         return () => {
             clearInterval(intervalId);
-            clearInterval(orderStatusIntervalId); // Limpa o polling da comanda
+            clearInterval(orderStatusIntervalId);
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
@@ -807,7 +799,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         const { data, error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
         if (error) {
-            // Reverter em caso de erro
             const { data: currentData } = await supabase.from('check_ins').select('*').in('place_id', places.map(p => p.id));
             if (currentData) setCheckIns(currentData.map(c => ({ userId: c.user_id, placeId: c.place_id, timestamp: new Date(c.created_at).getTime(), createdAt: c.created_at })));
             throw error;
@@ -819,8 +810,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const checkOutUser = async () => {
         if (!currentUser) return;
+        
+        // NOVO: Liberar a mesa no banco de dados ao fazer check-out
+        await supabase
+            .from('tables')
+            .update({ current_user_id: null })
+            .eq('current_user_id', currentUser.id);
+
         setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
+        
+        fetchActiveOrdersStatus(); // Atualiza UI
     };
 
     const addGoingIntention = async (placeId: string) => {
@@ -1017,7 +1017,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
         potentialMatches, fetchPotentialMatches, getActiveTableForUser,
-        // NOVO
         hasActiveOrders, fetchActiveOrdersStatus, activeOrderPlaceId, activeTableNumber
     };
 

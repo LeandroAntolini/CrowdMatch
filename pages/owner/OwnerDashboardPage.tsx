@@ -1,16 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { 
-    Ticket, 
-    Trash2, 
-    Loader2, 
-    Utensils, 
-    QrCode, 
-    TrendingUp, 
-    CheckCircle, 
-    Radio, 
-    LayoutGrid,
-    Zap
+    Ticket, Trash2, Loader2, Utensils, QrCode, TrendingUp, CheckCircle, Radio, LayoutGrid, Zap, ClipboardList, Settings
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,23 +15,13 @@ const VIBE_INFO: { [key: string]: { label: string, icon: string } } = {
 
 const OwnerDashboardPage: React.FC = () => {
     const { 
-        currentUser, 
-        ownerPromotions, 
-        deleteAllLivePosts, 
-        ownedPlaceIds, 
-        getPlaceById,
-        getVibesForPlace 
+        currentUser, ownerPromotions, deleteAllLivePosts, ownedPlaceIds, getPlaceById, getVibesForPlace 
     } = useAppContext();
     
     const navigate = useNavigate();
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [vibes, setVibes] = useState<{ [vibe: string]: number }>({});
     const [loadingVibes, setLoadingVibes] = useState(true);
-
-    const activePromotionsCount = useMemo(() => {
-        if (!ownerPromotions) return 0;
-        return ownerPromotions.filter(p => new Date(p.endDate) > new Date()).length;
-    }, [ownerPromotions]);
 
     const firstPlaceId = ownedPlaceIds[0];
     const firstPlace = firstPlaceId ? getPlaceById(firstPlaceId) : null;
@@ -57,156 +38,87 @@ const OwnerDashboardPage: React.FC = () => {
         }
     }, [firstPlaceId, getVibesForPlace]);
 
-    const handleDeleteAllLivePosts = async () => {
-        if (!window.confirm("ATENÇÃO: Tem certeza que deseja APAGAR TODOS os posts do Feed Ao Vivo? Esta ação é irreversível.")) {
-            return;
-        }
-        setIsDeleting(true);
-        try {
-            await deleteAllLivePosts();
-            alert("Todos os posts ao vivo foram excluídos com sucesso!");
-        } catch (error: any) {
-            alert(`Falha ao excluir posts: ${error.message}`);
-        } finally {
-            setIsDeleting(false);
-        }
-    };
-
     return (
-        <div className="p-4 md:p-8 space-y-8 pb-24">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-text-primary">Painel do Lojista</h1>
-                    <p className="text-text-secondary mt-1">Olá, {currentUser?.name}. Veja o resumo da sua operação hoje.</p>
-                </div>
-                <div className="bg-primary/10 text-primary px-4 py-2 rounded-xl flex items-center border border-primary/20">
-                    <TrendingUp size={20} className="mr-2" />
-                    <span className="font-bold text-sm">Operação Ativa</span>
-                </div>
-            </div>
+        <div className="p-6 space-y-8 bg-white min-h-full pb-24">
+            <header>
+                <h1 className="text-3xl font-black text-text-primary tracking-tighter">Olá, {currentUser?.name.split(' ')[0]}</h1>
+                <p className="text-text-secondary text-sm font-medium">Veja o que está rolando no seu estabelecimento.</p>
+            </header>
 
-            {/* VIBE METER - NOVO */}
+            {/* VIBE METER */}
             {firstPlaceId && (
-                <div className="bg-surface p-6 rounded-2xl border border-primary/20 shadow-xl overflow-hidden relative">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <Zap size={80} className="text-primary" />
-                    </div>
-                    <h2 className="text-xs font-black uppercase text-text-secondary mb-4 tracking-widest flex items-center">
-                        <Zap size={14} className="mr-2 text-primary" /> Vibe do Público (Últimas 2h)
+                <div className="bg-secondary p-6 rounded-3xl border border-border-subtle">
+                    <h2 className="text-[10px] font-black uppercase text-text-secondary mb-4 tracking-widest flex items-center">
+                        <Zap size={14} className="mr-2 text-accent" /> Clima do Público (2h)
                     </h2>
                     
                     {loadingVibes ? (
-                        <div className="flex items-center space-x-2 animate-pulse">
-                            <div className="h-8 w-24 bg-gray-800 rounded-full"></div>
-                            <div className="h-8 w-24 bg-gray-800 rounded-full"></div>
-                        </div>
+                        <div className="flex space-x-2 animate-pulse"><div className="h-10 w-24 bg-white rounded-xl"></div></div>
                     ) : Object.keys(vibes).length > 0 ? (
-                        <div className="flex flex-wrap gap-3">
+                        <div className="flex flex-wrap gap-2">
                             {Object.entries(vibes).map(([type, count]) => (
-                                <div key={type} className="flex items-center bg-gray-800/50 px-4 py-2 rounded-xl border border-gray-700">
-                                    <span className="text-xl mr-2">{VIBE_INFO[type]?.icon}</span>
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase text-text-secondary leading-none">{VIBE_INFO[type]?.label}</p>
-                                        <p className="text-sm font-bold text-text-primary">{count} {count === 1 ? 'voto' : 'votos'}</p>
-                                    </div>
+                                <div key={type} className="bg-white px-4 py-2 rounded-xl border border-border-subtle flex items-center shadow-sm">
+                                    <span className="text-lg mr-2">{VIBE_INFO[type]?.icon}</span>
+                                    <span className="text-xs font-black text-text-primary uppercase">{count} {VIBE_INFO[type]?.label}</span>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <p className="text-sm text-text-secondary italic">Ainda não há reports de vibe para este período.</p>
+                        <p className="text-xs text-text-secondary italic">Aguardando os primeiros votos...</p>
                     )}
                 </div>
             )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <div onClick={() => navigate('/owner/tables')} className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-accent/20 cursor-pointer hover:bg-gray-800 transition-all hover:scale-[1.02] shadow-lg">
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-accent/10 flex items-center justify-center mb-4">
-                        <LayoutGrid size={28} className="text-accent md:hidden" />
-                        <LayoutGrid size={32} className="text-accent hidden md:block" />
+            {/* ATALHOS PRINCIPAIS */}
+            <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => navigate('/owner/tables')} className="bg-white p-6 rounded-3xl border border-border-subtle flex flex-col items-center text-center hover:bg-secondary transition-colors group">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform">
+                        <LayoutGrid size={24} />
                     </div>
-                    <p className="font-black text-base md:text-lg">{labelAmbiente}</p>
-                    <p className="text-[10px] md:text-xs text-text-secondary">Gestão de Ambiente</p>
-                </div>
-                
-                <div onClick={() => navigate('/owner/menu')} className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-primary/20 cursor-pointer hover:bg-gray-800 transition-all hover:scale-[1.02] shadow-lg">
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                        <Utensils size={28} className="text-primary md:hidden" />
-                        <Utensils size={32} className="text-primary hidden md:block" />
+                    <span className="text-xs font-black text-text-primary uppercase tracking-widest">{labelAmbiente}</span>
+                </button>
+                <button onClick={() => navigate('/owner/orders')} className="bg-white p-6 rounded-3xl border border-border-subtle flex flex-col items-center text-center hover:bg-secondary transition-colors group">
+                    <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-3 group-hover:scale-110 transition-transform">
+                        <ClipboardList size={24} />
                     </div>
-                    <p className="font-black text-base md:text-lg">Cardápio</p>
-                    <p className="text-[10px] md:text-xs text-text-secondary">Produtos e Preços</p>
-                </div>
+                    <span className="text-xs font-black text-text-primary uppercase tracking-widest">Pedidos</span>
+                </button>
+                <button onClick={() => navigate('/owner/menu')} className="bg-white p-6 rounded-3xl border border-border-subtle flex flex-col items-center text-center hover:bg-secondary transition-colors group">
+                    <div className="w-12 h-12 rounded-2xl bg-text-primary/5 flex items-center justify-center text-text-primary mb-3 group-hover:scale-110 transition-transform">
+                        <Utensils size={24} />
+                    </div>
+                    <span className="text-xs font-black text-text-primary uppercase tracking-widest">Cardápio</span>
+                </button>
+                <button onClick={() => navigate('/owner/promotions')} className="bg-white p-6 rounded-3xl border border-border-subtle flex flex-col items-center text-center hover:bg-secondary transition-colors group">
+                    <div className="w-12 h-12 rounded-2xl bg-yellow-400/10 flex items-center justify-center text-yellow-600 mb-3 group-hover:scale-110 transition-transform">
+                        <Ticket size={24} />
+                    </div>
+                    <span className="text-xs font-black text-text-primary uppercase tracking-widest">Promos</span>
+                </button>
+            </div>
 
-                <div className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-gray-700 shadow-lg">
-                    <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gray-700 flex items-center justify-center mb-4 text-accent">
-                        <Ticket size={28} className="md:hidden" />
-                        <Ticket size={32} className="hidden md:block" />
-                    </div>
-                    <p className="font-black text-base md:text-lg">{activePromotionsCount}</p>
-                    <p className="text-[10px] md:text-xs text-text-secondary">Promoções Ativas</p>
+            {/* FERRAMENTAS */}
+            <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase text-text-secondary tracking-widest px-2">Configurações Rápidas</h3>
+                <div className="bg-secondary rounded-3xl border border-border-subtle overflow-hidden">
+                    <button onClick={() => navigate('/owner/qrs')} className="w-full p-4 flex items-center justify-between hover:bg-white border-b border-border-subtle transition-colors">
+                        <div className="flex items-center"><QrCode size={20} className="mr-3 text-text-secondary" /><span className="text-sm font-bold">Imprimir QR das {labelAmbiente}</span></div>
+                        <Settings size={16} className="text-text-secondary" />
+                    </button>
+                    <button onClick={() => navigate('/owner/verify-qr')} className="w-full p-4 flex items-center justify-between hover:bg-white transition-colors">
+                        <div className="flex items-center"><CheckCircle size={20} className="mr-3 text-text-secondary" /><span className="text-sm font-bold">Validar Ticket de Cliente</span></div>
+                        <Settings size={16} className="text-text-secondary" />
+                    </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-surface p-8 rounded-2xl border border-gray-800 shadow-xl">
-                    <h2 className="text-xl font-black mb-6 flex items-center uppercase tracking-wider">
-                        <QrCode className="mr-3 text-accent" />
-                        Ferramentas Operacionais
-                    </h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <button 
-                            onClick={() => navigate('/owner/qrs')}
-                            className="text-left p-5 bg-gray-800/50 hover:bg-accent hover:text-white rounded-2xl transition-all flex flex-col border border-gray-700"
-                        >
-                            <QrCode size={24} className="mb-2" />
-                            <span className="font-bold">QR das {labelAmbiente}</span>
-                            <span className="text-[10px] opacity-70">Gerar PDF para impressão</span>
-                        </button>
-                        <button 
-                            onClick={() => navigate('/owner/promotions/create')}
-                            className="text-left p-5 bg-gray-800/50 hover:bg-accent hover:text-white rounded-2xl transition-all flex flex-col border border-gray-700"
-                        >
-                            <Ticket size={24} className="mb-2" />
-                            <span className="font-bold">Nova Promo</span>
-                            <span className="text-[10px] opacity-70">Atrair mais clientes</span>
-                        </button>
-                        <button 
-                            onClick={() => navigate('/owner/verify-qr')}
-                            className="text-left p-5 bg-gray-800/50 hover:bg-accent hover:text-white rounded-2xl transition-all flex flex-col border border-gray-700"
-                        >
-                            <CheckCircle size={24} className="mb-2" />
-                            <span className="font-bold">Validar Ticket</span>
-                            <span className="text-[10px] opacity-70">Confirmar resgates</span>
-                        </button>
-                        <button 
-                            onClick={() => navigate('/owner/live')}
-                            className="text-left p-5 bg-gray-800/50 hover:bg-accent hover:text-white rounded-2xl transition-all flex flex-col border border-gray-700"
-                        >
-                            <Radio size={24} className="mb-2" />
-                            <span className="font-bold">Feed Ao Vivo</span>
-                            <span className="text-[10px] opacity-70">Ver comentários locais</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div className="bg-surface p-8 rounded-2xl border border-red-500/20 shadow-xl flex flex-col justify-between">
-                    <div>
-                        <h2 className="text-xl font-black mb-6 flex items-center uppercase tracking-wider text-red-400">
-                            <Trash2 className="mr-3" />
-                            Segurança do Feed
-                        </h2>
-                        <p className="text-sm text-text-secondary mb-6">
-                            Em caso de necessidade moderatória urgente, você pode limpar instantaneamente todas as postagens ao vivo do seu estabelecimento para manter a boa vibe do local.
-                        </p>
-                    </div>
-                    <button 
-                        onClick={handleDeleteAllLivePosts}
-                        disabled={isDeleting}
-                        className="w-full text-center p-4 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/30 rounded-2xl transition-all font-black uppercase tracking-widest disabled:bg-gray-800 disabled:text-gray-600"
-                    >
-                        {isDeleting ? <Loader2 size={24} className="animate-spin mx-auto" /> : 'Apagar Todos os Posts Ao Vivo'}
-                    </button>
-                </div>
+            <div className="pt-4">
+                <button 
+                    onClick={async () => { if(window.confirm("Limpar posts ao vivo?")) await deleteAllLivePosts(); }}
+                    className="w-full py-4 text-red-500 font-black text-xs uppercase tracking-widest border-2 border-red-500/20 rounded-2xl hover:bg-red-50 transition-colors"
+                >
+                    Limpar Mural de Comentários
+                </button>
             </div>
         </div>
     );

@@ -26,12 +26,33 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
 
     const finalizeAccount = async () => {
         if (!window.confirm(`Finalizar conta da Mesa ${tableNumber} - ${customerName}?`)) return;
+        
+        // 1. Obter o place_id do primeiro pedido (todos são do mesmo local)
+        const placeId = orders[0]?.place_id;
+        if (!placeId) return;
+
+        // 2. Marcar todos os pedidos como 'paid'
         const ids = orders.map(o => o.id);
-        const { error } = await supabase.from('orders').update({ status: 'paid' }).in('id', ids);
-        if (!error) {
-            toast.success("Conta finalizada!");
+        const { error: orderError } = await supabase.from('orders').update({ status: 'paid' }).in('id', ids);
+        
+        if (orderError) {
+            toast.error("Erro ao processar pagamento.");
+            return;
+        }
+
+        // 3. Liberar a mesa (Remover o current_user_id)
+        const { error: tableError } = await supabase
+            .from('tables')
+            .update({ current_user_id: null })
+            .eq('place_id', placeId)
+            .eq('table_number', tableNumber);
+
+        if (!tableError) {
+            toast.success("Conta finalizada e mesa liberada!");
             onClose();
             onUpdate();
+        } else {
+            toast.error("Pedidos pagos, mas erro ao liberar mesa.");
         }
     };
 
@@ -95,6 +116,13 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
                             </div>
                         </div>
                     ))}
+                    
+                    {orders.length === 0 && (
+                        <div className="text-center py-10 opacity-30">
+                            <Utensils size={48} className="mx-auto mb-2" />
+                            <p>Nenhum pedido ativo.</p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="p-6 bg-gray-900 border-t border-gray-700">
@@ -104,7 +132,8 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
                     </div>
                     <button 
                         onClick={finalizeAccount}
-                        className="w-full bg-primary text-background font-black py-4 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all"
+                        disabled={orders.length === 0}
+                        className="w-full bg-primary text-background font-black py-4 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-50"
                     >
                         <Receipt size={20} className="mr-2" />
                         FECHAR CONTA E FINALIZAR

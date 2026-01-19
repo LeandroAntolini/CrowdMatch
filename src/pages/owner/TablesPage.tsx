@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { QrCode, Plus, LayoutGrid, Users, Trash2, Loader2 } from 'lucide-react';
+import { QrCode, Plus, LayoutGrid, Users, Trash2, Loader2, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -8,7 +8,6 @@ import { toast } from 'react-hot-toast';
 import OwnerOrderDetailsModal from '../../components/owner/OwnerOrderDetailsModal';
 import { Order } from '../../types';
 
-// Interface corrigida para representar o registro da tabela 'tables'
 interface TableRecord {
     id: string;
     place_id: string;
@@ -21,7 +20,7 @@ interface TableRecord {
 
 const TablesPage: React.FC = () => {
     const { ownedPlaceIds, getPlaceById } = useAppContext();
-    const [selectedPlaceId, setSelectedPlaceId] = useState('');
+    const [selectedPlaceId, setSelectedPlaceId] = useState(ownedPlaceIds[0] || '');
     const [tables, setTables] = useState<TableRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeletingAll, setIsDeletingAll] = useState(false);
@@ -37,10 +36,8 @@ const TablesPage: React.FC = () => {
 
     const fetchTables = useCallback(async () => {
         if (!selectedPlaceId) return;
-        setLoading(true);
         
         try {
-            // 1. Buscar todas as mesas e o perfil do usuário ativo (usando o alias correto para a FK)
             const { data: tablesData, error: tablesError } = await supabase
                 .from('tables')
                 .select('*, profiles:current_user_id(name)')
@@ -55,7 +52,6 @@ const TablesPage: React.FC = () => {
                 active_orders: [], 
             }));
 
-            // 2. Buscar pedidos ativos para as mesas ocupadas
             const occupiedUserIds = tablesWithUsers
                 .filter(t => t.current_user_id)
                 .map(t => t.current_user_id) as string[];
@@ -88,7 +84,6 @@ const TablesPage: React.FC = () => {
             setTables(tablesWithUsers);
         } catch (error: any) {
             console.error("Erro ao carregar mesas:", error);
-            toast.error("Erro ao carregar mesas: " + (error.message || "Verifique as permissões."));
         } finally {
             setLoading(false);
         }
@@ -96,9 +91,26 @@ const TablesPage: React.FC = () => {
 
     useEffect(() => {
         fetchTables();
-        const interval = setInterval(fetchTables, 15000); // Polling a cada 15s
+        const interval = setInterval(fetchTables, 10000);
         return () => clearInterval(interval);
     }, [fetchTables]);
+
+    const releaseTable = async (tableNum: number) => {
+        if (!window.confirm(`Liberar a mesa ${tableNum} manualmente? Isso removerá o acesso do cliente atual.`)) return;
+        
+        const { error } = await supabase
+            .from('tables')
+            .update({ current_user_id: null })
+            .eq('place_id', selectedPlaceId)
+            .eq('table_number', tableNum);
+        
+        if (error) {
+            toast.error("Erro ao liberar mesa.");
+        } else {
+            toast.success("Mesa liberada.");
+            fetchTables();
+        }
+    };
 
     const place = getPlaceById(selectedPlaceId);
     const isNightlife = place?.category === 'Boate' || place?.category === 'Casa de Shows' || place?.category === 'Espaço Musical';
@@ -106,24 +118,18 @@ const TablesPage: React.FC = () => {
     const labelPlural = isNightlife ? 'Comandas' : 'Mesas';
 
     const deleteIndividualTable = async (tableId: string, tableNum: number) => {
-        if (!window.confirm(`Tem certeza que deseja excluir a ${labelSingular} ${tableNum}?`)) return;
+        if (!window.confirm(`Excluir a estrutura da ${labelSingular} ${tableNum}?`)) return;
         const { error } = await supabase.from('tables').delete().eq('id', tableId);
         if (error) toast.error("Erro ao excluir.");
-        else {
-            toast.success("Excluída com sucesso.");
-            fetchTables();
-        }
+        else fetchTables();
     };
 
     const deleteAllTables = async () => {
-        if (!window.confirm(`Isso excluirá TODAS as ${labelPlural.toLowerCase()}. Deseja continuar?`)) return;
+        if (!window.confirm(`Excluir TODAS as ${labelPlural.toLowerCase()}?`)) return;
         setIsDeletingAll(true);
         const { error } = await supabase.from('tables').delete().eq('place_id', selectedPlaceId);
-        if (error) toast.error("Erro ao limpar mesas.");
-        else {
-            toast.success("Mesas removidas.");
-            setTables([]);
-        }
+        if (error) toast.error("Erro ao limpar.");
+        else setTables([]);
         setIsDeletingAll(false);
     };
     
@@ -169,11 +175,11 @@ const TablesPage: React.FC = () => {
                         {tables.length > 0 && (
                             <button onClick={deleteAllTables} disabled={isDeletingAll} className="text-red-400 text-xs font-bold flex items-center">
                                 {isDeletingAll ? <Loader2 size={14} className="animate-spin mr-1" /> : <Trash2 size={14} className="mr-1" />}
-                                Limpar Tudo
+                                Limpar Estrutura
                             </button>
                         )}
                         <button onClick={() => navigate('/owner/qrs')} className="text-primary text-xs font-bold flex items-center">
-                            <Plus size={14} className="mr-1" /> Configurar
+                            <Plus size={14} className="mr-1" /> Editar
                         </button>
                     </div>
                 </div>
@@ -184,7 +190,7 @@ const TablesPage: React.FC = () => {
                             const isOccupied = !!table.current_user_id;
                             const hasActiveOrders = table.active_orders.length > 0;
                             return (
-                                <div key={table.id} onClick={() => handleTableClick(table)} className={`bg-surface p-4 rounded-xl border border-gray-800 flex items-center justify-between transition-colors ${isOccupied ? 'cursor-pointer hover:border-accent/50' : 'hover:border-gray-700'}`}>
+                                <div key={table.id} onClick={() => isOccupied && handleTableClick(table)} className={`bg-surface p-4 rounded-xl border border-gray-800 flex items-center justify-between transition-colors ${isOccupied ? 'cursor-pointer hover:border-accent/50' : 'hover:border-gray-700'}`}>
                                     <div className="flex items-center">
                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black mr-4 border ${isOccupied ? 'bg-accent/10 text-accent border-accent/20' : 'bg-gray-800 text-primary border-primary/20'}`}>
                                             {table.table_number}
@@ -198,9 +204,20 @@ const TablesPage: React.FC = () => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {hasActiveOrders && <span className="text-[10px] font-black text-white bg-red-500 px-2 py-1 rounded-full animate-pulse">{table.active_orders.length} PEDIDOS</span>}
-                                        <button onClick={(e) => { e.stopPropagation(); deleteIndividualTable(table.id, table.table_number); }} className="text-text-secondary p-2 hover:text-red-500">
-                                            <Trash2 size={18} />
-                                        </button>
+                                        {isOccupied && (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); releaseTable(table.table_number); }} 
+                                                className="text-text-secondary p-2 hover:text-red-500"
+                                                title="Liberar Mesa"
+                                            >
+                                                <LogOut size={18} />
+                                            </button>
+                                        )}
+                                        {!isOccupied && (
+                                            <button onClick={(e) => { e.stopPropagation(); deleteIndividualTable(table.id, table.table_number); }} className="text-text-secondary p-2 hover:text-red-500">
+                                                <Trash2 size={18} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );

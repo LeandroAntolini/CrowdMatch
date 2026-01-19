@@ -22,8 +22,14 @@ const BottomNav: React.FC = () => {
                         `flex flex-col items-center justify-center flex-1 transition-all duration-200 ${isActive ? 'text-text-primary scale-110' : 'text-text-secondary hover:text-text-primary'}`
                     }
                 >
-                    <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                    <span className={`text-[10px] mt-1 font-medium ${isActive ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>{label}</span>
+                    {({ isActive }) => (
+                        <>
+                            <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                            <span className={`text-[10px] mt-1 font-medium ${isActive ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
+                                {label}
+                            </span>
+                        </>
+                    )}
                 </NavLink>
             ))}
         </nav>

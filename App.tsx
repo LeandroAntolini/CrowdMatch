@@ -11,7 +11,8 @@ import { Toaster } from 'react-hot-toast';
 
 const App: React.FC = () => {
     useEffect(() => {
-        document.documentElement.classList.add('dark');
+        // Removemos a classe dark para o novo visual minimalista
+        document.documentElement.classList.remove('dark');
     }, []);
 
     return (

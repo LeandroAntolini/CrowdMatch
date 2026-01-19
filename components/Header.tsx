@@ -87,49 +87,42 @@ const Header: React.FC = () => {
 
     return (
         <>
-            <header className="flex-shrink-0 w-full h-16 bg-background flex justify-between items-center px-4 border-b border-gray-800">
-                {/* LADO ESQUERDO: Perfil e Chat */}
+            <header className="flex-shrink-0 w-full h-14 bg-white flex justify-between items-center px-4 border-b border-border-subtle sticky top-0 z-[100]">
                 <div className="flex items-center space-x-1">
                     <button 
                         onClick={handleProfileClick} 
-                        className={`p-2 transition-colors ${isProfilePage ? 'text-primary' : 'text-text-secondary hover:text-primary'}`}
-                        aria-label={isProfilePage ? 'Fechar Perfil' : 'Abrir Perfil'}
+                        className={`p-2 transition-colors ${isProfilePage ? 'text-text-primary' : 'text-text-primary/70 hover:text-text-primary'}`}
                     >
-                        <UserIcon size={28} />
+                        <UserIcon size={24} />
                     </button>
                     <button 
                         onClick={handleChatClick} 
-                        className={`relative p-2 transition-colors ${isChatRelatedPage ? 'text-primary' : 'text-text-secondary hover:text-primary'}`}
-                        aria-label={isChatRelatedPage ? 'Fechar Conversas' : 'Abrir Conversas'}
+                        className={`relative p-2 transition-colors ${isChatRelatedPage ? 'text-text-primary' : 'text-text-primary/70 hover:text-text-primary'}`}
                     >
-                        <MessageSquare size={28} />
+                        <MessageSquare size={24} />
                         {hasNewNotification && !isChatRelatedPage && (
-                            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface"></span>
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                         )}
                     </button>
                 </div>
 
-                <h1 className="text-xl font-bold text-text-primary">{getTitle()}</h1>
+                <h1 className="text-lg font-bold text-text-primary tracking-tight">{getTitle()}</h1>
 
-                {/* LADO DIREITO: Comanda e Scanner QR */}
                 <div className="flex items-center space-x-1">
                     <button 
                         onClick={hasActiveOrders ? handleOpenComanda : handleDisabledClick}
-                        disabled={loadingOrders}
-                        className={`relative p-2 transition-colors ${hasActiveOrders ? 'text-accent hover:text-pink-400' : 'text-gray-600 opacity-50 cursor-not-allowed'}`}
-                        aria-label="Abrir Comanda"
+                        className={`relative p-2 transition-colors ${hasActiveOrders ? 'text-primary' : 'text-text-secondary opacity-30'}`}
                     >
-                        <Receipt size={26} />
+                        <Receipt size={24} />
                         {hasActiveOrders && (
-                            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface"></span>
+                            <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white"></span>
                         )}
                     </button>
                     <button 
                         onClick={() => setIsScannerOpen(true)}
-                        className="p-2 text-text-secondary hover:text-accent transition-colors"
-                        aria-label="Escanear Mesa"
+                        className="p-2 text-text-primary/70 hover:text-text-primary transition-colors"
                     >
-                        <QrCode size={26} />
+                        <QrCode size={24} />
                     </button>
                 </div>
             </header>

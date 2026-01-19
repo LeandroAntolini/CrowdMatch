@@ -98,6 +98,32 @@ const PlaceDetailsPage: React.FC = () => {
   const menuLink = activeTable !== null ? `/menu/${place.id}/${activeTable}` : `/menu/${place.id}`;
   const menuButtonText = activeTable !== null ? `${labelSingular} ${activeTable}` : 'Cardápio Digital';
 
+  // HANDLERS
+  const handleCheckIn = async () => {
+    if (!id || !place.isOpen) return;
+    await checkInUser(id);
+    setClaimResult(null);
+    await loadSessionData();
+    let lastClaimResult: ClaimResultState | null = null;
+    for (const promo of activeCheckinPromotions) {
+      const result = await claimPromotion(promo.id);
+      if (result) lastClaimResult = result;
+    }
+    if (lastClaimResult) setClaimResult(lastClaimResult);
+  };
+
+  const handleAddGoing = async () => {
+    if (!id) return;
+    await addGoingIntention(id);
+    await loadSessionData();
+    let lastClaimResult: ClaimResultState | null = null;
+    for (const promo of activeGoingPromotions) {
+      const result = await claimPromotion(promo.id);
+      if (result) lastClaimResult = result;
+    }
+    if (lastClaimResult) setClaimResult(lastClaimResult);
+  };
+
   const handleVibeReport = (vibe: string) => {
       if (!isCheckedInHere) {
           toast.error("Faça check-in primeiro!");
@@ -107,8 +133,18 @@ const PlaceDetailsPage: React.FC = () => {
       loadSessionData();
   };
 
-  const qrCodeValue = confirmationTicket && currentUser
-      ? `${currentUser.id}|${place.id}|${Date.now()}|${confirmationTicket.type}`
+  const handleFavoriteToggle = () => {
+      if (!id) return;
+      if (isCurrentlyFavorite) removeFavorite(id);
+      else addFavorite(id);
+  };
+
+  const userRecord = isCheckedInHere
+    ? checkIns.find((ci) => ci.userId === currentUser?.id && ci.placeId === id)
+    : goingIntentions.find((gi) => gi.userId === currentUser?.id && gi.placeId === id);
+
+  const qrCodeValue = confirmationTicket && currentUser && userRecord
+      ? `${currentUser.id}|${place.id}|${userRecord.createdAt}|${confirmationTicket.type}`
       : 'invalid';
 
   return (
@@ -119,7 +155,7 @@ const PlaceDetailsPage: React.FC = () => {
         <button onClick={() => navigate(-1)} className="absolute top-4 left-4 bg-white/90 p-2 rounded-full shadow-lg text-text-primary">
           <ChevronLeft size={24} />
         </button>
-        <button onClick={() => id && (isCurrentlyFavorite ? removeFavorite(id) : addFavorite(id))} className="absolute top-4 right-4 bg-white/90 p-2 rounded-full shadow-lg transition-colors">
+        <button onClick={handleFavoriteToggle} className="absolute top-4 right-4 bg-white/90 p-2 rounded-full shadow-lg transition-colors">
           <Heart size={24} fill={isCurrentlyFavorite ? '#EC4899' : 'none'} stroke={isCurrentlyFavorite ? '#EC4899' : 'currentColor'} />
         </button>
       </div>
@@ -154,7 +190,6 @@ const PlaceDetailsPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* TOP VIBE INDICATOR */}
             {Object.keys(placeVibes).length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-6">
                     {VIBE_OPTIONS.map(v => placeVibes[v.type] > 0 && (
@@ -175,10 +210,8 @@ const PlaceDetailsPage: React.FC = () => {
                 </button>
             </div>
 
-            {/* QUEM ESTÁ AQUI */}
             <WhoIsHere users={usersAtPlace} placeName={place.name} />
 
-            {/* VIBE REPORTS ACTIONS */}
             {isCheckedInHere && (
                 <div className="bg-secondary p-5 rounded-2xl border border-border-subtle mb-8">
                     <h3 className="text-xs font-black uppercase text-text-secondary mb-4 flex items-center tracking-widest">
@@ -197,7 +230,6 @@ const PlaceDetailsPage: React.FC = () => {
                 </div>
             )}
 
-            {/* PROMOS SECTION */}
             {(activeGoingPromotions.length > 0 || activeCheckinPromotions.length > 0) && (
                 <div className="mb-8">
                     <h2 className="text-xs font-black uppercase text-text-secondary mb-4 tracking-[0.2em] flex items-center">
@@ -209,7 +241,6 @@ const PlaceDetailsPage: React.FC = () => {
                 </div>
             )}
 
-            {/* AÇÕES DE CHECK-IN / EU VOU */}
             <div className="grid grid-cols-1 gap-4 mb-10">
                 {!isCheckedInHere && !isCheckedInElsewhere && (
                     <button onClick={handleCheckIn} className="w-full bg-primary text-white font-black py-4 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/20 active:scale-95 transition-all">
@@ -217,7 +248,7 @@ const PlaceDetailsPage: React.FC = () => {
                     </button>
                 )}
                 {!isGoingHere && !isCheckedInHere && (
-                    <button onClick={() => addGoingIntention(place.id)} className="w-full bg-white border-2 border-accent text-accent font-black py-4 rounded-2xl flex items-center justify-center active:scale-95 transition-all">
+                    <button onClick={handleAddGoing} className="w-full bg-white border-2 border-accent text-accent font-black py-4 rounded-2xl flex items-center justify-center active:scale-95 transition-all">
                         <CalendarClock className="mr-2" size={20} /> Marcar "Eu Vou"
                     </button>
                 )}
@@ -230,7 +261,6 @@ const PlaceDetailsPage: React.FC = () => {
                 )}
             </div>
 
-            {/* TICKETS DE CONFIRMAÇÃO (Se ativo) */}
             {confirmationTicket && (
                 <div className="mb-10 animate-fade-in-up">
                     <ConfirmationTicket type={confirmationTicket.type} placeName={place.name} timestamp={confirmationTicket.timestamp} order={confirmationTicket.order} qrCodeValue={qrCodeValue} />
@@ -240,7 +270,6 @@ const PlaceDetailsPage: React.FC = () => {
                 </div>
             )}
 
-            {/* FEED AO VIVO LOCAL */}
             <div>
                 <h2 className="text-xs font-black uppercase text-text-secondary mb-4 tracking-[0.2em] flex items-center">
                     <Radio size={16} className="mr-2 text-primary" /> Feed Ao Vivo do Local

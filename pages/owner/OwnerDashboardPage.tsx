@@ -1,21 +1,61 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { BarChart2, Ticket, Newspaper, Trash2, Loader2, Utensils, QrCode, ClipboardList, TrendingUp, CheckCircle, Radio, LayoutGrid } from 'lucide-react';
+import { 
+    Ticket, 
+    Trash2, 
+    Loader2, 
+    Utensils, 
+    QrCode, 
+    TrendingUp, 
+    CheckCircle, 
+    Radio, 
+    LayoutGrid,
+    Zap
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+const VIBE_INFO: { [key: string]: { label: string, icon: string } } = {
+    'fire': { label: 'Bombando', icon: '🔥' },
+    'music': { label: 'Som Top', icon: '🎵' },
+    'drinks': { label: 'Gelada', icon: '🍹' },
+    'service': { label: 'Rápido', icon: '⚡' },
+    'chill': { label: 'Tranquilo', icon: '😌' },
+};
+
 const OwnerDashboardPage: React.FC = () => {
-    const { currentUser, ownerPromotions, ownerFeedPosts, deleteAllLivePosts, ownedPlaceIds, getPlaceById } = useAppContext();
+    const { 
+        currentUser, 
+        ownerPromotions, 
+        deleteAllLivePosts, 
+        ownedPlaceIds, 
+        getPlaceById,
+        getVibesForPlace 
+    } = useAppContext();
+    
     const navigate = useNavigate();
     const [isDeleting, setIsDeleting] = React.useState(false);
+    const [vibes, setVibes] = useState<{ [vibe: string]: number }>({});
+    const [loadingVibes, setLoadingVibes] = useState(true);
 
     const activePromotionsCount = useMemo(() => {
         if (!ownerPromotions) return 0;
         return ownerPromotions.filter(p => new Date(p.endDate) > new Date()).length;
     }, [ownerPromotions]);
 
-    const firstPlace = ownedPlaceIds.length > 0 ? getPlaceById(ownedPlaceIds[0]) : null;
+    const firstPlaceId = ownedPlaceIds[0];
+    const firstPlace = firstPlaceId ? getPlaceById(firstPlaceId) : null;
     const isNightlife = firstPlace?.category === 'Boate' || firstPlace?.category === 'Casa de Shows' || firstPlace?.category === 'Espaço Musical';
     const labelAmbiente = isNightlife ? 'Comandas' : 'Mesas';
+
+    useEffect(() => {
+        if (firstPlaceId) {
+            setLoadingVibes(true);
+            getVibesForPlace(firstPlaceId).then(v => {
+                setVibes(v);
+                setLoadingVibes(false);
+            });
+        }
+    }, [firstPlaceId, getVibesForPlace]);
 
     const handleDeleteAllLivePosts = async () => {
         if (!window.confirm("ATENÇÃO: Tem certeza que deseja APAGAR TODOS os posts do Feed Ao Vivo? Esta ação é irreversível.")) {
@@ -44,6 +84,39 @@ const OwnerDashboardPage: React.FC = () => {
                     <span className="font-bold text-sm">Operação Ativa</span>
                 </div>
             </div>
+
+            {/* VIBE METER - NOVO */}
+            {firstPlaceId && (
+                <div className="bg-surface p-6 rounded-2xl border border-primary/20 shadow-xl overflow-hidden relative">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <Zap size={80} className="text-primary" />
+                    </div>
+                    <h2 className="text-xs font-black uppercase text-text-secondary mb-4 tracking-widest flex items-center">
+                        <Zap size={14} className="mr-2 text-primary" /> Vibe do Público (Últimas 2h)
+                    </h2>
+                    
+                    {loadingVibes ? (
+                        <div className="flex items-center space-x-2 animate-pulse">
+                            <div className="h-8 w-24 bg-gray-800 rounded-full"></div>
+                            <div className="h-8 w-24 bg-gray-800 rounded-full"></div>
+                        </div>
+                    ) : Object.keys(vibes).length > 0 ? (
+                        <div className="flex flex-wrap gap-3">
+                            {Object.entries(vibes).map(([type, count]) => (
+                                <div key={type} className="flex items-center bg-gray-800/50 px-4 py-2 rounded-xl border border-gray-700">
+                                    <span className="text-xl mr-2">{VIBE_INFO[type]?.icon}</span>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-text-secondary leading-none">{VIBE_INFO[type]?.label}</p>
+                                        <p className="text-sm font-bold text-text-primary">{count} {count === 1 ? 'voto' : 'votos'}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-text-secondary italic">Ainda não há reports de vibe para este período.</p>
+                    )}
+                </div>
+            )}
 
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div onClick={() => navigate('/owner/tables')} className="bg-surface p-6 rounded-2xl flex flex-col items-center justify-center border border-accent/20 cursor-pointer hover:bg-gray-800 transition-all hover:scale-[1.02] shadow-lg">

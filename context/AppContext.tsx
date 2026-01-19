@@ -177,6 +177,7 @@ interface AppContextType {
 
     reportVibe: (placeId: string, vibeType: string) => Promise<void>;
     getVibesForPlace: (placeId: string) => Promise<{ [key: string]: number }>;
+    placesVibes: { [placeId: string]: { [vibe: string]: number } };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -208,6 +209,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [newlyFormedMatch, setNewlyFormedMatch] = useState<Match | null>(null);
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
+    const [placesVibes, setPlacesVibes] = useState<{ [placeId: string]: { [vibe: string]: number } }>({});
     
     const [hasActiveOrders, setHasActiveOrders] = useState(false);
     const [activeOrderPlaceId, setActiveOrderPlaceId] = useState<string | null>(null);
@@ -250,6 +252,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setActiveLivePosts(data || []);
         }
     }, []);
+
+    const fetchAllVibes = useCallback(async (placeIds: string[]) => {
+        if (placeIds.length === 0) return;
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+            .from('vibe_reports')
+            .select('place_id, vibe_type')
+            .in('place_id', placeIds)
+            .gt('created_at', twoHoursAgo);
+
+        if (!error && data) {
+            const vibesMap: { [placeId: string]: { [vibe: string]: number } } = {};
+            data.forEach(r => {
+                vibesMap[r.place_id] = vibesMap[r.place_id] || {};
+                vibesMap[r.place_id][r.vibe_type] = (vibesMap[r.place_id][r.vibe_type] || 0) + 1;
+            });
+            setPlacesVibes(vibesMap);
+        }
+    }, []);
     
     const refreshOwnerPromotions = useCallback(async (userId: string) => {
         if (!userId) return;
@@ -272,9 +293,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setPlaces(prevPlaces => {
             const existingIds = new Set(prevPlaces.map(p => p.id));
             const uniqueNewPlaces = newPlaces.filter(p => !existingIds.has(p.id));
-            return [...prevPlaces, ...uniqueNewPlaces];
+            const result = [...prevPlaces, ...uniqueNewPlaces];
+            fetchAllVibes(result.map(p => p.id));
+            return result;
         });
-    }, []);
+    }, [fetchAllVibes]);
 
     const fetchPlaces = useCallback(async (city: string, state: string, query?: string): Promise<Place[]> => {
         if (!city || !state) return [];
@@ -442,6 +465,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
         } else {
             toast.success("Vibe enviada!");
+            fetchAllVibes([placeId]);
         }
     };
 
@@ -455,10 +479,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         if (error) return {};
         
-        return (data || []).reduce((acc: any, curr: any) => {
+        const vibes = (data || []).reduce((acc: any, curr: any) => {
             acc[curr.vibe_type] = (acc[curr.vibe_type] || 0) + 1;
             return acc;
         }, {});
+        
+        setPlacesVibes(prev => ({ ...prev, [placeId]: vibes }));
+        return vibes;
     };
 
     useEffect(() => {
@@ -493,6 +520,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 const localPlaces = await fetchPlaces(mappedUser.city || '', mappedUser.state || '');
                 const localPlaceIds = localPlaces.map(p => p.id);
+                
+                if (localPlaceIds.length > 0) fetchAllVibes(localPlaceIds);
 
                 const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
@@ -620,6 +649,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
         const orderStatusIntervalId = setInterval(fetchActiveOrdersStatus, 10000);
+        const vibeIntervalId = setInterval(() => fetchAllVibes(places.map(p => p.id)), 30000);
         
         // Listener de pedidos do usuário (Notificações de Status)
         const ordersChannel = supabase.channel(`user-orders-${currentUser.id}`)
@@ -731,13 +761,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return () => {
             clearInterval(intervalId);
             clearInterval(orderStatusIntervalId);
+            clearInterval(vibeIntervalId);
             supabase.removeChannel(ordersChannel);
             supabase.removeChannel(messagesChannel);
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
         };
-    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds, fetchActiveOrdersStatus]);
+    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds, fetchActiveOrdersStatus, places, fetchAllVibes]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -1105,7 +1136,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
         potentialMatches, fetchPotentialMatches, getActiveTableForUser,
         hasActiveOrders, fetchActiveOrdersStatus, activeOrderPlaceId, activeTableNumber,
-        reportVibe, getVibesForPlace
+        reportVibe, getVibesForPlace, placesVibes
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

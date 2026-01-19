@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useCa
 import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, Order } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import { toast } from 'react-hot-toast';
 
 interface Favorite {
     id: string;
@@ -113,7 +114,7 @@ interface AppContextType {
     livePostsByPlace: { [key: string]: LivePost[] };
     activeLivePosts: { place_id: string }[];
     promotions: Promotion[];
-    ownerPromotions: (Promotion & { claim_count: number; redeemed_count: number })[];
+    ownerPromotions: (Promotion & { claim_count: number; redeemed_count: number })[] | any[];
     promotionClaims: PromotionClaim[];
     allFeedPosts: FeedPost[];
     isLoading: boolean;
@@ -578,11 +579,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }, [session?.user?.id]);
 
     useEffect(() => {
-        if (!isAuthenticated) return;
+        if (!isAuthenticated || !currentUser?.id) return;
         
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
         const orderStatusIntervalId = setInterval(fetchActiveOrdersStatus, 10000);
         
+        // Listener de pedidos do usuário (Notificações de Status)
+        const ordersChannel = supabase.channel(`user-orders-${currentUser.id}`)
+            .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'orders', 
+                filter: `user_id=eq.${currentUser.id}` 
+            }, (payload) => {
+                const updatedOrder = payload.new as any;
+                const oldOrder = payload.old as any;
+                
+                if (updatedOrder.status !== oldOrder.status) {
+                    fetchActiveOrdersStatus();
+                    
+                    const statusMessages: { [key: string]: string } = {
+                        'preparing': '🍔 Seu pedido começou a ser preparado!',
+                        'delivering': '🚀 Seu pedido está a caminho da mesa!',
+                        'delivered': '✅ Seu pedido foi entregue. Bom apetite!',
+                        'paid': '💳 Conta finalizada com sucesso. Obrigado!',
+                    };
+                    
+                    if (statusMessages[updatedOrder.status]) {
+                        toast.success(statusMessages[updatedOrder.status], { duration: 5000, icon: '🍽️' });
+                    }
+                }
+            }).subscribe();
+
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
             if (payload.eventType === 'INSERT') {
                 const newPost = payload.new as any;
@@ -649,6 +677,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return () => {
             clearInterval(intervalId);
             clearInterval(orderStatusIntervalId);
+            supabase.removeChannel(ordersChannel);
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
@@ -811,7 +840,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const checkOutUser = async () => {
         if (!currentUser) return;
         
-        // 1. Liberar a mesa no banco de dados ao fazer check-out
         try {
             await supabase
                 .from('tables')
@@ -821,11 +849,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             console.error("Erro ao liberar mesa no checkout:", e);
         }
 
-        // 2. Remover o registro de check-in local e remoto
         setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         
-        // 3. Atualizar status global
         fetchActiveOrdersStatus();
     };
 

@@ -13,15 +13,10 @@ const LoginForm: React.FC = () => {
         e.preventDefault();
         setLoading(true);
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) {
-            toast.error(error.message === 'Invalid login credentials' 
-                ? 'E-mail ou senha incorretos.' 
-                : error.message);
+            toast.error(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
             setLoading(false);
         } else {
             toast.success('Bem-vindo de volta!');
@@ -30,65 +25,49 @@ const LoginForm: React.FC = () => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 animate-fade-in-up">
-            <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">E-mail</label>
-                <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                    <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        placeholder="seu@email.com"
-                        className="w-full pl-10 pr-4 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                </div>
+            <div className="space-y-1">
+                <label className="text-[10px] font-black text-text-secondary uppercase ml-2 tracking-widest">E-mail</label>
+                <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="exemplo@email.com"
+                    className="w-full bg-secondary px-5 py-4 rounded-2xl text-sm font-bold border border-transparent focus:bg-white focus:border-border-subtle outline-none transition-all"
+                />
             </div>
             
-            <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Senha</label>
+            <div className="space-y-1">
+                <label className="text-[10px] font-black text-text-secondary uppercase ml-2 tracking-widest">Senha</label>
                 <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                     <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         placeholder="••••••••"
-                        className="w-full pl-10 pr-12 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        className="w-full bg-secondary px-5 py-4 rounded-2xl text-sm font-bold border border-transparent focus:bg-white focus:border-border-subtle outline-none transition-all"
                     />
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 px-3 flex items-center text-text-secondary hover:text-accent transition-colors"
-                        aria-label={showPassword ? "Esconder senha" : "Mostrar senha"}
+                        className="absolute inset-y-0 right-0 px-4 flex items-center text-text-secondary"
                     >
                         {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </button>
                 </div>
             </div>
 
-            <div className="text-right">
-                <button 
-                    type="button"
-                    onClick={() => toast.error("Funcionalidade em desenvolvimento.")}
-                    className="text-xs text-accent hover:underline"
-                >
-                    Esqueceu a senha?
-                </button>
+            <div className="text-right px-2">
+                <button type="button" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">Esqueci a senha</button>
             </div>
 
             <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 transition-colors flex items-center justify-center disabled:bg-gray-600"
+                className="w-full bg-text-primary text-white font-black py-4 rounded-2xl flex items-center justify-center shadow-xl active:scale-95 transition-all uppercase tracking-widest text-xs"
             >
-                {loading ? (
-                    <>
-                        <Loader2 size={20} className="animate-spin mr-2" />
-                        Entrando...
-                    </>
-                ) : 'Entrar'}
+                {loading ? <Loader2 size={20} className="animate-spin" /> : 'Entrar'}
             </button>
         </form>
     );

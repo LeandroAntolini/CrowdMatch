@@ -174,6 +174,9 @@ interface AppContextType {
     fetchActiveOrdersStatus: () => Promise<void>;
     activeOrderPlaceId: string | null;
     activeTableNumber: number | null;
+
+    reportVibe: (placeId: string, vibeType: string) => Promise<void>;
+    getVibesForPlace: (placeId: string) => Promise<{ [key: string]: number }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -423,6 +426,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setActiveTableNumber(null);
 
     }, [currentUser]);
+
+    const reportVibe = async (placeId: string, vibeType: string) => {
+        if (!currentUser) return;
+        const { error } = await supabase.from('vibe_reports').insert({
+            user_id: currentUser.id,
+            place_id: placeId,
+            vibe_type: vibeType
+        });
+        if (error) {
+            if (error.message.includes('check_ins')) {
+                toast.error("Você precisa ter feito check-in para reportar a vibe!");
+            } else {
+                toast.error("Erro ao enviar reporte.");
+            }
+        } else {
+            toast.success("Vibe enviada!");
+        }
+    };
+
+    const getVibesForPlace = async (placeId: string) => {
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+            .from('vibe_reports')
+            .select('vibe_type')
+            .eq('place_id', placeId)
+            .gt('created_at', twoHoursAgo);
+
+        if (error) return {};
+        
+        return (data || []).reduce((acc: any, curr: any) => {
+            acc[curr.vibe_type] = (acc[curr.vibe_type] || 0) + 1;
+            return acc;
+        }, {});
+    };
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -998,7 +1035,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const deletePromotion = async (promotionId: string) => {
         if (!currentUser) throw new Error("Usuário não autenticado.");
         await supabase.from('promotion_claims').delete().eq('promotion_id', promotionId);
-        const { error } = await supabase.from('promotions').delete().eq('id', promotionId).eq('created_by', currentUser.id);
+        const { error = null } = await supabase.from('promotions').delete().eq('id', promotionId).eq('created_by', currentUser.id);
         if (error) throw error;
         setOwnerPromotions(prev => prev.filter(p => p.id !== promotionId));
     };
@@ -1067,7 +1104,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
         potentialMatches, fetchPotentialMatches, getActiveTableForUser,
-        hasActiveOrders, fetchActiveOrdersStatus, activeOrderPlaceId, activeTableNumber
+        hasActiveOrders, fetchActiveOrdersStatus, activeOrderPlaceId, activeTableNumber,
+        reportVibe, getVibesForPlace
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

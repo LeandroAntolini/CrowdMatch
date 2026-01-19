@@ -811,16 +811,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const checkOutUser = async () => {
         if (!currentUser) return;
         
-        // NOVO: Liberar a mesa no banco de dados ao fazer check-out
-        await supabase
-            .from('tables')
-            .update({ current_user_id: null })
-            .eq('current_user_id', currentUser.id);
+        // 1. Liberar a mesa no banco de dados ao fazer check-out
+        try {
+            await supabase
+                .from('tables')
+                .update({ current_user_id: null })
+                .eq('current_user_id', currentUser.id);
+        } catch (e) {
+            console.error("Erro ao liberar mesa no checkout:", e);
+        }
 
+        // 2. Remover o registro de check-in local e remoto
         setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         
-        fetchActiveOrdersStatus(); // Atualiza UI
+        // 3. Atualizar status global
+        fetchActiveOrdersStatus();
     };
 
     const addGoingIntention = async (placeId: string) => {

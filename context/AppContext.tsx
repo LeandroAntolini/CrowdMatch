@@ -611,6 +611,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
             }).subscribe();
 
+        // NOVO: Listener de mensagens para notificações
+        const messagesChannel = supabase.channel(`user-messages-${currentUser.id}`)
+            .on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'messages'
+            }, (payload) => {
+                const newMessage = payload.new as any;
+                const currentPath = window.location.hash; // Hash router
+
+                // Se eu não sou o remetente E não estou na página de chat desse match específico
+                if (newMessage.sender_id !== currentUser.id && !currentPath.includes(`/chat/${newMessage.match_id}`)) {
+                    setHasNewNotification(true);
+                    toast('Nova mensagem recebida!', { icon: '💬', position: 'bottom-center' });
+                }
+            }).subscribe();
+
         const livePostsChannel = supabase.channel('live-posts-feed').on<LivePost>('postgres_changes', { event: '*', schema: 'public', table: 'live_posts' }, async (payload) => {
             if (payload.eventType === 'INSERT') {
                 const newPost = payload.new as any;
@@ -678,6 +695,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             clearInterval(intervalId);
             clearInterval(orderStatusIntervalId);
             supabase.removeChannel(ordersChannel);
+            supabase.removeChannel(messagesChannel);
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);

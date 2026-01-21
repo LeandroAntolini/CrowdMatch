@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { QrCode, Plus, LayoutGrid, Users, Trash2, Loader2 } from 'lucide-react';
+import { QrCode, Plus, LayoutGrid, Users, Trash2, Loader2, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -8,19 +8,19 @@ import { toast } from 'react-hot-toast';
 import OwnerOrderDetailsModal from '../../components/owner/OwnerOrderDetailsModal';
 import { Order } from '../../types';
 
-interface TableWithUser extends Order {
+interface TableRecord {
     id: string;
     place_id: string;
     table_number: number;
     current_user_id: string | null;
-    profiles: { name: string } | null;
+    last_activity: string;
+    profiles?: { name: string } | null;
     active_orders: Order[];
 }
 
 const TablesPage: React.FC = () => {
-    const { ownedPlaceIds, getPlaceById } = useAppContext();
-    const [selectedPlaceId, setSelectedPlaceId] = useState(ownedPlaceIds[0] || '');
-    const [tables, setTables] = useState<TableWithUser[]>([]);
+    const { getPlaceById, activeOwnedPlaceId } = useAppContext();
+    const [tables, setTables] = useState<TableRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeletingAll, setIsDeletingAll] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,119 +28,101 @@ const TablesPage: React.FC = () => {
     const navigate = useNavigate();
 
     const fetchTables = useCallback(async () => {
-        if (!selectedPlaceId) return;
-        setLoading(true);
+        if (!activeOwnedPlaceId) return;
         
-        // 1. Buscar todas as mesas e o perfil do usuário ativo
-        const { data: tablesData, error: tablesError } = await supabase
-            .from('tables')
-            .select('*, profiles(name)')
-            .eq('place_id', selectedPlaceId)
-            .order('table_number', { ascending: true });
-        
-        if (tablesError) {
-            console.error("Erro ao buscar mesas:", tablesError);
-            toast.error("Erro ao carregar mesas.");
-            setLoading(false);
-            return;
-        }
+        try {
+            const { data: tablesData, error: tablesError } = await supabase
+                .from('tables')
+                .select('*, profiles:current_user_id(name)')
+                .eq('place_id', activeOwnedPlaceId)
+                .order('table_number', { ascending: true });
+            
+            if (tablesError) throw tablesError;
 
-        const tablesWithUsers: TableWithUser[] = tablesData.map(t => ({
-            ...t,
-            profiles: t.profiles as { name: string } | null,
-            active_orders: [], // Será preenchido no próximo passo
-        }));
+            const tablesWithUsers: TableRecord[] = (tablesData || []).map(t => ({
+                ...t,
+                profiles: t.profiles as { name: string } | null,
+                active_orders: [], 
+            }));
 
-        // 2. Buscar pedidos ativos para as mesas ocupadas
-        const occupiedTableIds = tablesWithUsers.filter(t => t.current_user_id).map(t => t.current_user_id);
-        
-        if (occupiedTableIds.length > 0) {
-            const { data: ordersData, error: ordersError } = await supabase
-                .from('orders')
-                .select('*, order_items(*, menu_items(*))')
-                .eq('place_id', selectedPlaceId)
-                .in('user_id', occupiedTableIds)
-                .not('status', 'in', '("paid", "cancelled")')
-                .order('created_at', { ascending: false });
+            const occupiedUserIds = tablesWithUsers
+                .filter(t => t.current_user_id)
+                .map(t => t.current_user_id) as string[];
+            
+            if (occupiedUserIds.length > 0) {
+                const { data: ordersData, error: ordersError } = await supabase
+                    .from('orders')
+                    .select('*, order_items(*, menu_items(*))')
+                    .eq('place_id', activeOwnedPlaceId)
+                    .in('user_id', occupiedUserIds)
+                    .not('status', 'in', '("paid", "cancelled")')
+                    .order('created_at', { ascending: false });
 
-            if (ordersError) {
-                console.error("Erro ao buscar pedidos ativos:", ordersError);
-                // Continua mesmo com erro nos pedidos
-            } else {
-                // Agrupa pedidos por usuário (que é o mesmo que a mesa ocupada)
-                const ordersByUser: { [userId: string]: Order[] } = (ordersData || []).reduce((acc, order) => {
-                    const userId = order.user_id;
-                    acc[userId] = acc[userId] || [];
-                    acc[userId].push(order as Order);
-                    return acc;
-                }, {});
+                if (!ordersError && ordersData) {
+                    const ordersByUser: { [userId: string]: Order[] } = ordersData.reduce((acc, order) => {
+                        const userId = order.user_id;
+                        acc[userId] = acc[userId] || [];
+                        acc[userId].push(order as Order);
+                        return acc;
+                    }, {} as any);
 
-                // Anexa os pedidos ativos à mesa correspondente
-                tablesWithUsers.forEach(table => {
-                    if (table.current_user_id && ordersByUser[table.current_user_id]) {
-                        table.active_orders = ordersByUser[table.current_user_id];
-                    }
-                });
+                    tablesWithUsers.forEach(table => {
+                        if (table.current_user_id && ordersByUser[table.current_user_id]) {
+                            table.active_orders = ordersByUser[table.current_user_id];
+                        }
+                    });
+                }
             }
-        }
 
-        setTables(tablesWithUsers);
-        setLoading(false);
-    }, [selectedPlaceId]);
-
-    useEffect(() => {
-        if (ownedPlaceIds.length > 0 && !selectedPlaceId) {
-            setSelectedPlaceId(ownedPlaceIds[0]);
+            setTables(tablesWithUsers);
+        } catch (error: any) {
+            console.error("Erro ao carregar mesas:", error);
+        } finally {
+            setLoading(false);
         }
-    }, [ownedPlaceIds, selectedPlaceId]);
+    }, [activeOwnedPlaceId]);
 
     useEffect(() => {
         fetchTables();
-        // Configura o polling para atualizar o status das mesas a cada 10 segundos
         const interval = setInterval(fetchTables, 10000);
         return () => clearInterval(interval);
     }, [fetchTables]);
 
-    const place = getPlaceById(selectedPlaceId);
+    const releaseTable = async (tableNum: number) => {
+        if (!window.confirm(`Liberar a mesa ${tableNum} manualmente?`)) return;
+        
+        const { error } = await supabase
+            .from('tables')
+            .update({ current_user_id: null })
+            .eq('place_id', activeOwnedPlaceId)
+            .eq('table_number', tableNum);
+        
+        if (error) toast.error("Erro ao liberar mesa.");
+        else fetchTables();
+    };
+
+    const place = activeOwnedPlaceId ? getPlaceById(activeOwnedPlaceId) : null;
     const isNightlife = place?.category === 'Boate' || place?.category === 'Casa de Shows' || place?.category === 'Espaço Musical';
     const labelSingular = isNightlife ? 'Comanda' : 'Mesa';
     const labelPlural = isNightlife ? 'Comandas' : 'Mesas';
 
     const deleteIndividualTable = async (tableId: string, tableNum: number) => {
-        if (!window.confirm(`Tem certeza que deseja excluir a ${labelSingular} ${tableNum}?`)) return;
-        
-        const { error } = await supabase
-            .from('tables')
-            .delete()
-            .eq('id', tableId);
-
-        if (error) {
-            toast.error("Erro ao excluir mesa.");
-        } else {
-            toast.success(`${labelSingular} excluída.`);
-            setTables(prev => prev.filter(t => t.id !== tableId));
-        }
+        if (!window.confirm(`Excluir a estrutura da ${labelSingular} ${tableNum}?`)) return;
+        const { error } = await supabase.from('tables').delete().eq('id', tableId);
+        if (error) toast.error("Erro ao excluir.");
+        else fetchTables();
     };
 
     const deleteAllTables = async () => {
-        if (!window.confirm(`ATENÇÃO: Isso excluirá TODAS as ${labelPlural.toLowerCase()} deste estabelecimento. Esta ação não pode ser desfeita. Deseja continuar?`)) return;
-        
+        if (!window.confirm(`Excluir TODAS as ${labelPlural.toLowerCase()}?`)) return;
         setIsDeletingAll(true);
-        const { error } = await supabase
-            .from('tables')
-            .delete()
-            .eq('place_id', selectedPlaceId);
-
-        if (error) {
-            toast.error("Erro ao limpar mesas.");
-        } else {
-            toast.success(`Todas as ${labelPlural.toLowerCase()} foram removidas.`);
-            setTables([]);
-        }
+        const { error } = await supabase.from('tables').delete().eq('place_id', activeOwnedPlaceId);
+        if (error) toast.error("Erro ao limpar.");
+        else setTables([]);
         setIsDeletingAll(false);
     };
     
-    const handleTableClick = (table: TableWithUser) => {
+    const handleTableClick = (table: TableRecord) => {
         if (table.current_user_id && table.profiles) {
             setActiveTableData({
                 tableNumber: table.table_number,
@@ -151,119 +133,81 @@ const TablesPage: React.FC = () => {
         }
     };
 
+    if (!activeOwnedPlaceId) return <div className="p-10 text-center opacity-50">Adicione um local para gerenciar.</div>;
+
     return (
-        <div className="p-6 space-y-6 pb-24">
+        <div className="p-6 space-y-6 pb-24 bg-white min-h-full">
             <div className="flex flex-col gap-4">
-                <div className="bg-surface p-4 rounded-2xl border border-accent/20 flex items-center justify-between shadow-lg">
+                <div className="bg-secondary p-5 rounded-3xl border border-border-subtle flex items-center justify-between shadow-sm">
                     <div>
-                        <h2 className="font-bold text-text-primary">Impressão de QRs</h2>
-                        <p className="text-xs text-text-secondary">Gere o PDF para as {labelPlural.toLowerCase()}</p>
+                        <h2 className="text-sm font-black text-text-primary uppercase tracking-tighter">Impressão de QRs</h2>
+                        <p className="text-[10px] font-bold text-text-secondary uppercase tracking-widest mt-1">Gere os códigos das {labelPlural.toLowerCase()}</p>
                     </div>
-                    <button 
-                        onClick={() => navigate('/owner/qrs')}
-                        className="bg-accent text-white p-3 rounded-xl hover:bg-pink-600 transition-colors"
-                    >
+                    <button onClick={() => navigate('/owner/qrs')} className="bg-text-primary text-white p-3 rounded-2xl shadow-lg active:scale-95 transition-transform">
                         <QrCode size={20} />
                     </button>
                 </div>
-
-                <select 
-                    value={selectedPlaceId}
-                    onChange={(e) => setSelectedPlaceId(e.target.value)}
-                    className="w-full p-3 bg-surface border border-gray-700 rounded-xl font-bold text-sm outline-none"
-                >
-                    {ownedPlaceIds.map(id => (
-                        <option key={id} value={id}>{getPlaceById(id)?.name || `Local ID: ${id.substring(0, 5)}`}</option>
-                    ))}
-                </select>
             </div>
 
             <div>
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-black uppercase text-xs text-text-secondary tracking-widest">{labelPlural} Configuradas ({tables.length})</h3>
-                    <div className="flex gap-3">
+                <div className="flex items-center justify-between mb-6 px-1">
+                    <h3 className="text-[10px] font-black uppercase text-text-secondary tracking-[0.2em]">{labelPlural} Ativas ({tables.length})</h3>
+                    <div className="flex gap-4">
                         {tables.length > 0 && (
-                            <button 
-                                onClick={deleteAllTables}
-                                disabled={isDeletingAll}
-                                className="text-red-400 text-xs font-bold flex items-center hover:text-red-300 transition-colors"
-                            >
-                                {isDeletingAll ? <Loader2 size={14} className="animate-spin mr-1" /> : <Trash2 size={14} className="mr-1" />}
-                                Limpar Tudo
+                            <button onClick={deleteAllTables} disabled={isDeletingAll} className="text-red-500 text-[10px] font-black uppercase tracking-widest hover:underline">
+                                {isDeletingAll ? 'Limpando...' : 'Excluir Tudo'}
                             </button>
                         )}
-                        <button onClick={() => navigate('/owner/qrs')} className="text-primary text-xs font-bold flex items-center">
-                            <Plus size={14} className="mr-1" /> Editar Estrutura
+                        <button onClick={() => navigate('/owner/qrs')} className="text-primary text-[10px] font-black uppercase tracking-widest hover:underline">
+                            <Plus size={12} className="inline mb-0.5 mr-1" /> Editar
                         </button>
                     </div>
                 </div>
 
-                {loading ? <LoadingSpinner /> : (
-                    <div className="grid grid-cols-1 gap-3">
+                {loading && tables.length === 0 ? <LoadingSpinner /> : (
+                    <div className="space-y-2">
                         {tables.map(table => {
                             const isOccupied = !!table.current_user_id;
-                            const customerName = table.profiles?.name || 'Usuário Desconhecido';
                             const hasActiveOrders = table.active_orders.length > 0;
-
                             return (
-                                <div 
-                                    key={table.id} 
-                                    onClick={() => handleTableClick(table)}
-                                    className={`bg-surface p-4 rounded-xl border border-gray-800 flex items-center justify-between transition-colors cursor-pointer ${isOccupied ? 'hover:border-accent/50' : 'hover:border-gray-700'}`}
-                                >
+                                <div key={table.id} onClick={() => isOccupied && handleTableClick(table)} className={`bg-white p-4 rounded-2xl border flex items-center justify-between transition-all ${isOccupied ? 'border-primary/30 cursor-pointer shadow-sm' : 'border-border-subtle opacity-70'}`}>
                                     <div className="flex items-center">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black mr-4 border ${isOccupied ? 'bg-accent/10 text-accent border-accent/20' : 'bg-gray-800 text-primary border-primary/20'}`}>
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black mr-4 text-lg ${isOccupied ? 'bg-primary/10 text-primary' : 'bg-secondary text-text-secondary'}`}>
                                             {table.table_number}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-sm">{labelSingular} {table.table_number}</p>
-                                            <div className="flex items-center mt-1">
-                                                {isOccupied ? (
-                                                    <span className="text-[10px] text-green-400 font-bold flex items-center">
-                                                        <Users size={10} className="mr-1" /> Ocupada por {customerName}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-[10px] text-gray-500 uppercase font-bold">Livre</span>
-                                                )}
-                                            </div>
+                                            <p className="font-black text-text-primary tracking-tight">{labelSingular} {table.table_number}</p>
+                                            <p className={`text-[10px] font-bold uppercase tracking-widest ${isOccupied ? 'text-green-600' : 'text-text-secondary opacity-50'}`}>
+                                                {isOccupied ? table.profiles?.name || 'Ocupada' : 'Livre'}
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-2">
                                         {hasActiveOrders && (
-                                            <span className="text-[10px] font-black text-white bg-red-500 px-2 py-1 rounded-full animate-pulse">
-                                                {table.active_orders.length} PEDIDOS
+                                            <span className="text-[8px] font-black text-white bg-accent px-2 py-1 rounded-full animate-pulse uppercase tracking-widest">
+                                                {table.active_orders.length} Pedidos
                                             </span>
                                         )}
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); navigate('/owner/qrs'); }}
-                                            className="text-text-secondary p-2 hover:text-accent transition-colors"
-                                            title="Ver QR Code"
-                                        >
-                                            <QrCode size={18} />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); deleteIndividualTable(table.id, table.table_number); }}
-                                            className="text-text-secondary p-2 hover:text-red-500 transition-colors"
-                                            title="Excluir mesa"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
+                                        {isOccupied ? (
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); releaseTable(table.table_number); }} 
+                                                className="text-text-secondary p-2 hover:text-red-500"
+                                            >
+                                                <LogOut size={18} />
+                                            </button>
+                                        ) : (
+                                            <button onClick={(e) => { e.stopPropagation(); deleteIndividualTable(table.id, table.table_number); }} className="text-text-secondary p-2 hover:text-red-500 opacity-50">
+                                                <Trash2 size={18} />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );
                         })}
-
-                        {tables.length === 0 && (
-                            <div className="text-center py-12 bg-surface/50 rounded-2xl border border-dashed border-gray-700 flex flex-col items-center">
-                                <LayoutGrid size={48} className="text-gray-600 mb-3 opacity-20" />
-                                <p className="text-text-secondary font-medium">Nenhuma mesa configurada.</p>
-                                <p className="text-xs text-gray-500 mt-1 mb-4">Clique em "Editar Estrutura" para começar.</p>
-                                <button 
-                                    onClick={() => navigate('/owner/qrs')}
-                                    className="bg-primary/10 text-primary px-4 py-2 rounded-lg text-xs font-bold hover:bg-primary/20 transition-colors"
-                                >
-                                    Começar Configuração
-                                </button>
+                        {tables.length === 0 && !loading && (
+                            <div className="text-center py-20 opacity-30 flex flex-col items-center">
+                                <LayoutGrid size={48} className="mb-4" />
+                                <p className="font-black uppercase tracking-widest text-[10px]">Nenhuma mesa configurada</p>
                             </div>
                         )}
                     </div>
@@ -274,7 +218,7 @@ const TablesPage: React.FC = () => {
                 <OwnerOrderDetailsModal 
                     isOpen={isModalOpen}
                     onClose={() => setIsModalOpen(false)}
-                    onUpdate={fetchTables} // Recarrega a lista de mesas e pedidos após uma atualização
+                    onUpdate={fetchTables}
                     tableNumber={activeTableData.tableNumber}
                     customerName={activeTableData.customerName}
                     orders={activeTableData.orders}

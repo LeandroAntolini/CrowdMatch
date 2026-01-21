@@ -51,21 +51,21 @@ const TableQRManager: React.FC = () => {
         try {
             const pdf = new jsPDF('p', 'mm', 'a4');
             const elements = qrContainerRef.current.children;
-            const targetWidth = 100; 
+            const targetWidth = 100;
 
             for (let i = 0; i < elements.length; i++) {
                 const element = elements[i] as HTMLElement;
                 const canvas = await html2canvas(element, {
-                    scale: 3, 
+                    scale: 3,
                     useCORS: true,
                     backgroundColor: '#ffffff',
                 });
-                
+
                 const imgData = canvas.toDataURL('image/png');
                 const pdfPageWidth = pdf.internal.pageSize.getWidth();
                 const pdfPageHeight = pdf.internal.pageSize.getHeight();
                 const targetHeight = (canvas.height * targetWidth) / canvas.width;
-                
+
                 if (i > 0) pdf.addPage();
                 const xPos = (pdfPageWidth - targetWidth) / 2;
                 const yPos = (pdfPageHeight - targetHeight) / 2;
@@ -91,7 +91,7 @@ const TableQRManager: React.FC = () => {
                     <p className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em] mt-1">{place?.name}</p>
                 </div>
             </header>
-            
+
             <div className="bg-secondary p-6 rounded-3xl border border-border-subtle space-y-6 shadow-sm">
                 <div className="flex items-center justify-between">
                     <div>
@@ -110,7 +110,7 @@ const TableQRManager: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                    <button 
+                    <button
                         onClick={initializeTables}
                         disabled={isSaving}
                         className="bg-white text-text-primary border border-border-subtle font-black py-4 rounded-2xl flex items-center justify-center uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm"
@@ -118,12 +118,12 @@ const TableQRManager: React.FC = () => {
                         {isSaving ? <Loader2 className="animate-spin" /> : <Save className="mr-2" size={16} />}
                         Salvar Layout
                     </button>
-                    <button 
+                    <button
                         onClick={generatePDF}
                         disabled={isGenerating}
                         className="bg-text-primary text-white font-black py-4 rounded-2xl flex items-center justify-center uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-xl"
                     >
-                        {isGenerating ? <Loader2 className="animate-spin" /> : <FileText className="mr-2" size={16} />} 
+                        {isGenerating ? <Loader2 className="animate-spin" /> : <FileText className="mr-2" size={16} />}
                         Baixar PDF
                     </button>
                 </div>

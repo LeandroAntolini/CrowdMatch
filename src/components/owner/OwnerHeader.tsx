@@ -8,26 +8,16 @@ const OwnerHeader: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
 
-    const activePlace = activeOwnedPlaceId ? getPlaceById(activeOwnedPlaceId) : null;
-
     const getTitle = () => {
         switch (location.pathname) {
-            case '/dashboard':
-                return 'Dashboard';
-            case '/owner/tables':
-                return 'Mesas';
-            case '/owner/orders':
-                return 'Pedidos';
-            case '/owner/menu':
-                return 'Cardápio';
-            case '/owner/promotions':
-                return 'Promoções';
-            case '/owner/feeds':
-                return 'Postagens';
-            case '/owner/profile':
-                return 'Perfil';
-            default:
-                return 'Lojista';
+            case '/dashboard': return 'Dashboard';
+            case '/owner/tables': return 'Mesas';
+            case '/owner/orders': return 'Pedidos';
+            case '/owner/menu': return 'Cardápio';
+            case '/owner/promotions': return 'Promoções';
+            case '/owner/feeds': return 'Postagens';
+            case '/owner/profile': return 'Perfil';
+            default: return 'Lojista';
         }
     };
 
@@ -46,10 +36,10 @@ const OwnerHeader: React.FC = () => {
                         <select 
                             value={activeOwnedPlaceId || ''}
                             onChange={(e) => setActiveOwnedPlaceId(e.target.value)}
-                            className="appearance-none bg-secondary pl-3 pr-8 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest text-text-primary border border-border-subtle focus:outline-none cursor-pointer w-full truncate"
+                            className="appearance-none bg-secondary pl-3 pr-8 py-2 rounded-lg text-xs font-black uppercase tracking-widest text-text-primary border border-border-subtle focus:outline-none cursor-pointer w-full truncate"
                         >
                             {ownedPlaceIds.map(id => (
-                                <option key={id} value={id}>
+                                <option key={id} value={id} className="text-text-primary bg-white">
                                     {getPlaceById(id)?.name || 'Carregando...'}
                                 </option>
                             ))}
@@ -61,8 +51,8 @@ const OwnerHeader: React.FC = () => {
                 )}
             </div>
 
-            <div className="hidden sm:block text-center">
-                <h1 className="text-sm font-black text-text-primary uppercase tracking-widest">{getTitle()}</h1>
+            <div className="hidden sm:block text-center px-2">
+                <h1 className="text-[10px] font-black text-text-primary uppercase tracking-[0.2em] whitespace-nowrap">{getTitle()}</h1>
             </div>
 
             <div className="flex-1 flex justify-end">

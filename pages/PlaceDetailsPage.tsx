@@ -163,9 +163,14 @@ const PlaceDetailsPage: React.FC = () => {
       <div className="px-4 -mt-6 relative">
         <div className="bg-white rounded-t-3xl p-6 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] border-x border-t border-border-subtle">
             <div className="flex justify-between items-start mb-2">
-                <div>
-                    <h1 className="text-3xl font-black text-text-primary tracking-tighter">{place.name}</h1>
-                    <p className="text-text-secondary font-medium text-sm">{place.category} &bull; {place.city}</p>
+                <div className="flex flex-col">
+                    <div className="flex items-center">
+                        <h1 className="text-3xl font-black text-text-primary tracking-tighter mr-3">{place.name}</h1>
+                        <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded-full ${place.isOpen ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+                            {place.isOpen ? 'Aberto' : 'Fechado'}
+                        </span>
+                    </div>
+                    <p className="text-text-secondary font-medium text-sm mt-1">{place.category} &bull; {place.city}</p>
                 </div>
                 <div className="bg-primary/10 px-3 py-1 rounded-full flex items-center">
                     <Star size={14} className="text-primary fill-primary mr-1" />
@@ -243,8 +248,8 @@ const PlaceDetailsPage: React.FC = () => {
 
             <div className="grid grid-cols-1 gap-4 mb-10">
                 {!isCheckedInHere && !isCheckedInElsewhere && (
-                    <button onClick={handleCheckIn} className="w-full bg-primary text-white font-black py-4 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/20 active:scale-95 transition-all">
-                        <Users className="mr-2" size={20} /> Estou Aqui Agora
+                    <button onClick={handleCheckIn} disabled={!place.isOpen} className="w-full bg-primary text-white font-black py-4 rounded-2xl flex items-center justify-center shadow-xl hover:shadow-primary/20 active:scale-95 transition-all disabled:bg-gray-400 disabled:shadow-none">
+                        <Users className="mr-2" size={20} /> {place.isOpen ? 'Estou Aqui Agora' : 'Local Fechado'}
                     </button>
                 )}
                 {!isGoingHere && !isCheckedInHere && (

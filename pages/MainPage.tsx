@@ -9,12 +9,6 @@ import FavoritePlacesList from '../components/FavoritePlacesList';
 import MapModal from '../components/MapModal';
 import PinnedPlaceCard from '../components/PinnedPlaceCard';
 
-const getCrowdLevelText = (count: number): 'Tranquilo' | 'Moderado' | 'Agitado' => {
-    if (count < 2) return 'Tranquilo';
-    if (count < 5) return 'Moderado';
-    return 'Agitado';
-};
-
 const VIBE_INFO: { [key: string]: { label: string, icon: string, color: string } } = {
     'fire': { label: 'Bombando', icon: '🔥', color: 'text-orange-500' },
     'music': { label: 'Som Top', icon: '🎵', color: 'text-primary' },
@@ -41,9 +35,12 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
                 </div>
                 <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-base text-text-primary truncate">{place.name}</h3>
+                        <div className="flex items-center min-w-0">
+                            <h3 className="font-bold text-base text-text-primary truncate mr-2">{place.name}</h3>
+                            <span className={`flex-shrink-0 w-2 h-2 rounded-full ${place.isOpen ? 'bg-green-500' : 'bg-red-500'}`} title={place.isOpen ? 'Aberto' : 'Fechado'}></span>
+                        </div>
                         {topVibe && (
-                            <span className="flex items-center text-[9px] font-black uppercase text-text-secondary">
+                            <span className="flex items-center text-[9px] font-black uppercase text-text-secondary ml-2">
                                 <span className="mr-1">{topVibe.icon}</span>
                                 {topVibe.label}
                             </span>
@@ -66,6 +63,9 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
                                 <span>PROMO</span>
                             </div>
                         )}
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${place.isOpen ? 'text-green-600' : 'text-red-500'}`}>
+                            {place.isOpen ? 'Aberto' : 'Fechado'}
+                        </span>
                     </div>
                 </div>
             </div>

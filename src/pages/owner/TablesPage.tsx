@@ -19,7 +19,7 @@ interface TableRecord {
 }
 
 const TablesPage: React.FC = () => {
-    const { ownedPlaceIds, getPlaceById, activeOwnedPlaceId } = useAppContext();
+    const { getPlaceById, activeOwnedPlaceId } = useAppContext();
     const [tables, setTables] = useState<TableRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDeletingAll, setIsDeletingAll] = useState(false);
@@ -123,10 +123,11 @@ const TablesPage: React.FC = () => {
     };
     
     const handleTableClick = (table: TableRecord) => {
-        if (table.current_user_id && table.profiles) {
+        // CORREÇÃO: Permite abrir os detalhes se a mesa estiver ocupada, mesmo que o perfil não tenha carregado o nome ainda
+        if (table.current_user_id) {
             setActiveTableData({
                 tableNumber: table.table_number,
-                customerName: table.profiles.name,
+                customerName: table.profiles?.name || 'Cliente (Carregando...)',
                 orders: table.active_orders,
             });
             setIsModalOpen(true);

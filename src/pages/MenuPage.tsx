@@ -6,14 +6,13 @@ import { Utensils, ShoppingBag, Plus, Minus, ChevronLeft, Loader2, QrCode, Recei
 import LoadingSpinner from '../components/LoadingSpinner';
 import { supabase } from '@/integrations/supabase/client';
 import QuickSignUpForm from '../components/QuickSignUpForm';
-import MenuQrScannerModal from '../components/MenuQrScannerModal';
 import ComandaOverlay from '../components/ComandaOverlay';
 import { toast } from 'react-hot-toast';
 
 const MenuPage: React.FC = () => {
   const { placeId, tableNumber } = useParams<{ placeId: string; tableNumber: string }>();
   const navigate = useNavigate();
-  const { getPlaceById, isAuthenticated, checkInUser, currentUser, getCurrentCheckIn } = useAppContext();
+  const { getPlaceById, isAuthenticated, checkInUser, currentUser } = useAppContext();
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [userOrders, setUserOrders] = useState<Order[]>([]);
@@ -55,24 +54,26 @@ const MenuPage: React.FC = () => {
     }
   }, [placeId, tableNumber, currentUser?.id]);
 
+  // Efeito para carregar itens do cardápio
   useEffect(() => {
     if (!placeId) return;
-
-    const loadData = async () => {
-      try {
+    const fetchMenu = async () => {
         const { data } = await supabase.from('menu_items').select('*').eq('place_id', placeId).eq('is_available', true);
         setMenuItems(data || []);
-        
-        if (isAuthenticated && currentUser) {
-          await fetchOrders();
-          
-          if (tableNumber) {
-            // REALIZA O CHECK-IN AUTOMÁTICO
-            // Isso garante que o usuário conte na lotação do local imediatamente
+        setLoading(false);
+    };
+    fetchMenu();
+  }, [placeId]);
+
+  // EFEITO CRÍTICO: Registra ocupação da mesa e faz check-in assim que o usuário estiver logado
+  useEffect(() => {
+    if (isAuthenticated && currentUser && placeId && tableNumber) {
+        const registerTableOccupation = async () => {
             try {
+                // 1. Garante o check-in (para aparecer na lotação)
                 await checkInUser(placeId);
                 
-                // Registra a ocupação da mesa
+                // 2. Registra o usuário na mesa (para o lojista ver como 'Ativa')
                 await supabase.from('tables').upsert({ 
                     place_id: placeId, 
                     table_number: parseInt(tableNumber, 10), 
@@ -80,20 +81,17 @@ const MenuPage: React.FC = () => {
                     last_activity: new Date().toISOString() 
                 }, { onConflict: 'place_id,table_number' });
                 
-                console.log("Check-in automático e vínculo de mesa realizados.");
-            } catch (checkInErr) {
-                console.error("Erro no check-in automático:", checkInErr);
+                console.log("Mesa registrada com sucesso.");
+                fetchOrders(); // Carrega pedidos existentes desta mesa/sessão
+            } catch (err) {
+                console.error("Erro ao registrar ocupação:", err);
             }
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [placeId, tableNumber, isAuthenticated, currentUser, fetchOrders, checkInUser]);
+        };
+        registerTableOccupation();
+    } else if (isAuthenticated && currentUser && placeId) {
+        fetchOrders();
+    }
+  }, [isAuthenticated, currentUser, placeId, tableNumber, checkInUser, fetchOrders]);
 
   const addToCart = (id: string) => {
     if (!isPlaceOpen) return toast.error('Local fechado.');
@@ -152,7 +150,7 @@ const MenuPage: React.FC = () => {
           <p className="text-text-secondary font-medium">Você está na <strong>{labelSingular} {tableNumber}</strong>.</p>
           <p className="text-xs text-text-secondary mt-2">Identifique-se para começar a pedir.</p>
         </div>
-        <QuickSignUpForm onSuccess={() => isPlaceOpen && checkInUser(placeId as string)} />
+        <QuickSignUpForm onSuccess={() => {}} />
       </div>
     );
 
@@ -175,7 +173,12 @@ const MenuPage: React.FC = () => {
       </header>
 
       <div className="flex-grow overflow-y-auto p-4 pb-40">
-        {categories.map((cat) => (
+        {categories.length === 0 ? (
+            <div className="text-center py-20 opacity-30">
+                <Utensils size={48} className="mx-auto mb-4" />
+                <p>Nenhum item disponível no momento.</p>
+            </div>
+        ) : categories.map((cat) => (
           <section key={cat} className="mb-10 animate-fade-in-up">
             <h2 className="text-xs font-black uppercase text-text-primary mb-5 tracking-[0.2em] flex items-center">
               <span className="w-8 h-px bg-border-subtle mr-3"></span> {cat}

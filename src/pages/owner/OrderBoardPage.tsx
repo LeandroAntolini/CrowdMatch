@@ -7,7 +7,7 @@ import { ClipboardList, CheckCircle2, Clock, Utensils, ChevronRight, AlertCircle
 import { toast } from 'react-hot-toast';
 
 const OrderBoardPage: React.FC = () => {
-    const { ownedPlaceIds, getPlaceById, activeOwnedPlaceId } = useAppContext();
+    const { activeOwnedPlaceId } = useAppContext();
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
 

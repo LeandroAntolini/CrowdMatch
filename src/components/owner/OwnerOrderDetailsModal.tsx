@@ -68,20 +68,20 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
 
     return (
         <div className="fixed inset-0 bg-black/80 z-[150] flex items-center justify-center p-4">
-            <div className="bg-surface w-full max-w-md rounded-2xl flex flex-col max-h-[90vh] overflow-hidden">
-                <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-800">
+            <div className="bg-white w-full max-w-md rounded-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                <div className="p-4 border-b border-border-subtle flex justify-between items-center bg-secondary">
                     <div className="flex items-center">
-                        <div className="bg-primary text-background font-black px-3 py-1 rounded-lg mr-3">MESA {tableNumber}</div>
-                        <h2 className="font-bold text-lg">{customerName}</h2>
+                        <div className="bg-primary text-white font-black px-3 py-1 rounded-lg mr-3">MESA {tableNumber}</div>
+                        <h2 className="font-bold text-lg text-text-primary">{customerName}</h2>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded-full"><X size={24} /></button>
+                    <button onClick={onClose} className="p-2 hover:bg-white rounded-full text-text-secondary"><X size={24} /></button>
                 </div>
 
                 <div className="flex-grow overflow-y-auto p-4 space-y-6">
                     {orders.map((order, idx) => (
-                        <div key={order.id} className="bg-gray-900/50 rounded-xl p-4 border border-gray-700">
+                        <div key={order.id} className="bg-secondary rounded-xl p-4 border border-border-subtle shadow-sm">
                             <div className="flex justify-between items-start mb-4">
-                                <span className="text-[10px] font-bold text-gray-500 uppercase">PEDIDO #{orders.length - idx}</span>
+                                <span className="text-[10px] font-black text-text-secondary uppercase tracking-widest">PEDIDO #{orders.length - idx}</span>
                                 <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${getStatusConfig(order.status).color} text-white`}>
                                     {getStatusConfig(order.status).label}
                                 </span>
@@ -91,7 +91,7 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
                                 {order.order_items?.map(item => (
                                     <div key={item.id} className="flex justify-between text-sm">
                                         <span className="text-text-secondary font-medium">{item.quantity}x {item.menu_item?.name}</span>
-                                        <span className="font-bold">R$ {(item.quantity * item.unit_price).toFixed(2)}</span>
+                                        <span className="font-bold text-text-primary">R$ {(item.quantity * item.unit_price).toFixed(2)}</span>
                                     </div>
                                 ))}
                             </div>
@@ -100,7 +100,7 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
                                 {order.status !== 'paid' && order.status !== 'delivered' && (
                                     <button 
                                         onClick={() => updateStatus(order.id, getStatusConfig(order.status).next as OrderStatus)}
-                                        className="flex-1 bg-accent text-white font-bold py-2 rounded-lg text-xs uppercase"
+                                        className="flex-1 bg-accent text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-transform"
                                     >
                                         {getStatusConfig(order.status).nextLabel}
                                     </button>
@@ -108,7 +108,7 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
                                 {order.status === 'delivered' && (
                                     <button 
                                         onClick={() => updateStatus(order.id, 'paid')}
-                                        className="flex-1 bg-green-600 text-white font-bold py-2 rounded-lg text-xs uppercase"
+                                        className="flex-1 bg-green-600 text-white font-black py-3 rounded-xl text-[10px] uppercase tracking-widest active:scale-95 transition-transform"
                                     >
                                         Marcar como Pago
                                     </button>
@@ -125,18 +125,18 @@ const OwnerOrderDetailsModal: React.FC<OwnerOrderDetailsModalProps> = ({ tableNu
                     )}
                 </div>
 
-                <div className="p-6 bg-gray-900 border-t border-gray-700">
+                <div className="p-6 bg-secondary border-t border-border-subtle">
                     <div className="flex justify-between items-center mb-4">
                         <span className="font-bold text-text-secondary">Subtotal Mesa</span>
-                        <span className="text-2xl font-black text-primary">R$ {totalConsumo.toFixed(2)}</span>
+                        <span className="text-2xl font-black text-text-primary">R$ {totalConsumo.toFixed(2)}</span>
                     </div>
                     <button 
                         onClick={finalizeAccount}
                         disabled={orders.length === 0}
-                        className="w-full bg-primary text-background font-black py-4 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-50"
+                        className="w-full bg-text-primary text-white font-black py-4 rounded-2xl flex items-center justify-center hover:bg-text-primary/90 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
                     >
                         <Receipt size={20} className="mr-2" />
-                        FECHAR CONTA E FINALIZAR
+                        FECHAR CONTA E LIBERAR MESA
                     </button>
                 </div>
             </div>

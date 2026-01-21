@@ -150,7 +150,13 @@ const MenuPage: React.FC = () => {
           <p className="text-text-secondary font-medium">Você está na <strong>{labelSingular} {tableNumber}</strong>.</p>
           <p className="text-xs text-text-secondary mt-2">Identifique-se para começar a pedir.</p>
         </div>
-        <QuickSignUpForm onSuccess={() => {}} />
+        <QuickSignUpForm onSuccess={() => {
+            // Após o login/cadastro rápido, o AppContext atualizará isAuthenticated e currentUser.
+            // Isso fará com que o useEffect principal em MenuPage seja reexecutado,
+            // lidando com checkInUser e upsert da tabela.
+            // Chamamos fetchOrders explicitamente para garantir a atualização imediata dos pedidos.
+            fetchOrders();
+        }} />
       </div>
     );
 

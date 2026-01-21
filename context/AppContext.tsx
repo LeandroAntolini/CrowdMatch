@@ -153,6 +153,8 @@ interface AppContextType {
     createOwnerFeedPost: (payload: CreatePostPayload) => Promise<void>;
     ownerFeedPosts: FeedPost[];
     ownedPlaceIds: string[];
+    activeOwnedPlaceId: string | null;
+    setActiveOwnedPlaceId: (id: string | null) => void;
     addOwnedPlace: (place: Place) => Promise<void>;
     removeOwnedPlace: (placeId: string) => Promise<void>;
     verifyQrCode: (qrCodeValue: string) => Promise<any>;
@@ -203,6 +205,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [ownerFeedPosts, setOwnerFeedPosts] = useState<FeedPost[]>([]);
     const [allFeedPosts, setAllFeedPosts] = useState<FeedPost[]>([]);
     const [ownedPlaceIds, setOwnedPlaceIds] = useState<string[]>([]);
+    const [activeOwnedPlaceId, setActiveOwnedPlaceId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isAuthResolved, setIsAuthResolved] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -568,6 +571,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (ownedPlacesRes.error) throw ownedPlacesRes.error;
                 const ownerIds = ownedPlacesRes.data?.map(p => p.place_id) || [];
                 setOwnedPlaceIds(ownerIds);
+                
+                // Define o local ativo inicial se for lojista
+                if (ownerIds.length > 0) {
+                    setActiveOwnedPlaceId(ownerIds[0]);
+                }
 
                 if (allPostsRes.error) throw allPostsRes.error;
                 const allPostsData = allPostsRes.data;
@@ -1024,6 +1032,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const { error } = await supabase.from('place_owners').insert({ user_id: currentUser.id, place_id: place.id });
         if (error) throw error;
         setOwnedPlaceIds(prev => [...prev, place.id]);
+        
+        // Se for o primeiro local, define como ativo
+        if (ownedPlaceIds.length === 0) {
+            setActiveOwnedPlaceId(place.id);
+        }
+        
         mergePlaces([place]);
     };
 
@@ -1031,7 +1045,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!currentUser) return;
         const { error } = await supabase.from('place_owners').delete().eq('user_id', currentUser.id).eq('place_id', placeId);
         if (error) throw error;
-        setOwnedPlaceIds(prev => prev.filter(id => id !== placeId));
+        
+        const remaining = ownedPlaceIds.filter(id => id !== placeId);
+        setOwnedPlaceIds(remaining);
+        
+        if (activeOwnedPlaceId === placeId) {
+            setActiveOwnedPlaceId(remaining.length > 0 ? remaining[0] : null);
+        }
     };
 
     const verifyQrCode = async (qrCodeValue: string) => {
@@ -1131,7 +1151,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         removeGoingIntention, getCurrentGoingIntention, isUserGoingToPlace, fetchPlaces, searchPlaces,
         newlyFormedMatch, clearNewMatch, addFavorite, removeFavorite, isFavorite, hasNewNotification,
         clearChatNotifications, fetchLivePostsForPlace, createLivePost, updateLivePost, deleteLivePost, getLivePostCount, getActivePromotionsForPlace,
-        claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, addOwnedPlace, removeOwnedPlace,
+        claimPromotion, createOwnerFeedPost, ownerFeedPosts, ownedPlaceIds, activeOwnedPlaceId, setActiveOwnedPlaceId, addOwnedPlace, removeOwnedPlace,
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
         potentialMatches, fetchPotentialMatches, getActiveTableForUser,

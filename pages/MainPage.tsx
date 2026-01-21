@@ -30,7 +30,7 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
                 <div className="relative flex-shrink-0">
                     <img src={place.photoUrl} alt={place.name} className="w-16 h-16 rounded-lg object-cover border border-border-subtle" />
                     {crowdCount > 5 && (
-                        <div className="absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase">Hot</div>
+                        <div className="absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase shadow-sm">Hot</div>
                     )}
                 </div>
                 <div className="flex-grow min-w-0">
@@ -40,7 +40,7 @@ const PlaceCard: React.FC<{ place: Place; crowdCount: number; goingCount: number
                             <span className={`flex-shrink-0 w-2 h-2 rounded-full ${place.isOpen ? 'bg-green-500' : 'bg-red-500'}`} title={place.isOpen ? 'Aberto' : 'Fechado'}></span>
                         </div>
                         {topVibe && (
-                            <span className="flex items-center text-[9px] font-black uppercase text-text-secondary ml-2">
+                            <span className="flex items-center text-[9px] font-black uppercase text-text-secondary ml-2 whitespace-nowrap bg-secondary px-1.5 py-0.5 rounded border border-border-subtle">
                                 <span className="mr-1">{topVibe.icon}</span>
                                 {topVibe.label}
                             </span>
@@ -89,11 +89,9 @@ const MainPage: React.FC = () => {
 
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const [isVibeOpen, setIsVibeOpen] = useState(false);
-    const [isLocationOpen, setIsLocationOpen] = useState(false);
 
     const categoryRef = useRef<HTMLDivElement>(null);
     const vibeRef = useRef<HTMLDivElement>(null);
-    const locationRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (currentUser?.city && !selectedLocation) {
@@ -103,9 +101,12 @@ const MainPage: React.FC = () => {
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) setIsCategoryOpen(false);
-            if (vibeRef.current && !vibeRef.current.contains(event.target as Node)) setIsVibeOpen(false);
-            if (locationRef.current && !locationRef.current.contains(event.target as Node)) setIsLocationOpen(false);
+            if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+                setIsCategoryOpen(false);
+            }
+            if (vibeRef.current && !vibeRef.current.contains(event.target as Node)) {
+                setIsVibeOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -119,13 +120,6 @@ const MainPage: React.FC = () => {
         const uniqueCategories = new Set(places.map(place => place.category));
         return ['Todos', ...Array.from(uniqueCategories).sort()];
     }, [places]);
-    
-    const locations = useMemo(() => {
-        if (currentUser?.state && citiesByState[currentUser.state]) {
-            return citiesByState[currentUser.state];
-        }
-        return currentUser?.city ? [currentUser.city] : [];
-    }, [currentUser?.state, currentUser?.city]);
 
     const handleRemoteSearch = () => {
         if (currentUser?.state && selectedLocation) {
@@ -151,15 +145,19 @@ const MainPage: React.FC = () => {
         return places
             .filter(place => {
                 if (selectedLocation && place.city !== selectedLocation) return false;
+                
                 const searchMatch = place.name.toLowerCase().includes(searchQuery.toLowerCase());
                 if (!searchMatch) return false;
+                
                 const categoryMatch = selectedCategory === 'Todos' || place.category === selectedCategory;
                 if (!categoryMatch) return false;
+                
                 if (selectedVibe !== 'Todos') {
                     const vibes = placesVibes[place.id] || {};
                     const sortedVibes = Object.entries(vibes).sort((a, b) => b[1] - a[1]);
                     if (sortedVibes.length === 0 || sortedVibes[0][0] !== selectedVibe) return false;
                 }
+                
                 return true;
             })
             .sort((a, b) => getCrowdCount(b.id) - getCrowdCount(a.id));
@@ -169,6 +167,18 @@ const MainPage: React.FC = () => {
 
     const activeTabClass = 'text-text-primary border-b-2 border-text-primary';
     const inactiveTabClass = 'text-text-secondary hover:text-text-primary';
+
+    const toggleCategory = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsCategoryOpen(!isCategoryOpen);
+        setIsVibeOpen(false);
+    };
+
+    const toggleVibe = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsVibeOpen(!isVibeOpen);
+        setIsCategoryOpen(false);
+    };
 
     return (
         <div className="bg-background min-h-full pb-20">
@@ -225,28 +235,51 @@ const MainPage: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6 pb-2">
+                        <div className="flex gap-2 mb-6 pb-2">
                             <div className="relative" ref={categoryRef}>
-                                <button onClick={() => setIsCategoryOpen(!isCategoryOpen)} className={`px-4 py-2 rounded-lg text-xs font-bold border ${selectedCategory !== 'Todos' ? 'bg-text-primary text-white border-text-primary' : 'bg-white border-border-subtle text-text-primary'}`}>
-                                    {selectedCategory} <ChevronDown size={14} className="inline ml-1" />
+                                <button 
+                                    onClick={toggleCategory} 
+                                    className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest border transition-all ${selectedCategory !== 'Todos' ? 'bg-text-primary text-white border-text-primary' : 'bg-white border-border-subtle text-text-primary'}`}
+                                >
+                                    {selectedCategory} <ChevronDown size={14} className={`inline ml-1 transition-transform ${isCategoryOpen ? 'rotate-180' : ''}`} />
                                 </button>
                                 {isCategoryOpen && (
-                                    <ul className="absolute z-30 mt-2 bg-white border border-border-subtle rounded-xl shadow-xl py-2 min-w-[150px]">
-                                        {categories.map(cat => <li key={cat} onClick={() => { setSelectedCategory(cat); setIsCategoryOpen(false); }} className="px-5 py-2 hover:bg-secondary cursor-pointer text-xs font-medium">{cat}</li>)}
+                                    <ul className="absolute z-[60] mt-2 bg-white border border-border-subtle rounded-xl shadow-2xl py-2 min-w-[160px] animate-fade-in-up">
+                                        {categories.map(cat => (
+                                            <li 
+                                                key={cat} 
+                                                onClick={() => { setSelectedCategory(cat); setIsCategoryOpen(false); }} 
+                                                className={`px-5 py-2.5 hover:bg-secondary cursor-pointer text-xs font-bold transition-colors ${selectedCategory === cat ? 'text-primary' : 'text-text-primary'}`}
+                                            >
+                                                {cat}
+                                            </li>
+                                        ))}
                                     </ul>
                                 )}
                             </div>
 
                             <div className="relative" ref={vibeRef}>
-                                <button onClick={() => setIsVibeOpen(!isVibeOpen)} className={`px-4 py-2 rounded-lg text-xs font-bold border ${selectedVibe !== 'Todos' ? 'bg-accent text-white border-accent' : 'bg-white border-border-subtle text-text-primary'}`}>
-                                    <Filter size={14} className="inline mr-1" /> Vibe <ChevronDown size={14} className="inline ml-1" />
+                                <button 
+                                    onClick={toggleVibe} 
+                                    className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest border transition-all ${selectedVibe !== 'Todos' ? 'bg-accent text-white border-accent' : 'bg-white border-border-subtle text-text-primary'}`}
+                                >
+                                    <Filter size={14} className="inline mr-1" /> Vibe <ChevronDown size={14} className={`inline ml-1 transition-transform ${isVibeOpen ? 'rotate-180' : ''}`} />
                                 </button>
                                 {isVibeOpen && (
-                                    <ul className="absolute z-30 mt-2 bg-white border border-border-subtle rounded-xl shadow-xl py-2 min-w-[150px]">
-                                        <li onClick={() => { setSelectedVibe('Todos'); setIsVibeOpen(false); }} className="px-5 py-2 hover:bg-secondary cursor-pointer text-xs font-bold border-b border-border-subtle mb-1">Todas</li>
+                                    <ul className="absolute z-[60] mt-2 bg-white border border-border-subtle rounded-xl shadow-2xl py-2 min-w-[160px] animate-fade-in-up">
+                                        <li 
+                                            onClick={() => { setSelectedVibe('Todos'); setIsVibeOpen(false); }} 
+                                            className={`px-5 py-2.5 hover:bg-secondary cursor-pointer text-xs font-black uppercase border-b border-border-subtle mb-1 ${selectedVibe === 'Todos' ? 'text-accent' : 'text-text-primary'}`}
+                                        >
+                                            Todas as Vibes
+                                        </li>
                                         {Object.entries(VIBE_INFO).map(([key, info]) => (
-                                            <li key={key} onClick={() => { setSelectedVibe(key); setIsVibeOpen(false); }} className="px-5 py-2 hover:bg-secondary cursor-pointer text-xs font-medium flex items-center">
-                                                <span className="mr-2">{info.icon}</span> {info.label}
+                                            <li 
+                                                key={key} 
+                                                onClick={() => { setSelectedVibe(key); setIsVibeOpen(false); }} 
+                                                className={`px-5 py-2.5 hover:bg-secondary cursor-pointer text-xs font-bold flex items-center transition-colors ${selectedVibe === key ? 'text-accent' : 'text-text-primary'}`}
+                                            >
+                                                <span className="mr-2 text-base">{info.icon}</span> {info.label}
                                             </li>
                                         ))}
                                     </ul>
@@ -258,7 +291,10 @@ const MainPage: React.FC = () => {
                             {filteredPlaces.length > 0 ? filteredPlaces.map(place => (
                                 <PlaceCard key={place.id} place={place} crowdCount={getCrowdCount(place.id)} goingCount={getGoingCount(place.id)} livePostCount={getLivePostCount(place.id)} hasActivePromotion={getActivePromotionsForPlace(place.id).length > 0} vibes={placesVibes[place.id]} />
                             )) : (
-                                <div className="text-center py-20 opacity-40"><Search size={48} className="mx-auto mb-4" /><p className="font-bold">Sem resultados.</p></div>
+                                <div className="text-center py-20 opacity-40 flex flex-col items-center">
+                                    <Search size={48} className="mb-4" />
+                                    <p className="font-black uppercase tracking-widest text-xs">Nenhum local encontrado</p>
+                                </div>
                             )}
                         </div>
                     </>

@@ -12,7 +12,7 @@ import { toast } from 'react-hot-toast';
 const MenuPage: React.FC = () => {
   const { placeId, tableNumber } = useParams<{ placeId: string; tableNumber: string }>();
   const navigate = useNavigate();
-  const { getPlaceById, isAuthenticated, checkInUser, currentUser } = useAppContext();
+  const { getPlaceById, isAuthenticated, checkInUser, currentUser, fetchActiveOrdersStatus } = useAppContext();
 
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [userOrders, setUserOrders] = useState<Order[]>([]);
@@ -68,30 +68,31 @@ const MenuPage: React.FC = () => {
   // EFEITO CRÍTICO: Registra ocupação da mesa e faz check-in assim que o usuário estiver logado
   useEffect(() => {
     if (isAuthenticated && currentUser && placeId && tableNumber) {
-        const registerTableOccupation = async () => {
-            try {
-                // 1. Garante o check-in (para aparecer na lotação)
-                await checkInUser(placeId);
-                
-                // 2. Registra o usuário na mesa (para o lojista ver como 'Ativa')
-                await supabase.from('tables').upsert({ 
-                    place_id: placeId, 
-                    table_number: parseInt(tableNumber, 10), 
-                    current_user_id: currentUser.id, 
-                    last_activity: new Date().toISOString() 
-                }, { onConflict: 'place_id,table_number' });
-                
-                console.log("Mesa registrada com sucesso.");
-                fetchOrders(); // Carrega pedidos existentes desta mesa/sessão
-            } catch (err) {
-                console.error("Erro ao registrar ocupação:", err);
-            }
-        };
-        registerTableOccupation();
+      const registerTableOccupation = async () => {
+        try {
+          // 1. Garante o check-in (para aparecer na lotação)
+          await checkInUser(placeId);
+
+          // 2. Registra o usuário na mesa (para o lojista ver como 'Ativa')
+          await supabase.from('tables').upsert({
+            place_id: placeId,
+            table_number: parseInt(tableNumber, 10),
+            current_user_id: currentUser.id,
+            last_activity: new Date().toISOString()
+          }, { onConflict: 'place_id,table_number' });
+
+          console.log("Mesa registrada com sucesso.");
+          fetchOrders(); // Carrega pedidos existentes desta mesa/sessão
+          fetchActiveOrdersStatus(); // Atualiza o status global de pedidos ativos
+        } catch (err) {
+          console.error("Erro ao registrar ocupação:", err);
+        }
+      };
+      registerTableOccupation();
     } else if (isAuthenticated && currentUser && placeId) {
-        fetchOrders();
+      fetchOrders();
     }
-  }, [isAuthenticated, currentUser, placeId, tableNumber, checkInUser, fetchOrders]);
+  }, [isAuthenticated, currentUser, placeId, tableNumber, checkInUser, fetchOrders, fetchActiveOrdersStatus]);
 
   const addToCart = (id: string) => {
     if (!isPlaceOpen) return toast.error('Local fechado.');
@@ -118,14 +119,19 @@ const MenuPage: React.FC = () => {
     setOrdering(true);
     try {
       const { data: orderData, error: orderError } = await supabase.from('orders').insert({
-          place_id: placeId, user_id: currentUser.id, table_number: parseInt(tableNumber, 10),
-          total_price: cartTotal, status: 'pending',
+          place_id: placeId,
+          user_id: currentUser.id,
+          table_number: parseInt(tableNumber, 10),
+          total_price: cartTotal,
+          status: 'pending',
       }).select().single();
 
       if (orderError) throw orderError;
 
       const itemsToInsert = Object.entries(cart).map(([itemId, qty]) => ({
-          order_id: orderData.id, menu_item_id: itemId, quantity: qty,
+          order_id: orderData.id,
+          menu_item_id: itemId,
+          quantity: qty,
           unit_price: menuItems.find((i) => i.id === itemId)?.price || 0,
       }));
 
@@ -133,6 +139,7 @@ const MenuPage: React.FC = () => {
       toast.success('Pedido enviado!');
       setCart({});
       await fetchOrders();
+      await fetchActiveOrdersStatus(); // Atualiza o status global após novo pedido
     } catch (error: any) {
       toast.error('Erro ao enviar pedido.');
     } finally {

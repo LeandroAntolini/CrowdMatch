@@ -686,7 +686,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
             }).subscribe();
 
-        // NOVO: Listener de mensagens para notificações
         const messagesChannel = supabase.channel(`user-messages-${currentUser.id}`)
             .on('postgres_changes', { 
                 event: 'INSERT', 
@@ -694,9 +693,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 table: 'messages'
             }, (payload) => {
                 const newMessage = payload.new as any;
-                const currentPath = window.location.hash; // Hash router
+                const currentPath = window.location.hash; 
 
-                // Se eu não sou o remetente E não estou na página de chat desse match específico
                 if (newMessage.sender_id !== currentUser.id && !currentPath.includes(`/chat/${newMessage.match_id}`)) {
                     setHasNewNotification(true);
                     toast('Nova mensagem recebida!', { icon: '💬', position: 'bottom-center' });

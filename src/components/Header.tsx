@@ -26,6 +26,7 @@ const Header: React.FC = () => {
 
     return (
         <header className="flex-shrink-0 w-full h-14 bg-white flex justify-between items-center px-4 border-b border-border-subtle sticky top-0 z-[100]">
+            {/* Lado Esquerdo: Perfil */}
             <div className="flex items-center space-x-1">
                 <button 
                     onClick={() => isProfilePage ? navigate(-1) : navigate('/profile')} 
@@ -33,6 +34,13 @@ const Header: React.FC = () => {
                 >
                     <UserIcon size={24} />
                 </button>
+            </div>
+
+            {/* Centro: Título */}
+            <h1 className="text-lg font-bold text-text-primary tracking-tight">{getTitle()}</h1>
+
+            {/* Lado Direito: Chat */}
+            <div className="flex items-center space-x-1">
                 <button 
                     onClick={() => isChatRelatedPage ? navigate(-1) : navigate('/chats')} 
                     className={`relative p-2 transition-colors ${isChatRelatedPage ? 'text-text-primary' : 'text-text-primary/70 hover:text-text-primary'}`}
@@ -42,13 +50,6 @@ const Header: React.FC = () => {
                         <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
                     )}
                 </button>
-            </div>
-
-            <h1 className="text-lg font-bold text-text-primary tracking-tight">{getTitle()}</h1>
-
-            {/* Espaçador para manter o título centralizado agora que removemos os botões da direita */}
-            <div className="w-20 flex justify-end">
-                {/* Removidos botões de Comanda e QR Code */}
             </div>
         </header>
     );

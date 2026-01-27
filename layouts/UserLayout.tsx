@@ -15,7 +15,6 @@ import Header from '../components/Header';
 
 const UserLayout: React.FC = () => {
     const location = useLocation();
-    
     // Rotas onde o Header deve ser ocultado (detalhes de local e chat individual)
     const noHeaderRoutes = ['/place/', '/chat/'];
     
@@ -40,9 +39,7 @@ const UserLayout: React.FC = () => {
                     <Route path="/chats" element={<ChatListPage />} />
                     <Route path="/chat/:matchId" element={<ChatPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
-                    
-                    {/* Fallback apenas para rotas que NÃO começam com /menu */}
-                    <Route path="*" element={location.pathname.startsWith('/menu') ? null : <Navigate to="/" />} />
+                    <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
             </div>
             <BottomNav />

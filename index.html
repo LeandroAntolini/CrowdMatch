@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
     <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#1F2937" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <!-- O link do manifesto será injetado automaticamente pelo vite-plugin-pwa -->
 
     <title>CrowdMatch</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -17,14 +18,13 @@
         theme: {
           extend: {
             colors: {
-              'primary': '#0095f6', // Azul moderno (estilo Action)
-              'secondary': '#fafafa', // Fundo secundário
-              'accent': '#EC4899', // Rosa para vibes e destaques
-              'background': '#ffffff', // Branco absoluto
-              'surface': '#ffffff', // Branco para cards
-              'text-primary': '#262626', // Cinza quase preto (legibilidade premium)
-              'text-secondary': '#737373', // Cinza médio
-              'border-subtle': '#dbdbdb', // Bordas sutis padrão Instagram
+              'primary': '#F9A8D4', // Light Pink
+              'secondary': '#BE185D', // Pink
+              'accent': '#EC4899', // Hot Pink
+              'background': '#111827', // Dark Gray
+              'surface': '#1F2937', // Gray
+              'text-primary': '#F9FAFB', // Light Gray
+              'text-secondary': '#D1D5DB', // Gray
             },
           }
         }
@@ -32,7 +32,7 @@
     </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-background text-text-primary">
+  <body class="bg-background">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

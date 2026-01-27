@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FeedPost, PostComment } from '../types';
-import { Beer, MessageCircle, Send, MoreHorizontal } from 'lucide-react';
+import { Beer, MessageCircle, Send } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { Link } from 'react-router-dom';
 
@@ -20,80 +20,148 @@ const timeAgo = (dateString: string): string => {
     return "agora";
 };
 
-const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
-    const { likePost, unlikePost, addCommentToPost } = useAppContext();
+const CommentInput: React.FC<{ postId: string }> = ({ postId }) => {
+    const { addCommentToPost } = useAppContext();
     const [content, setContent] = useState('');
+    const [isSending, setIsSending] = useState(false);
+
+    const handleSend = async () => {
+        if (!content.trim() || isSending) return;
+        setIsSending(true);
+        try {
+            await addCommentToPost(postId, content.trim());
+            setContent('');
+        } catch (error) {
+            console.error("Failed to add comment:", error);
+            alert("Falha ao enviar comentário.");
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    return (
+        <div className="flex items-center mt-3">
+            <input
+                type="text"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Adicionar um comentário..."
+                className="flex-grow bg-gray-800 text-text-primary px-3 py-1.5 rounded-full text-sm focus:outline-none focus:ring-1 focus:ring-accent"
+                disabled={isSending}
+            />
+            <button 
+                onClick={handleSend} 
+                disabled={!content.trim() || isSending}
+                className="ml-2 text-accent disabled:text-gray-600"
+            >
+                <Send size={18} />
+            </button>
+        </div>
+    );
+};
+
+const FeedPostCard: React.FC<{ post: FeedPost }> = ({ post }) => {
+    const { likePost, unlikePost } = useAppContext();
     const [isExpanded, setIsExpanded] = useState(false);
 
     const handleLikeToggle = async () => {
-        if (post.isLikedByCurrentUser) await unlikePost(post.id);
-        else await likePost(post.id);
+        try {
+            if (post.isLikedByCurrentUser) {
+                await unlikePost(post.id);
+            } else {
+                await likePost(post.id);
+            }
+        } catch (error) {
+            console.error("Failed to toggle like:", error);
+            alert("Falha ao curtir/descurtir o post.");
+        }
     };
 
-    const handleComment = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!content.trim()) return;
-        await addCommentToPost(post.id, content.trim());
-        setContent('');
+    const renderMedia = () => {
+        if (post.type === 'video') {
+            return (
+                <video
+                    src={post.mediaUrl}
+                    className="w-full h-full object-cover"
+                    controls
+                />
+            );
+        }
+        return <img src={post.mediaUrl} alt={post.placeName} className="w-full h-full object-cover" />;
     };
-
-    const commentsToShow = isExpanded ? post.comments : post.comments.slice(-2);
+    
+    const commentsToShow = isExpanded ? post.comments : post.comments.slice(0, 2);
+    const hasMoreComments = post.comments.length > 2 && !isExpanded;
 
     return (
-        <div className="bg-white border-b border-border-subtle mb-4">
-            <header className="flex items-center justify-between p-3">
-                <Link to={`/place/${post.placeId}`} className="flex items-center">
-                    <img src={post.placeLogoUrl || 'https://i.pravatar.cc/150'} className="w-8 h-8 rounded-full object-cover mr-3 border border-border-subtle" />
-                    <div>
-                        <span className="font-bold text-sm text-text-primary">{post.placeName}</span>
-                    </div>
-                </Link>
-                <MoreHorizontal size={18} className="text-text-secondary" />
-            </header>
+        <div className="bg-surface rounded-lg overflow-hidden mb-6">
+            {/* Header */}
+            <Link to={`/place/${post.placeId}`} className="flex items-center p-3 hover:bg-gray-700/50 transition-colors">
+                <img src={post.placeLogoUrl || 'https://i.pravatar.cc/150?u=default'} alt={`${post.placeName} logo`} className="w-10 h-10 rounded-full object-cover mr-3" />
+                <div>
+                    <span className="font-bold text-text-primary">{post.placeName}</span>
+                    <p className="text-xs text-text-secondary">{timeAgo(post.timestamp)}</p>
+                </div>
+            </Link>
 
-            <div className="w-full aspect-square bg-secondary overflow-hidden">
-                {post.type === 'video' ? <video src={post.mediaUrl} className="w-full h-full object-cover" controls /> : <img src={post.mediaUrl} className="w-full h-full object-cover" />}
+            {/* Media */}
+            <div className="w-full aspect-square bg-gray-800">
+                {renderMedia()}
             </div>
 
-            <div className="p-3 space-y-2">
-                <div className="flex items-center space-x-4">
-                    <button onClick={handleLikeToggle}>
-                        <Beer size={24} className={post.isLikedByCurrentUser ? 'text-accent fill-accent' : 'text-text-primary'} />
+            {/* Actions & Content */}
+            <div className="p-4">
+                <div className="flex items-center space-x-4 mb-3">
+                    <button onClick={handleLikeToggle} className="transition-colors flex items-center">
+                        <Beer 
+                            size={26} 
+                            fill="none"
+                            className={post.isLikedByCurrentUser ? 'text-yellow-400' : 'text-text-primary hover:text-yellow-400'}
+                        />
                     </button>
-                    <MessageCircle size={24} className="text-text-primary" />
-                </div>
-
-                {post.likes > 0 && <p className="font-bold text-sm">{post.likes.toLocaleString()} brindes</p>}
-
-                <div className="text-sm">
-                    <span className="font-bold mr-2">{post.placeName}</span>
-                    <span className="text-text-primary">{post.caption}</span>
-                </div>
-
-                {post.comments.length > 0 && (
-                    <div className="space-y-1">
-                        {!isExpanded && post.comments.length > 2 && (
-                            <button onClick={() => setIsExpanded(true)} className="text-xs text-text-secondary block py-1">Ver todos os {post.comments.length} comentários</button>
-                        )}
-                        {commentsToShow.map(c => (
-                            <p key={c.id} className="text-xs"><span className="font-bold mr-2">{c.profiles.name}</span>{c.content}</p>
-                        ))}
+                    {/* MessageCircle is now just a visual indicator */}
+                    <div className="text-text-primary flex items-center">
+                        <MessageCircle size={26} />
                     </div>
-                )}
-                
-                <p className="text-[10px] text-text-secondary uppercase mt-1 tracking-tighter">{timeAgo(post.timestamp)} atrás</p>
-            </div>
+                </div>
 
-            <form onSubmit={handleComment} className="border-t border-border-subtle px-3 py-2 flex items-center">
-                <input 
-                    type="text" 
-                    placeholder="Adicionar comentário..." 
-                    className="flex-grow text-xs bg-transparent focus:outline-none"
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                />
-                <button type="submit" disabled={!content.trim()} className="text-primary font-bold text-xs disabled:opacity-30">Publicar</button>
-            </form>
+                {post.likes > 0 && (
+                    <p className="font-bold text-text-primary text-sm">{post.likes.toLocaleString('pt-BR')} brindes</p>
+                )}
+
+                <p className={`text-text-primary ${post.likes > 0 ? 'mt-2' : ''}`}>
+                    <span className="font-bold mr-2">{post.placeName}</span>
+                    {post.caption}
+                </p>
+
+                {/* Comments Section - Always visible */}
+                <div className="mt-4 pt-2 border-t border-gray-700">
+                    {post.comments.length > 0 && (
+                        <>
+                            <h4 className="font-semibold text-sm text-text-primary mb-2">Comentários ({post.comments.length})</h4>
+                            <div className="space-y-2">
+                                {commentsToShow.map((comment: PostComment) => (
+                                    <p key={comment.id} className="text-sm text-text-secondary">
+                                        <span className="font-semibold text-text-primary mr-2">{comment.profiles.name}</span>
+                                        {comment.content}
+                                    </p>
+                                ))}
+                            </div>
+                            
+                            {hasMoreComments && (
+                                <button 
+                                    onClick={() => setIsExpanded(true)} 
+                                    className="text-accent text-sm mt-2 hover:underline"
+                                >
+                                    Ver mais ({post.comments.length - 2} comentários)
+                                </button>
+                            )}
+                        </>
+                    )}
+                    <CommentInput postId={post.id} />
+                </div>
+            </div>
         </div>
     );
 };

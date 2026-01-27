@@ -1,24 +1,18 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Ticket, Building, Utensils, LayoutGrid } from 'lucide-react';
-import { useAppContext } from '../../context/AppContext';
+import { LayoutDashboard, Ticket, Newspaper, Building, Radio } from 'lucide-react';
+
+const navItems = [
+    { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/owner/feeds', icon: Newspaper, label: 'Feeds' },
+    { to: '/owner/promotions', icon: Ticket, label: 'Promoções' },
+    { to: '/owner/live', icon: Radio, label: 'Ao Vivo' }, // Novo item
+    { to: '/owner/profile', icon: Building, label: 'Perfil' },
+];
 
 const OwnerBottomNav: React.FC = () => {
-    const { ownedPlaceIds, getPlaceById } = useAppContext();
     const activeLinkClass = 'text-primary';
     const inactiveLinkClass = 'text-text-secondary hover:text-text-primary';
-
-    const firstPlace = ownedPlaceIds.length > 0 ? getPlaceById(ownedPlaceIds[0]) : null;
-    const isNightlife = firstPlace?.category === 'Boate' || firstPlace?.category === 'Casa de Shows' || firstPlace?.category === 'Espaço Musical';
-    const labelAmbiente = isNightlife ? 'Comandas' : 'Mesas';
-
-    const navItems = [
-        { to: '/dashboard', icon: LayoutDashboard, label: 'Painel' },
-        { to: '/owner/tables', icon: LayoutGrid, label: labelAmbiente },
-        { to: '/owner/menu', icon: Utensils, label: 'Cardápio' },
-        { to: '/owner/promotions', icon: Ticket, label: 'Promos' },
-        { to: '/owner/profile', icon: Building, label: 'Perfil' },
-    ];
 
     return (
         <nav className="flex-shrink-0 w-full h-16 bg-surface border-t border-gray-700 flex justify-around items-center">
@@ -32,7 +26,7 @@ const OwnerBottomNav: React.FC = () => {
                     }
                 >
                     <Icon size={24} />
-                    <span className="text-[10px] mt-1">{label}</span>
+                    <span className="text-xs mt-1">{label}</span>
                 </NavLink>
             ))}
         </nav>

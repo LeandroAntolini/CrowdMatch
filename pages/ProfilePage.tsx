@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { User, GENDERS, SEXUAL_ORIENTATIONS, MatchPreferences } from '../types';
-import { Plus, X, Loader2, Camera, MapPin, LogOut, ChevronRight, Heart } from 'lucide-react';
+import { Plus, X, Loader2 } from 'lucide-react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { brazilianStates, citiesByState } from '../data/locations';
 import { supabase } from '@/integrations/supabase/client';
 import DeleteAccountModal from '../components/DeleteAccountModal';
 
 const ProfilePage: React.FC = () => {
-    const { currentUser, updateUserProfile, logout } = useAppContext();
+    const { currentUser, updateUserProfile, logout, updateCurrentUserState } = useAppContext();
     const [user, setUser] = useState<User | null>(null);
     const [availableCities, setAvailableCities] = useState<string[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isTogglingAvailability, setIsTogglingAvailability] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -29,7 +30,9 @@ const ProfilePage: React.FC = () => {
         }
     }, [currentUser]);
 
-    if (!user) return <LoadingSpinner message="Carregando perfil..." />;
+    if (!user) {
+        return <LoadingSpinner message="Carregando perfil..." />;
+    }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -43,6 +46,30 @@ const ProfilePage: React.FC = () => {
         setUser(prev => prev ? { ...prev, state: newState, city: newCities[0] || '' } : null);
     };
 
+    const handlePreferenceChange = (category: keyof MatchPreferences, value: string) => {
+        setUser(prevUser => {
+            if (!prevUser) return null;
+            const currentPrefs = prevUser.matchPreferences[category];
+            const newPrefs = currentPrefs.includes(value) ? currentPrefs.filter(item => item !== value) : [...currentPrefs, value];
+            return { ...prevUser, matchPreferences: { ...prevUser.matchPreferences, [category]: newPrefs } };
+        });
+    };
+    
+    const handleToggleAvailability = async () => {
+        if (!user) return;
+        setIsTogglingAvailability(true);
+        const newAvailability = !user.isAvailableForMatch;
+
+        try {
+            await updateUserProfile({ isAvailableForMatch: newAvailability });
+            setUser(prevUser => prevUser ? { ...prevUser, isAvailableForMatch: newAvailability } : null);
+        } catch (error: any) {
+            alert(`Falha ao atualizar a disponibilidade: ${error.message}`);
+        } finally {
+            setIsTogglingAvailability(false);
+        }
+    };
+
     const handleSave = async () => {
         if (user) {
             setIsSaving(true);
@@ -50,156 +77,248 @@ const ProfilePage: React.FC = () => {
                 await updateUserProfile(user);
                 alert("Perfil salvo com sucesso!");
             } catch (error: any) {
-                alert(error.message || "Erro ao salvar.");
+                alert(error.message || "Ocorreu um erro ao salvar o perfil.");
             } finally {
                 setIsSaving(false);
             }
         }
     };
 
-    return (
-        <div className="min-h-full bg-white pb-20">
-            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" />
+    const handleSetMainPhoto = async (indexToMakeMain: number) => {
+        if (!user || indexToMakeMain < 0 || indexToMakeMain >= user.photos.length) return;
+
+        const newPhotos = [...user.photos];
+        const [selectedPhoto] = newPhotos.splice(indexToMakeMain, 1);
+        newPhotos.unshift(selectedPhoto);
+        
+        const updatedUser = { ...user, photos: newPhotos };
+        
+        setUser(updatedUser);
+        await updateUserProfile(updatedUser);
+    };
+
+    const handleDeletePhoto = async (indexToDelete: number) => {
+        if (!user) return;
+
+        if (user.photos.length <= 1) {
+            alert("Você precisa ter pelo menos uma foto.");
+            return;
+        }
+
+        const photoUrlToDelete = user.photos[indexToDelete];
+        const newPhotos = user.photos.filter((_, i) => i !== indexToDelete);
+
+        const originalUser = { ...user };
+        const updatedUser = { ...user, photos: newPhotos };
+        
+        setUser(updatedUser);
+
+        try {
+            const url = new URL(photoUrlToDelete);
+            const pathParts = url.pathname.split('/storage/v1/object/public/profile-photos/');
+            const filePath = pathParts.length > 1 ? pathParts[1] : null;
             
-            {/* Header / Top Info */}
-            <div className="p-6 flex items-center space-x-6">
-                <div className="relative group">
-                    <img 
-                        src={user.photos[0] || 'https://i.pravatar.cc/150'} 
-                        className="w-24 h-24 rounded-full object-cover border border-border-subtle ring-4 ring-secondary" 
-                        alt="Avatar"
-                    />
-                    <button className="absolute bottom-0 right-0 bg-primary text-white p-1.5 rounded-full border-2 border-white">
-                        <Camera size={14} />
-                    </button>
-                </div>
-                <div className="flex-grow">
-                    <h1 className="text-2xl font-black text-text-primary tracking-tighter">{user.name}, {user.age}</h1>
-                    <p className="text-text-secondary text-sm font-medium flex items-center">
-                        <MapPin size={12} className="mr-1" /> {user.city}, {user.state}
-                    </p>
-                    <div className="mt-2 flex space-x-4">
-                        <div className="text-center">
-                            <p className="text-sm font-black">12</p>
-                            <p className="text-[10px] text-text-secondary uppercase font-bold tracking-widest">Matches</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-sm font-black">28</p>
-                            <p className="text-[10px] text-text-secondary uppercase font-bold tracking-widest">Check-ins</p>
-                        </div>
+            if (filePath) {
+                const { error: removeError } = await supabase.storage
+                    .from('profile-photos')
+                    .remove([filePath]);
+
+                if (removeError) {
+                    throw new Error(removeError.message);
+                }
+            }
+
+            await updateUserProfile({ photos: newPhotos });
+
+        } catch (error: any) {
+            console.error("Error deleting photo:", error);
+            alert(`Não foi possível excluir a foto: ${error.message}`);
+            setUser(originalUser);
+        }
+    };
+
+    const handleAddPhotoClick = () => {
+        if (user && user.photos.length >= 5) {
+            alert("Você pode enviar no máximo 5 fotos.");
+            return;
+        }
+        fileInputRef.current?.click();
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0 || !currentUser || !user) return;
+
+        const file = e.target.files[0];
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione um arquivo de imagem.');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            alert('O arquivo é muito grande. O limite é de 5MB.');
+            return;
+        }
+
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${currentUser.id}/${Date.now()}.${fileExt}`;
+
+        setIsUploading(true);
+
+        const { error: uploadError } = await supabase.storage
+            .from('profile-photos')
+            .upload(filePath, file);
+
+        if (uploadError) {
+            console.error('Error uploading file:', uploadError);
+            alert(`Erro ao enviar a foto: ${uploadError.message}.`);
+            setIsUploading(false);
+            return;
+        }
+
+        const { data } = supabase.storage.from('profile-photos').getPublicUrl(filePath);
+        setIsUploading(false);
+
+        if (data?.publicUrl) {
+            const newPhotos = [...user.photos, data.publicUrl];
+            const updatedUser = { ...user, photos: newPhotos };
+            setUser(updatedUser);
+            
+            await updateUserProfile(updatedUser);
+            alert("Foto enviada e perfil atualizado com sucesso!");
+        } else {
+             alert("Erro ao obter o URL público da foto.");
+        }
+        if (e.target) e.target.value = '';
+    };
+
+    return (
+        <div className="p-4 space-y-6">
+            <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="image/png, image/jpeg" disabled={isUploading} />
+            <div className="space-y-3">
+                 <div className="relative w-full aspect-[4/5] bg-surface rounded-xl overflow-hidden shadow-lg">
+                    <img src={user.photos[0]} alt="Foto principal do perfil" className="w-full h-full object-cover" />
+                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4 text-white">
+                        <h1 className="text-3xl font-bold">{user.name}, {user.age}</h1>
+                        <p className="text-sm opacity-90">{user.email}</p>
                     </div>
                 </div>
-            </div>
-
-            {/* Photos Grid */}
-            <div className="px-4 mb-8">
-                <h3 className="text-[10px] font-black uppercase text-text-secondary mb-3 tracking-[0.2em]">Minhas Fotos</h3>
-                <div className="grid grid-cols-3 gap-1">
-                    {user.photos.map((photo, idx) => (
-                        <div key={idx} className="relative aspect-square bg-secondary rounded-sm overflow-hidden">
-                            <img src={photo} className="w-full h-full object-cover" alt={`Photo ${idx}`} />
+                <div className="grid grid-cols-5 gap-2">
+                     {user.photos.map((photo, index) => (
+                        <div key={photo + index} className="relative aspect-square group">
+                            <img src={photo} alt={`Miniatura ${index + 1}`} onClick={() => handleSetMainPhoto(index)} className={`w-full h-full object-cover rounded-lg cursor-pointer transition-all duration-200 ${index === 0 ? 'ring-2 ring-accent ring-offset-2 ring-offset-background' : 'opacity-75 hover:opacity-100'}`} />
+                            {user.photos.length > 1 && (
+                                <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(index); }} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100" aria-label={`Excluir foto ${index + 1}`}><X size={12} /></button>
+                            )}
                         </div>
                     ))}
                     {user.photos.length < 5 && (
-                        <button className="aspect-square bg-secondary rounded-sm flex items-center justify-center text-text-secondary border border-dashed border-border-subtle hover:bg-border-subtle transition-colors">
-                            <Plus size={24} />
+                        <button onClick={handleAddPhotoClick} disabled={isUploading} className="aspect-square bg-surface rounded-lg flex items-center justify-center text-text-secondary disabled:opacity-50" aria-label="Adicionar nova foto">
+                            {isUploading ? <Loader2 size={24} className="animate-spin" /> : <Plus size={24} />}
                         </button>
                     )}
                 </div>
             </div>
-
-            {/* Form Sections */}
-            <div className="px-4 space-y-8">
-                <section>
-                    <h3 className="text-[10px] font-black uppercase text-text-secondary mb-4 tracking-[0.2em]">Bio & Vibe</h3>
-                    <textarea 
-                        name="bio"
-                        value={user.bio}
-                        onChange={handleInputChange}
-                        placeholder="Escreva algo sobre você..."
-                        className="w-full bg-secondary p-4 rounded-2xl text-sm text-text-primary focus:ring-1 focus:ring-primary outline-none border border-transparent"
-                        rows={3}
-                    />
-                </section>
-
-                <section className="space-y-4">
-                    <h3 className="text-[10px] font-black uppercase text-text-secondary mb-4 tracking-[0.2em]">Informações Pessoais</h3>
-                    
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-text-secondary uppercase ml-2">Nome Completo</label>
-                        <input 
-                            name="name"
-                            value={user.name}
-                            onChange={handleInputChange}
-                            className="w-full bg-secondary px-4 py-3 rounded-xl text-sm font-bold border border-transparent"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-text-secondary uppercase ml-2">Idade</label>
-                            <input 
-                                type="number"
-                                name="age"
-                                value={user.age}
-                                onChange={handleInputChange}
-                                className="w-full bg-secondary px-4 py-3 rounded-xl text-sm font-bold"
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-text-secondary uppercase ml-2">Gênero</label>
-                            <select 
-                                name="gender"
-                                value={user.gender}
-                                onChange={handleInputChange}
-                                className="w-full bg-secondary px-4 py-3 rounded-xl text-sm font-bold appearance-none"
-                            >
-                                {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Match Toggle */}
-                <div className="p-4 bg-primary/5 border border-primary/10 rounded-2xl flex items-center justify-between">
-                    <div className="flex items-center">
-                        <Heart size={20} className="text-primary mr-3 fill-primary" />
-                        <div>
-                            <p className="text-sm font-black text-text-primary uppercase tracking-tighter">Match Mode</p>
-                            <p className="text-[10px] text-text-secondary font-bold">Ficar visível nos locais para outras pessoas</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => updateUserProfile({ isAvailableForMatch: !user.isAvailableForMatch })}
-                        className={`w-12 h-6 rounded-full relative transition-colors ${user.isAvailableForMatch ? 'bg-primary' : 'bg-border-subtle'}`}
-                    >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${user.isAvailableForMatch ? 'right-1' : 'left-1'}`} />
-                    </button>
+            
+            <div className="space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-text-secondary">Nome</label>
+                    <input type="text" name="name" value={user.name} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
                 </div>
-
-                <div className="pt-6 space-y-3">
-                    <button 
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="w-full bg-text-primary text-white font-black py-4 rounded-2xl flex items-center justify-center shadow-xl active:scale-95 transition-all"
-                    >
-                        {isSaving ? <Loader2 size={20} className="animate-spin" /> : 'SALVAR ALTERAÇÕES'}
-                    </button>
-
-                    <button 
-                        onClick={logout}
-                        className="w-full bg-white border border-border-subtle text-text-primary font-black py-4 rounded-2xl flex items-center justify-center active:scale-95 transition-all"
-                    >
-                        <LogOut size={18} className="mr-2" /> SAIR DA CONTA
-                    </button>
-
-                    <button onClick={() => setIsDeleteModalOpen(true)} className="w-full py-4 text-red-500 font-black text-[10px] tracking-[0.2em] uppercase">
-                        Excluir Minha Conta
-                    </button>
+                <div className="flex gap-4">
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Idade</label>
+                        <input type="number" name="age" value={user.age} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                    </div>
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Gênero</label>
+                        <select name="gender" value={user.gender} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                            {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-text-secondary">Bio</label>
+                    <textarea name="bio" value={user.bio} onChange={handleInputChange} rows={3} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
+                </div>
+                <div className="flex gap-4">
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Estado</label>
+                        <select name="state" value={user.state || ''} onChange={handleStateChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                            <option value="">Selecione...</option>
+                            {brazilianStates.map(s => <option key={s.abbr} value={s.abbr}>{s.name}</option>)}
+                        </select>
+                    </div>
+                    <div className="w-1/2">
+                        <label className="block text-sm font-medium text-text-secondary">Cidade</label>
+                        <select name="city" value={user.city || ''} onChange={handleInputChange} disabled={!user.state} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent disabled:bg-gray-800">
+                            <option value="">Selecione...</option>
+                            {availableCities.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-text-secondary">Orientação Sexual</label>
+                    <select name="sexualOrientation" value={user.sexualOrientation} onChange={handleInputChange} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                        {SEXUAL_ORIENTATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                </div>
+                 <div>
+                    <label className="block text-sm font-medium text-text-secondary">Interesses (separados por vírgula)</label>
+                    <input type="text" value={user.interests.join(', ')} onChange={(e) => setUser(prev => prev ? { ...prev, interests: e.target.value.split(',').map(s => s.trim()) } : null)} className="mt-1 w-full px-3 py-2 text-text-primary bg-surface border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent" />
                 </div>
             </div>
 
-            <DeleteAccountModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} />
+            <div className="flex items-center justify-between bg-surface p-3 rounded-lg">
+                <span id="availability-label" className="font-medium">Disponível para Match</span>
+                <button onClick={handleToggleAvailability} disabled={isTogglingAvailability} role="switch" aria-checked={user.isAvailableForMatch} aria-labelledby="availability-label" className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors disabled:opacity-50 ${user.isAvailableForMatch ? 'bg-accent' : 'bg-gray-600'}`}>
+                    {isTogglingAvailability ? (
+                        <Loader2 size={16} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 animate-spin text-white" />
+                    ) : (
+                        <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${user.isAvailableForMatch ? 'translate-x-6' : 'translate-x-1'}`} />
+                    )}
+                </button>
+            </div>
+
+            {user.isAvailableForMatch && (
+                <div className="space-y-4 p-4 bg-surface rounded-lg transition-all duration-500">
+                    <h2 className="font-semibold text-text-primary">Quem você quer encontrar?</h2>
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-2">Gênero</label>
+                        <div className="flex flex-wrap gap-2">
+                            {GENDERS.map(gender => (
+                                <label key={gender} className="flex items-center space-x-2">
+                                    <input type="checkbox" checked={user.matchPreferences.genders.includes(gender)} onChange={() => handlePreferenceChange('genders', gender)} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-accent focus:ring-accent" />
+                                    <span>{gender}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-2">Orientação Sexual</label>
+                        <div className="flex flex-wrap gap-2">
+                            {SEXUAL_ORIENTATIONS.map(orientation => (
+                                <label key={orientation} className="flex items-center space-x-2">
+                                    <input type="checkbox" checked={user.matchPreferences.sexualOrientations.includes(orientation)} onChange={() => handlePreferenceChange('sexualOrientations', orientation)} className="h-4 w-4 rounded bg-gray-700 border-gray-600 text-accent focus:ring-accent" />
+                                    <span>{orientation}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            <div className="space-y-2">
+                <button onClick={handleSave} disabled={isSaving} className="w-full bg-accent text-white font-bold py-3 px-4 rounded-lg hover:bg-pink-600 flex items-center justify-center disabled:bg-gray-600">
+                    {isSaving ? <Loader2 size={20} className="animate-spin mr-2" /> : null}
+                    {isSaving ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+                <button onClick={logout} className="w-full bg-surface text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-700">Sair</button>
+                <button onClick={() => setIsDeleteModalOpen(true)} className="w-full text-red-500 text-sm mt-2">Excluir Conta</button>
+            </div>
+            
+            <DeleteAccountModal 
+                isOpen={isDeleteModalOpen} 
+                onClose={() => setIsDeleteModalOpen(false)} 
+            />
         </div>
     );
 };

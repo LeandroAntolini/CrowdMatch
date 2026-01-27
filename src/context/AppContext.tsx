@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from 'react';
-import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment, Order } from '../types';
+import { User, Place, CheckIn, Match, Message, GoingIntention, Promotion, PromotionClaim, PromotionType, FeedPost, PostComment } from '../types';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { toast } from 'react-hot-toast';
@@ -171,12 +171,6 @@ interface AppContextType {
     potentialMatches: User[];
     fetchPotentialMatches: (placeId: string) => Promise<void>;
     getActiveTableForUser: (placeId: string) => Promise<number | null>;
-    
-    hasActiveOrders: boolean;
-    fetchActiveOrdersStatus: () => Promise<void>;
-    activeOrderPlaceId: string | null;
-    activeTableNumber: number | null;
-
     reportVibe: (placeId: string, vibeType: string) => Promise<void>;
     getVibesForPlace: (placeId: string) => Promise<{ [key: string]: number }>;
     placesVibes: { [placeId: string]: { [vibe: string]: number } };
@@ -213,10 +207,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [hasNewNotification, setHasNewNotification] = useState<boolean>(false);
     const [potentialMatches, setPotentialMatches] = useState<User[]>([]);
     const [placesVibes, setPlacesVibes] = useState<{ [placeId: string]: { [vibe: string]: number } }>({});
-    
-    const [hasActiveOrders, setHasActiveOrders] = useState(false);
-    const [activeOrderPlaceId, setActiveOrderPlaceId] = useState<string | null>(null);
-    const [activeTableNumber, setActiveTableNumber] = useState<number | null>(null);
 
     const isAuthenticated = !!session?.user;
 
@@ -400,59 +390,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return data.table_number;
     }, [currentUser]);
 
-    const fetchActiveOrdersStatus = useCallback(async () => {
-        if (!currentUser?.id) {
-            setHasActiveOrders(false);
-            setActiveOrderPlaceId(null);
-            setActiveTableNumber(null);
-            return;
-        }
-
-        const { data: tableData, error: tableError } = await supabase
-            .from('tables')
-            .select('place_id, table_number')
-            .eq('current_user_id', currentUser.id)
-            .limit(1);
-            
-        if (tableError) {
-            console.error("Error fetching active table status:", tableError);
-        }
-
-        if (tableData && tableData.length > 0) {
-            setHasActiveOrders(true);
-            setActiveOrderPlaceId(tableData[0].place_id);
-            setActiveTableNumber(tableData[0].table_number);
-            return;
-        }
-
-        const { data: ordersData, error: ordersError } = await supabase
-            .from('orders')
-            .select('place_id, table_number')
-            .eq('user_id', currentUser.id)
-            .not('status', 'in', '("paid", "cancelled")')
-            .limit(1);
-
-        if (ordersError) {
-            console.error("Error fetching active orders status:", ordersError);
-            setHasActiveOrders(false);
-            setActiveOrderPlaceId(null);
-            setActiveTableNumber(null);
-            return;
-        }
-
-        if (ordersData && ordersData.length > 0) {
-            setHasActiveOrders(true);
-            setActiveOrderPlaceId(ordersData[0].place_id);
-            setActiveTableNumber(ordersData[0].table_number);
-            return;
-        }
-        
-        setHasActiveOrders(false);
-        setActiveOrderPlaceId(null);
-        setActiveTableNumber(null);
-
-    }, [currentUser]);
-
     const reportVibe = async (placeId: string, vibeType: string) => {
         if (!currentUser) return;
         const { error } = await supabase.from('vibe_reports').insert({
@@ -572,7 +509,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const ownerIds = ownedPlacesRes.data?.map(p => p.place_id) || [];
                 setOwnedPlaceIds(ownerIds);
                 
-                // Define o local ativo inicial se for lojista
                 if (ownerIds.length > 0) {
                     setActiveOwnedPlaceId(ownerIds[0]);
                 }
@@ -638,7 +574,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     await refreshOwnerPromotions(session.user.id);
                 }
                 
-                await fetchActiveOrdersStatus();
                 await refreshActiveLivePosts();
 
             } catch (e: any) {
@@ -656,36 +591,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!isAuthenticated || !currentUser?.id) return;
         
         const intervalId = setInterval(refreshActiveLivePosts, 60000);
-        const orderStatusIntervalId = setInterval(fetchActiveOrdersStatus, 10000);
         const vibeIntervalId = setInterval(() => fetchAllVibes(places.map(p => p.id)), 30000);
         
-        // Listener de pedidos do usuário (Notificações de Status)
-        const ordersChannel = supabase.channel(`user-orders-${currentUser.id}`)
-            .on('postgres_changes', { 
-                event: 'UPDATE', 
-                schema: 'public', 
-                table: 'orders', 
-                filter: `user_id=eq.${currentUser.id}` 
-            }, (payload) => {
-                const updatedOrder = payload.new as any;
-                const oldOrder = payload.old as any;
-                
-                if (updatedOrder.status !== oldOrder.status) {
-                    fetchActiveOrdersStatus();
-                    
-                    const statusMessages: { [key: string]: string } = {
-                        'preparing': '🍔 Seu pedido começou a ser preparado!',
-                        'delivering': '🚀 Seu pedido está a caminho da mesa!',
-                        'delivered': '✅ Seu pedido foi entregue. Bom apetite!',
-                        'paid': '💳 Conta finalizada com sucesso. Obrigado!',
-                    };
-                    
-                    if (statusMessages[updatedOrder.status]) {
-                        toast.success(statusMessages[updatedOrder.status], { duration: 5000, icon: '🍽️' });
-                    }
-                }
-            }).subscribe();
-
         const messagesChannel = supabase.channel(`user-messages-${currentUser.id}`)
             .on('postgres_changes', { 
                 event: 'INSERT', 
@@ -766,15 +673,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         return () => {
             clearInterval(intervalId);
-            clearInterval(orderStatusIntervalId);
             clearInterval(vibeIntervalId);
-            supabase.removeChannel(ordersChannel);
             supabase.removeChannel(messagesChannel);
             supabase.removeChannel(livePostsChannel);
             supabase.removeChannel(claimsChannel);
             supabase.removeChannel(matchesChannel);
         };
-    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds, fetchActiveOrdersStatus, places, fetchAllVibes]);
+    }, [isAuthenticated, currentUser?.id, currentUser?.role, refreshActiveLivePosts, refreshOwnerPromotions, fetchProfilesByIds, places, fetchAllVibes]);
 
     const completeOnboarding = () => {
         localStorage.setItem('onboarded', 'true');
@@ -917,11 +822,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const checkInUser = async (placeId: string) => {
         if (!currentUser) return;
         
-        // 1. Remove check-in e intenções existentes
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
         await supabase.from('going_intentions').delete().eq('user_id', currentUser.id);
         
-        // 2. Insere novo check-in
         const { data, error } = await supabase.from('check_ins').insert({ user_id: currentUser.id, place_id: placeId }).select().single();
         
         if (error) {
@@ -930,7 +833,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             throw error;
         }
         
-        // 3. Atualiza estado local
         if (data) {
             setCheckIns(prev => [...prev.filter(ci => ci.userId !== currentUser.id), { userId: data.user_id, placeId: data.place_id, timestamp: Date.now(), createdAt: data.created_at }]);
             setGoingIntentions(prev => prev.filter(gi => gi.userId !== currentUser.id));
@@ -951,8 +853,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         setCheckIns(prev => prev.filter(ci => ci.userId !== currentUser.id));
         await supabase.from('check_ins').delete().eq('user_id', currentUser.id);
-        
-        fetchActiveOrdersStatus();
     };
 
     const addGoingIntention = async (placeId: string) => {
@@ -1039,7 +939,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (error) throw error;
         setOwnedPlaceIds(prev => [...prev, place.id]);
         
-        // Se for o primeiro local, define como ativo
         if (ownedPlaceIds.length === 0) {
             setActiveOwnedPlaceId(place.id);
         }
@@ -1161,7 +1060,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         verifyQrCode, createPromotion, updatePromotion, deletePromotion, deleteAllLivePosts, deleteAllOwnerFeedPosts,
         likePost, unlikePost, addCommentToPost, getUserOrderForPlace, fetchUsersForPlace,
         potentialMatches, fetchPotentialMatches, getActiveTableForUser,
-        hasActiveOrders, fetchActiveOrdersStatus, activeOrderPlaceId, activeTableNumber,
         reportVibe, getVibesForPlace, placesVibes
     };
 

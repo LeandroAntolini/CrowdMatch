@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Ticket, Building, Utensils, LayoutGrid, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Ticket, Building, Utensils, LayoutGrid } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 
 const OwnerBottomNav: React.FC = () => {
@@ -15,8 +15,8 @@ const OwnerBottomNav: React.FC = () => {
     const navItems = [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Painel' },
         { to: '/owner/tables', icon: LayoutGrid, label: labelAmbiente },
-        { to: '/owner/orders', icon: ClipboardList, label: 'Pedidos' },
         { to: '/owner/menu', icon: Utensils, label: 'Cardápio' },
+        { to: '/owner/promotions', icon: Ticket, label: 'Promos' },
         { to: '/owner/profile', icon: Building, label: 'Perfil' },
     ];
 

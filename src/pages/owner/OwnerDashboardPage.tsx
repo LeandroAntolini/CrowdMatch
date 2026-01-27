@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { 
-    Ticket, Trash2, Loader2, Utensils, QrCode, TrendingUp, CheckCircle, Radio, LayoutGrid, Zap, ClipboardList, Settings
+    Ticket, Utensils, QrCode, CheckCircle, Radio, LayoutGrid, Zap, Settings
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ const VIBE_INFO: { [key: string]: { label: string, icon: string } } = {
 
 const OwnerDashboardPage: React.FC = () => {
     const { 
-        currentUser, ownerPromotions, deleteAllLivePosts, activeOwnedPlaceId, getPlaceById, getVibesForPlace 
+        currentUser, deleteAllLivePosts, activeOwnedPlaceId, getPlaceById, getVibesForPlace 
     } = useAppContext();
     
     const navigate = useNavigate();
@@ -55,7 +55,6 @@ const OwnerDashboardPage: React.FC = () => {
                     {loadingVibes ? (
                         <div className="flex space-x-2 animate-pulse">
                             <div className="h-10 w-24 bg-white rounded-xl"></div>
-                            <div className="h-10 w-24 bg-white rounded-xl"></div>
                         </div>
                     ) : Object.keys(vibes).length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -80,12 +79,6 @@ const OwnerDashboardPage: React.FC = () => {
                     </div>
                     <span className="text-xs font-black text-text-primary uppercase tracking-widest">{labelAmbiente}</span>
                 </button>
-                <button onClick={() => navigate('/owner/orders')} className="bg-white p-6 rounded-3xl border border-border-subtle flex flex-col items-center text-center hover:bg-secondary transition-colors group">
-                    <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-3 group-hover:scale-110 transition-transform">
-                        <ClipboardList size={24} />
-                    </div>
-                    <span className="text-xs font-black text-text-primary uppercase tracking-widest">Pedidos</span>
-                </button>
                 <button onClick={() => navigate('/owner/menu')} className="bg-white p-6 rounded-3xl border border-border-subtle flex flex-col items-center text-center hover:bg-secondary transition-colors group">
                     <div className="w-12 h-12 rounded-2xl bg-text-primary/5 flex items-center justify-center text-text-primary mb-3 group-hover:scale-110 transition-transform">
                         <Utensils size={24} />
@@ -97,6 +90,12 @@ const OwnerDashboardPage: React.FC = () => {
                         <Ticket size={24} />
                     </div>
                     <span className="text-xs font-black text-text-primary uppercase tracking-widest">Promos</span>
+                </button>
+                <button onClick={() => navigate('/owner/feeds')} className="bg-white p-6 rounded-3xl border border-border-subtle flex flex-col items-center text-center hover:bg-secondary transition-colors group">
+                    <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mb-3 group-hover:scale-110 transition-transform">
+                        <Radio size={24} />
+                    </div>
+                    <span className="text-xs font-black text-text-primary uppercase tracking-widest">Feed</span>
                 </button>
             </div>
 
